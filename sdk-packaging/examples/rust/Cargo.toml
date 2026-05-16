@@ -1,0 +1,15 @@
+[package]
+name = "nxuskit-rust-example"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "basic_chat"
+path = "basic_chat.rs"
+
+[[bin]]
+name = "logprobs"
+path = "logprobs.rs"
+
+[dependencies]
+nxuskit = { path = "../../rust" }

@@ -1,0 +1,19 @@
+{
+  "name": "@nxuskit/gateway",
+  "version": "0.0.1",
+  "private": true,
+  "description": "nxusKit Gateway placeholder (deferred)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nxus-SYSTEMS/nxusKit.git",
+    "directory": "packages/gateway"
+  },
+  "license": "MIT",
+  "keywords": [
+    "llm",
+    "gateway",
+    "api",
+    "streaming",
+    "placeholder"
+  ]
+}

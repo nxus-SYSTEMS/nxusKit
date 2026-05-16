@@ -1,0 +1,23 @@
+{
+  "prompt": "What is 2 + 2?",
+  "provider": "loopback",
+  "model": "echo",
+  "tool_definitions": [
+    {
+      "type": "function",
+      "function": {
+        "name": "calculator",
+        "description": "Perform arithmetic operations",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "operation": { "type": "string", "enum": ["add", "subtract", "multiply", "divide"] },
+            "a": { "type": "number" },
+            "b": { "type": "number" }
+          },
+          "required": ["operation", "a", "b"]
+        }
+      }
+    }
+  ]
+}

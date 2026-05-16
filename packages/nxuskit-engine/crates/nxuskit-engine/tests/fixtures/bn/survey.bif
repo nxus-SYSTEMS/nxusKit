@@ -1,0 +1,64 @@
+// Bayesian Network: Survey
+// 6 variables, 6 edges
+// Student survey example (Koller & Friedman)
+
+network unknown {
+}
+
+variable Age {
+  type discrete [ 3 ] { young, adult, old };
+}
+
+variable Sex {
+  type discrete [ 2 ] { male, female };
+}
+
+variable Education {
+  type discrete [ 2 ] { highschool, university };
+}
+
+variable Occupation {
+  type discrete [ 2 ] { employed, selfemployed };
+}
+
+variable Residence {
+  type discrete [ 2 ] { small, big };
+}
+
+variable Travel {
+  type discrete [ 3 ] { car, train, other };
+}
+
+probability ( Age ) {
+  table 0.30, 0.50, 0.20;
+}
+
+probability ( Sex ) {
+  table 0.49, 0.51;
+}
+
+probability ( Education | Age, Sex ) {
+  (young, male)   0.75, 0.25;
+  (young, female) 0.64, 0.36;
+  (adult, male)   0.72, 0.28;
+  (adult, female) 0.70, 0.30;
+  (old,   male)   0.88, 0.12;
+  (old,   female) 0.90, 0.10;
+}
+
+probability ( Occupation | Education ) {
+  (highschool) 0.96, 0.04;
+  (university) 0.92, 0.08;
+}
+
+probability ( Residence | Education ) {
+  (highschool) 0.25, 0.75;
+  (university) 0.20, 0.80;
+}
+
+probability ( Travel | Occupation, Residence ) {
+  (employed,     small) 0.48, 0.42, 0.10;
+  (employed,     big)   0.56, 0.36, 0.08;
+  (selfemployed, small) 0.58, 0.24, 0.18;
+  (selfemployed, big)   0.70, 0.21, 0.09;
+}

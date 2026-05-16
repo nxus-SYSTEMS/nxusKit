@@ -1,0 +1,130 @@
+[workspace]
+members = [
+    "crates/nxuskit-engine",
+    "crates/nxuskit-cli",
+    "crates/clips-sys",
+    "crates/nxuskit-core",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.9.4"
+edition = "2024"
+rust-version = "1.93"
+authors = ["nxusKit Contributors"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/nxus-SYSTEMS/nxusKit"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.49", features = ["full"] }
+
+# HTTP client (0.12+ required for read_timeout support)
+reqwest = { version = "0.13", features = ["json", "stream", "blocking"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Async utilities
+async-trait = "0.1"
+futures = "0.3"
+async-stream = "0.3"
+
+# Error handling
+thiserror = "2.0"
+
+# Image handling (for vision/multimodal support)
+base64 = "0.22"
+infer = "0.19"
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+clap_complete = "4.5"
+
+# Cryptography & hashing
+sha2 = "0.10"
+
+# Trace IDs (RFC 4122 v7, time-ordered)
+uuid = { version = "1", features = ["v4", "v7", "fast-rng", "serde"] }
+
+# Timestamps (RFC 3339 / ISO 8601)
+chrono = { version = "0.4", features = ["serde"] }
+
+# YAML I/O (maintained fork of serde_yaml)
+serde_yaml_ng = "0.10"
+
+# JSON Schema validation (Draft 2020-12, 2019-09, 7, 6, 4)
+jsonschema = "0.45"
+
+# JWT token validation (ES256 for license tokens, RS384 legacy support)
+jsonwebtoken = { version = "10", default-features = false, features = ["use_pem", "rsa", "rust_crypto", "p256"] }
+
+# EC P-256 key generation (dev-dependency: ES256 test fixture signing)
+p256 = { version = "0.13", features = ["pkcs8", "ecdsa"] }
+
+# Cross-platform machine fingerprinting (for license token binding)
+machine-uid = "0.5"
+
+# Browser launch (for OAuth callback flow)
+open = "5.3"
+
+# Logging
+log = "0.4"
+
+# Session handle registry (generational indices for use-after-free safety)
+slotmap = "1.0"
+
+# LRU cache (configurable capacity with O(1) operations)
+lru = "0.12"
+
+# Synchronization primitives (faster than std::sync, no poisoning)
+parking_lot = "0.12"
+
+# Dev dependencies
+tokio-test = "0.4"
+mockito = "1.7"
+wiremock = "0.6"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# Workspace-wide linting configuration
+[workspace.lints.rust]
+# CLIPS is always compiled (not behind a feature gate), but some test files
+# use `#[cfg(feature = "clips")]` for conditional compilation. Allow it.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("clips"))'] }
+
+# Deny common mistakes
+unused_must_use = "warn"
+unused_imports = "warn"
+unused_variables = "warn"
+dead_code = "warn"
+unreachable_code = "warn"
+unreachable_patterns = "warn"
+
+# Warn on potentially problematic patterns
+missing_docs = "allow"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+# Deny suspicious or error-prone code
+all = { level = "warn", priority = -1 }
+correctness = { level = "deny", priority = -1 }
+suspicious = { level = "deny", priority = -1 }
+complexity = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }
+style = { level = "warn", priority = -1 }
+
+# Specific clippy lints to enforce
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+unwrap_used = "allow"
+expect_used = "allow"
+panic = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+
+# Pedantic lints (selectively enable)
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"

@@ -1,0 +1,18 @@
+[workspace]
+
+[package]
+name = "limit-hitting-example"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "session_limit"
+path = "src/session_limit.rs"
+
+[[bin]]
+name = "rule_limit"
+path = "src/rule_limit.rs"
+
+[dependencies]
+nxuskit = { path = "../../../packages/nxuskit" }

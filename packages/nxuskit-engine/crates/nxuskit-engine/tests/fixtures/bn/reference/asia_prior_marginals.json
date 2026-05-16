@@ -1,0 +1,34 @@
+{
+  "Asia": {
+    "no": 0.99,
+    "yes": 0.01
+  },
+  "Bronchitis": {
+    "absent": 0.55,
+    "present": 0.44999999999999996
+  },
+  "Dyspnea": {
+    "absent": 0.5640294,
+    "present": 0.43597060000000004
+  },
+  "LungCancer": {
+    "absent": 0.9450000000000001,
+    "present": 0.055
+  },
+  "Smoking": {
+    "no": 0.5,
+    "yes": 0.5
+  },
+  "TbOrCa": {
+    "false": 0.935172,
+    "true": 0.064828
+  },
+  "Tuberculosis": {
+    "absent": 0.9896,
+    "present": 0.010400000000000003
+  },
+  "Xray": {
+    "negative": 0.88970996,
+    "positive": 0.11029004000000002
+  }
+}

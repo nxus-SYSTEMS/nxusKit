@@ -1,0 +1,22 @@
+{
+  "Cancer": {
+    "false": 0.97293,
+    "true": 0.027070000000000004
+  },
+  "Dyspnea": {
+    "false": 0.6905255,
+    "true": 0.3094745
+  },
+  "Pollution": {
+    "high": 0.9,
+    "low": 0.1
+  },
+  "Smoker": {
+    "false": 0.7,
+    "true": 0.3
+  },
+  "Xray": {
+    "negative": 0.781051,
+    "positive": 0.218949
+  }
+}

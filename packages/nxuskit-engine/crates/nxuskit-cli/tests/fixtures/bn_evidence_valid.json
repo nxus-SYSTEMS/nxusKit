@@ -1,0 +1,18 @@
+{
+  "network": {
+    "nodes": [
+      { "name": "Rain", "states": ["yes", "no"] },
+      { "name": "WetGrass", "states": ["yes", "no"] }
+    ],
+    "edges": [
+      { "from": "Rain", "to": "WetGrass" }
+    ],
+    "cpds": {
+      "Rain": { "probabilities": [0.2, 0.8] },
+      "WetGrass": { "probabilities": [0.9, 0.1, 0.1, 0.9] }
+    }
+  },
+  "observations": {
+    "Rain": "yes"
+  }
+}

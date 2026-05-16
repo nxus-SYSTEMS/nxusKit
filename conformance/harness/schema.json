@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nxuskit.dev/schemas/examples-manifest.json",
+  "title": "nxusKit Examples Manifest",
+  "description": "Schema for cross-language example parity manifest (v3.0.0)",
+  "type": "object",
+  "required": ["version", "examples"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference"
+    },
+    "version": {
+      "type": "string",
+      "description": "Manifest schema version",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the manifest"
+    },
+    "examples": {
+      "type": "array",
+      "description": "List of examples that should exist in all implementations",
+      "items": {
+        "$ref": "#/$defs/example"
+      }
+    },
+    "categories": {
+      "type": "object",
+      "description": "Category definitions",
+      "additionalProperties": {
+        "$ref": "#/$defs/category"
+      }
+    }
+  },
+  "$defs": {
+    "example": {
+      "type": "object",
+      "required": ["name", "description", "category", "implementations", "scenario", "real_world_application", "tech_tags", "languages"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique identifier for the example (kebab-case)",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of what the example demonstrates"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category this example belongs to",
+          "enum": ["patterns", "integrations", "apps"]
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether this example must exist in all implementations",
+          "default": false
+        },
+        "scenario": {
+          "type": "string",
+          "description": "Short phrase describing the scenario demonstrated"
+        },
+        "real_world_application": {
+          "type": "string",
+          "description": "Short phrase describing the real-world use case"
+        },
+        "tech_tags": {
+          "type": "array",
+          "description": "Technology tags from the approved tag key",
+          "items": {
+            "type": "string",
+            "enum": ["LLM", "CLIPS", "Solver", "BN", "ZEN", "MCP", "Vision", "Streaming"]
+          },
+          "minItems": 1
+        },
+        "languages": {
+          "type": "array",
+          "description": "Array of implemented languages, must match implementations keys",
+          "items": {
+            "type": "string",
+            "enum": ["rust", "go", "python"]
+          },
+          "minItems": 1
+        },
+        "implementations": {
+          "type": "object",
+          "description": "Paths to implementations in each language",
+          "properties": {
+            "rust": {
+              "type": "string",
+              "description": "Path to Rust implementation"
+            },
+            "go": {
+              "type": "string",
+              "description": "Path to Go implementation"
+            },
+            "python": {
+              "type": "string",
+              "description": "Path to Python implementation"
+            }
+          },
+          "additionalProperties": false
+        },
+        "tags": {
+          "type": "array",
+          "description": "Tags for filtering and organization",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "description": "Other examples this one depends on",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional notes about the example"
+        }
+      }
+    },
+    "category": {
+      "type": "object",
+      "required": ["description"],
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the category"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether examples in this category are required",
+          "default": false
+        }
+      }
+    }
+  }
+}

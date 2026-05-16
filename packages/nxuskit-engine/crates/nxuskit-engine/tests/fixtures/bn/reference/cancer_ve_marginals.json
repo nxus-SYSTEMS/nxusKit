@@ -1,0 +1,232 @@
+[
+  {
+    "evidence": {
+      "Cancer": "true"
+    },
+    "posteriors": {
+      "Dyspnea": {
+        "false": 0.35,
+        "true": 0.65
+      },
+      "Pollution": {
+        "high": 0.9641669745105284,
+        "low": 0.035833025489471745
+      },
+      "Smoker": {
+        "false": 0.46804580716660504,
+        "true": 0.5319541928333948
+      },
+      "Xray": {
+        "negative": 0.1,
+        "positive": 0.9
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Cancer": "false"
+    },
+    "posteriors": {
+      "Dyspnea": {
+        "false": 0.7,
+        "true": 0.3
+      },
+      "Pollution": {
+        "high": 0.8982146711479757,
+        "low": 0.10178532885202432
+      },
+      "Smoker": {
+        "false": 0.7064537017051586,
+        "true": 0.29354629829484136
+      },
+      "Xray": {
+        "negative": 0.8,
+        "positive": 0.2
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Dyspnea": "true"
+    },
+    "posteriors": {
+      "Cancer": {
+        "false": 0.9431439423926689,
+        "true": 0.05685605760733115
+      },
+      "Pollution": {
+        "high": 0.9019644591072931,
+        "low": 0.09803554089270683
+      },
+      "Smoker": {
+        "false": 0.6928987687192322,
+        "true": 0.30710123128076783
+      },
+      "Xray": {
+        "negative": 0.7602007596748682,
+        "positive": 0.23979924032513178
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Dyspnea": "false"
+    },
+    "posteriors": {
+      "Cancer": {
+        "false": 0.986279290192759,
+        "true": 0.013720709807241008
+      },
+      "Pollution": {
+        "high": 0.8991195835635324,
+        "low": 0.1008804164364676
+      },
+      "Smoker": {
+        "false": 0.7031825761684398,
+        "true": 0.2968174238315602
+      },
+      "Xray": {
+        "negative": 0.7903955031349312,
+        "positive": 0.2096044968650687
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Pollution": "high"
+    },
+    "posteriors": {
+      "Cancer": {
+        "false": 0.971,
+        "true": 0.029
+      },
+      "Dyspnea": {
+        "false": 0.68985,
+        "true": 0.31015
+      },
+      "Smoker": {
+        "false": 0.7,
+        "true": 0.3
+      },
+      "Xray": {
+        "negative": 0.7797,
+        "positive": 0.2203
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Pollution": "low"
+    },
+    "posteriors": {
+      "Cancer": {
+        "false": 0.9903,
+        "true": 0.009699999999999999
+      },
+      "Dyspnea": {
+        "false": 0.696605,
+        "true": 0.303395
+      },
+      "Smoker": {
+        "false": 0.7,
+        "true": 0.3
+      },
+      "Xray": {
+        "negative": 0.7932100000000001,
+        "positive": 0.20679
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Smoker": "true"
+    },
+    "posteriors": {
+      "Cancer": {
+        "false": 0.952,
+        "true": 0.04800000000000001
+      },
+      "Dyspnea": {
+        "false": 0.6832,
+        "true": 0.3168
+      },
+      "Pollution": {
+        "high": 0.9,
+        "low": 0.1
+      },
+      "Xray": {
+        "negative": 0.7664000000000001,
+        "positive": 0.23360000000000003
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Smoker": "false"
+    },
+    "posteriors": {
+      "Cancer": {
+        "false": 0.9819,
+        "true": 0.0181
+      },
+      "Dyspnea": {
+        "false": 0.693665,
+        "true": 0.306335
+      },
+      "Pollution": {
+        "high": 0.9,
+        "low": 0.1
+      },
+      "Xray": {
+        "negative": 0.78733,
+        "positive": 0.21267
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Xray": "positive"
+    },
+    "posteriors": {
+      "Cancer": {
+        "false": 0.8887275118863297,
+        "true": 0.11127248811367031
+      },
+      "Dyspnea": {
+        "false": 0.6610546291602154,
+        "true": 0.33894537083978454
+      },
+      "Pollution": {
+        "high": 0.9055533480399545,
+        "low": 0.09444665196004551
+      },
+      "Smoker": {
+        "false": 0.6799254620939122,
+        "true": 0.32007453790608775
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Xray": "negative"
+    },
+    "posteriors": {
+      "Cancer": {
+        "false": 0.996534157180517,
+        "true": 0.003465842819482979
+      },
+      "Dyspnea": {
+        "false": 0.698786955013181,
+        "true": 0.30121304498681906
+      },
+      "Pollution": {
+        "high": 0.8984432514650131,
+        "low": 0.10155674853498686
+      },
+      "Smoker": {
+        "false": 0.7056274174157641,
+        "true": 0.2943725825842359
+      }
+    }
+  }
+]

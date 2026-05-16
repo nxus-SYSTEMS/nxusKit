@@ -1,0 +1,102 @@
+{
+  "cpts": {
+    "Cancer": {
+      "parent_states": [
+        [
+          "high",
+          "low"
+        ],
+        [
+          "false",
+          "true"
+        ]
+      ],
+      "parents": [
+        "Pollution",
+        "Smoker"
+      ],
+      "states": [
+        "false",
+        "true"
+      ],
+      "values": [
+        0.9815365357534033,
+        0.018463464246596777,
+        0.9516616314199395,
+        0.04833836858006042,
+        1.0,
+        0.0,
+        0.9649122807017544,
+        0.03508771929824561
+      ]
+    },
+    "Dyspnea": {
+      "parent_states": [
+        [
+          "false",
+          "true"
+        ]
+      ],
+      "parents": [
+        "Cancer"
+      ],
+      "states": [
+        "false",
+        "true"
+      ],
+      "values": [
+        0.6920155993431856,
+        0.3079844006568144,
+        0.31640625,
+        0.68359375
+      ]
+    },
+    "Pollution": {
+      "parents": [],
+      "states": [
+        "high",
+        "low"
+      ],
+      "values": [
+        0.9039,
+        0.0961
+      ]
+    },
+    "Smoker": {
+      "parents": [],
+      "states": [
+        "false",
+        "true"
+      ],
+      "values": [
+        0.7067,
+        0.2933
+      ]
+    },
+    "Xray": {
+      "parent_states": [
+        [
+          "false",
+          "true"
+        ]
+      ],
+      "parents": [
+        "Cancer"
+      ],
+      "states": [
+        "negative",
+        "positive"
+      ],
+      "values": [
+        0.7992610837438424,
+        0.20073891625615764,
+        0.0859375,
+        0.9140625
+      ]
+    }
+  },
+  "network": "cancer",
+  "num_samples": 10000,
+  "pseudocount": 0,
+  "seed": 42
+}

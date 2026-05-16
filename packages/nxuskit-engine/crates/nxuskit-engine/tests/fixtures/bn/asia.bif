@@ -1,0 +1,80 @@
+// Bayesian Network: Asia (Lauritzen & Spiegelhalter, 1988)
+// 8 variables, 8 edges
+// Classic medical diagnosis network
+
+network unknown {
+}
+
+variable Asia {
+  type discrete [ 2 ] { yes, no };
+}
+
+variable Smoking {
+  type discrete [ 2 ] { yes, no };
+}
+
+variable Tuberculosis {
+  type discrete [ 2 ] { present, absent };
+}
+
+variable LungCancer {
+  type discrete [ 2 ] { present, absent };
+}
+
+variable Bronchitis {
+  type discrete [ 2 ] { present, absent };
+}
+
+variable TbOrCa {
+  type discrete [ 2 ] { true, false };
+}
+
+variable Xray {
+  type discrete [ 2 ] { positive, negative };
+}
+
+variable Dyspnea {
+  type discrete [ 2 ] { present, absent };
+}
+
+probability ( Asia ) {
+  table 0.01, 0.99;
+}
+
+probability ( Smoking ) {
+  table 0.5, 0.5;
+}
+
+probability ( Tuberculosis | Asia ) {
+  (yes) 0.05, 0.95;
+  (no)  0.01, 0.99;
+}
+
+probability ( LungCancer | Smoking ) {
+  (yes) 0.10, 0.90;
+  (no)  0.01, 0.99;
+}
+
+probability ( Bronchitis | Smoking ) {
+  (yes) 0.60, 0.40;
+  (no)  0.30, 0.70;
+}
+
+probability ( TbOrCa | Tuberculosis, LungCancer ) {
+  (present, present) 1.0, 0.0;
+  (present, absent)  1.0, 0.0;
+  (absent,  present) 1.0, 0.0;
+  (absent,  absent)  0.0, 1.0;
+}
+
+probability ( Xray | TbOrCa ) {
+  (true)  0.98, 0.02;
+  (false) 0.05, 0.95;
+}
+
+probability ( Dyspnea | TbOrCa, Bronchitis ) {
+  (true,  present) 0.90, 0.10;
+  (true,  absent)  0.70, 0.30;
+  (false, present) 0.80, 0.20;
+  (false, absent)  0.10, 0.90;
+}

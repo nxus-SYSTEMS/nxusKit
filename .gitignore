@@ -1,0 +1,207 @@
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.wasm
+bin/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Code coverage profiles and other test artifacts
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+node_modules/
+test-results/
+debug-reports/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# env file
+.env
+
+# Editor/IDE
+# .idea/
+# .vscode/
+.DS_Store
+
+# Git commit message generation
+git-commit-message.txt
+
+# Claude Code - add these to prevent credential leakage
+.claude/.history
+.claude/session*
+.claude/state*
+.claude/cache/
+.claude/auth*
+.claude/**/credentials*
+.claude/**/*token*
+.claude/**/*secret*
+
+# Local settings (machine-specific, not shared)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# But keep command templates
+!.claude/commands/
+
+# Generated example outputs (can be regenerated with make run-both)
+examples/*.json
+!examples/examples-manifest.json
+
+# Go build artifacts
+*.a
+*.o
+
+# Environment variables and secrets
+.env*
+!.env.example
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+.idea/
+*.iml
+
+# OS files
+Thumbs.db
+
+# Rust-specific
+target/
+debug/
+release/
+*.rs.bk
+*.rlib
+*.prof*
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# CLIPS binary images (bsave output — architecture-specific, regenerable from .clp source)
+examples/**/*.bin
+internal/examples/**/*.bin
+
+# Z3 solver trace files (debug output from benchmarks/tests)
+.z3-trace
+
+# SDK build bundles (local builds)
+nxuskit-sdk-*/
+nxuskit-sdk-*.tar.gz
+nxuskit-sdk-*.tar.gz.sha256
+target/sdk-oss/
+target/sdk-pro/
+
+# Local release distribution (managed separately)
+rustyLLM-release/
+
+# Python-specific
+/packages/nxuskit-py/uv.lock
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.venv/
+venv/
+ENV/
+env/
+.venv*
+*.venv
+
+# Virtual environment directories
+.venv/
+venv/
+ENV/
+env/
+
+# PyCharm
+.idea/
+*.iml
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Ruff
+.ruff_cache/
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Black formatter
+.black/
+
+# Type checking
+.pytype/
+
+# IPython
+.ipython/
+
+# Test/development artifacts
+*.db
+*.sqlite
+.tox/
+.nox/
+release-binaries/
+
+# Internal directory - development only (not for public distribution)
+# Include CLIPS source but exclude build artifacts
+internal/**/*.o
+internal/**/*.a
+internal/**/*.so
+internal/**/*.dylib
+!internal/CLIPS/
+!internal/.gitkeep
+.keys/
+
+# CI-only: DevOps repo checkout for product catalog
+.devops-catalog/
+
+# Scratch / temp working directory
+tmp/
+
+# cargo-about template (build artifact)
+about.hbs
+
+# vexp daemon runtime data (index database, socket, PID, logs)
+.vexp/

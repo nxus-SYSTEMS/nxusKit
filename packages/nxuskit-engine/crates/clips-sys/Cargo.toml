@@ -1,0 +1,33 @@
+[package]
+name = "clips-sys"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+description = "Full FFI bindings to the CLIPS expert system shell"
+repository = "https://github.com/nxus-SYSTEMS/nxusKit"
+readme = "README.md"
+keywords = ["clips", "expert-system", "ffi", "inference", "rules"]
+categories = ["external-ffi-bindings", "science"]
+exclude = ["../../internal/"]
+
+[lib]
+name = "clips_sys"
+path = "src/lib.rs"
+
+[dependencies]
+thiserror = "2.0"
+parking_lot = "0.12"
+
+[build-dependencies]
+cc = "1.2"
+
+[features]
+default = []
+# Enable additional debugging support
+debug = []
+# Enable COOL (CLIPS Object-Oriented Language) support
+cool = []
+
+[package.metadata.docs.rs]
+all-features = true

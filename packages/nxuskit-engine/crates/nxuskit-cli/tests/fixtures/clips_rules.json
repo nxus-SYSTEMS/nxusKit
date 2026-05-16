@@ -1,0 +1,5 @@
+{
+  "rules": "(deftemplate temperature (slot value)) (deftemplate action (slot type)) (defrule hot (temperature (value ?t&:(> ?t 30))) => (assert (action (type \"cool\"))))",
+  "facts": ["(temperature (value 35))"],
+  "queries": []
+}

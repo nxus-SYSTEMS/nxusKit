@@ -1,0 +1,96 @@
+{
+  "discovered_bic_score": -21676.33267973526,
+  "discovered_edges": [
+    [
+      "Bronchitis",
+      "LungCancer"
+    ],
+    [
+      "Bronchitis",
+      "Smoking"
+    ],
+    [
+      "Dyspnea",
+      "Bronchitis"
+    ],
+    [
+      "Dyspnea",
+      "LungCancer"
+    ],
+    [
+      "Dyspnea",
+      "Tuberculosis"
+    ],
+    [
+      "LungCancer",
+      "Smoking"
+    ],
+    [
+      "LungCancer",
+      "TbOrCa"
+    ],
+    [
+      "TbOrCa",
+      "Xray"
+    ],
+    [
+      "Tuberculosis",
+      "Bronchitis"
+    ],
+    [
+      "Tuberculosis",
+      "TbOrCa"
+    ]
+  ],
+  "network": "asia",
+  "num_discovered_edges": 10,
+  "num_original_edges": 8,
+  "num_samples": 10000,
+  "original_bic_score": -22194.939768310316,
+  "original_edges": [
+    [
+      "Asia",
+      "Tuberculosis"
+    ],
+    [
+      "Bronchitis",
+      "Dyspnea"
+    ],
+    [
+      "LungCancer",
+      "TbOrCa"
+    ],
+    [
+      "Smoking",
+      "Bronchitis"
+    ],
+    [
+      "Smoking",
+      "LungCancer"
+    ],
+    [
+      "TbOrCa",
+      "Dyspnea"
+    ],
+    [
+      "TbOrCa",
+      "Xray"
+    ],
+    [
+      "Tuberculosis",
+      "TbOrCa"
+    ]
+  ],
+  "scoring": "bic",
+  "seed": 42,
+  "variables": [
+    "Asia",
+    "Bronchitis",
+    "Dyspnea",
+    "LungCancer",
+    "Smoking",
+    "TbOrCa",
+    "Tuberculosis",
+    "Xray"
+  ]
+}

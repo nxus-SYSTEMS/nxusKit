@@ -1,0 +1,137 @@
+[package]
+name = "nxuskit-engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Unified Rust interface for multiple LLM providers (Claude, OpenAI, Ollama)"
+keywords = ["llm", "ai", "claude", "openai", "ollama"]
+categories = ["api-bindings", "asynchronous"]
+exclude = ["../../internal/"]
+autoexamples = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+stream-token-estimation = ["tiktoken-rs"]
+# Synchronous/blocking API wrapper (requires tokio multi-thread runtime)
+blocking-api = []
+# In-process LLM inference backends (each independently selectable)
+provider-local-llama = ["dep:llama-cpp-2", "dep:encoding_rs"]
+provider-local-mistralrs = ["dep:mistralrs"]
+# CE compatibility switch only; implementation is not shipped in public CE.
+provider-z3 = []
+# CE compatibility switch only; implementation is not shipped in public CE.
+provider-zen = []
+# Convenience feature bundles
+full = ["blocking-api", "provider-local-llama", "provider-local-mistralrs"]
+
+[dependencies]
+tokio = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+async-stream = { workspace = true }
+thiserror = { workspace = true }
+base64 = { workspace = true }
+infer = { workspace = true }
+
+# MCP support
+rmcp = { version = "0.16" }
+
+# Token estimation (optional)
+tiktoken-rs = { version = "0.9.1", optional = true }
+
+# In-process LLM inference (optional, feature-gated)
+llama-cpp-2 = { version = "0.1.135", optional = true }
+encoding_rs = { version = "0.8", optional = true }
+mistralrs = { version = "0.7", optional = true }
+
+# Z3 context pool dispatch
+crossbeam-channel = "0.5"
+
+# CLIPS support
+clips-sys = { path = "../clips-sys" }
+slotmap = { workspace = true }
+parking_lot = { version = "0.12" }
+chrono = { version = "0.4", features = ["serde"] }
+regex = { version = "1.12" }
+uuid = { version = "1.21", features = ["v4", "serde"] }
+sha2 = { workspace = true }
+log = { workspace = true }
+
+# Pipeline infrastructure
+serde_yaml = { package = "serde_yaml_ng", version = "0.10" }
+petgraph = "0.8"
+strsim = "0.11"
+
+# OpenAPI parsing (for sweeper example)
+openapiv3 = "2.2"
+heck = "0.5"
+
+# MIDI/MusicXML parsing (for riffer example)
+midly = "0.5"
+quick-xml = { version = "0.39", features = ["serialize"] }
+clap = { version = "4.5", features = ["derive"] }
+rand = "0.10"
+
+# Bayesian Network inference (providers/bayesian/)
+nalgebra = "0.34"
+rand_chacha = "0.10"
+nom = "8.0"
+csv = "1.4"
+statrs = "0.18"
+rayon = "1.11"
+nuts-rs = "0.17"
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+mockito = { workspace = true }
+wiremock = { workspace = true }
+tempfile = "3.20"
+criterion = { version = "0.8", features = ["html_reports"] }
+
+[target.'cfg(not(target_os = "windows"))'.dev-dependencies]
+# pprof is Linux/macOS only — enable flamegraph profiling in benchmarks
+pprof = { version = "0.15", features = ["criterion", "flamegraph"] }
+
+[[bench]]
+name = "bn_bench"
+harness = false
+
+[[bench]]
+name = "clips_bench"
+harness = false
+
+[[bench]]
+name = "chat_bench"
+harness = false
+
+[[bench]]
+name = "ffi_overhead_bench"
+harness = false
+
+[[bench]]
+name = "clips_session_fbp"
+harness = false
+
+[[bench]]
+name = "clips_session_bulk"
+harness = false
+
+[[bench]]
+name = "clips_session_cache"
+harness = false
+
+[[bench]]
+name = "parse_logprob_delta"
+harness = false
+
+# Examples have been moved to standalone crates under examples/
+# See examples/README.md for the full list

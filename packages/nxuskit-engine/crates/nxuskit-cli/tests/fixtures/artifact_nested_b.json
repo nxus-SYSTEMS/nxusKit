@@ -1,0 +1,20 @@
+{
+  "name": "service-config",
+  "version": "2.0",
+  "config": {
+    "retry": {
+      "max_attempts": 5,
+      "backoff_ms": 200,
+      "jitter": true
+    },
+    "timeout_ms": 10000,
+    "logging": {
+      "level": "debug",
+      "output": "stderr"
+    }
+  },
+  "metadata": {
+    "author": "team-b",
+    "reviewed": true
+  }
+}

@@ -1,0 +1,78 @@
+# tools/justfile
+# Requires: just (https://github.com/casey/just)
+# Public task runner for nxusKit contributors. The root Makefile is the
+# canonical no-dependency entry point; these tasks delegate to the same CE-safe
+# build path where possible.
+
+set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+
+# Repo-relative paths
+ROOT := justfile_directory() + "/.."
+
+default:
+  @just --list
+
+# ---- Setup helpers ----
+
+setup:
+  @echo "Suggested installs:"
+  @echo "  - Rust: rustup + toolchain (1.75+)"
+  @echo "  - Go: go (1.22+)"
+  @echo "  - Tools: just, jq, golangci-lint"
+  @echo ""
+  @echo "This target does not install automatically to stay portable."
+
+# ---- Formatting ----
+
+fmt: fmt-rust fmt-go
+
+fmt-rust:
+  cd {{ROOT}}/packages/nxuskit-engine && cargo fmt --all
+
+fmt-go:
+  cd {{ROOT}}/packages/nxuskit-go && gofmt -w .
+
+# ---- Linting ----
+
+lint: lint-rust lint-go
+
+lint-rust:
+  cd {{ROOT}}/packages/nxuskit-engine && cargo clippy --all-targets --all-features -- -D warnings
+
+lint-go:
+  cd {{ROOT}}/packages/nxuskit-go && golangci-lint run ./...
+
+# ---- Tests ----
+
+test:
+  cd {{ROOT}} && make qa
+
+test-rust:
+  cd {{ROOT}}/packages/nxuskit-engine && cargo test -p nxuskit-engine --no-default-features
+
+test-go:
+  cd {{ROOT}}/packages/nxuskit-go && go test ./...
+
+# ---- Conformance / parity ----
+
+conformance:
+  @echo "Run shared conformance vectors against Rust and Go harnesses."
+  cd {{ROOT}}/packages/nxuskit-engine && cargo test conformance -- --nocapture || true
+  cd {{ROOT}}/packages/nxuskit-go && go test ./... -run Conformance || true
+
+# ---- Build ----
+
+build:
+  cd {{ROOT}} && make build
+
+build-rust:
+  cd {{ROOT}} && make build-rust
+
+build-go:
+  cd {{ROOT}} && make build-go
+
+# ---- Clean ----
+
+clean:
+  cd {{ROOT}}/packages/nxuskit-engine && cargo clean
+  cd {{ROOT}}/packages/nxuskit-go && go clean -cache

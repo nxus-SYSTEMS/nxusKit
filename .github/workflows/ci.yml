@@ -1,0 +1,137 @@
+# Lightweight CI for the public nxusKit repo.
+# Synced by the publish-to-public workflow.
+#
+# This repo contains exported SDK source (packages/) plus the public Community
+# Edition build entry point. Full Pro/internal CI runs upstream; this workflow
+# keeps the public CE checkout buildable and covers lightweight language checks.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: '1.26'
+
+jobs:
+
+  ce-boundary:
+    name: Community Edition boundary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Verify public CE boundary
+        run: bash scripts/assert-public-ce-clean.sh
+
+  ce-source-build:
+    name: Community Edition source build
+    needs: ce-boundary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build and QA
+        run: |
+          bash scripts/ci-install-rust-native-prereqs.sh
+          make qa
+
+  ce-bundle-smoke:
+    name: Community Edition bundle smoke
+    needs: ce-source-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build release-like CE bundle
+        run: |
+          bash scripts/ci-install-rust-native-prereqs.sh
+          make bundle
+          CLI_BIN=$(find dist -path '*/bin/nxuskit-cli' -type f | head -n 1)
+          test -n "$CLI_BIN"
+          "$CLI_BIN" --version
+          MANIFEST=$(find dist -name capability-manifest.json -type f | head -n 1)
+          test -n "$MANIFEST"
+          jq -e '.edition == "oss" and .domains.solver == false and .domains.zen == false' "$MANIFEST"
+
+  # Go checks — packages/nxuskit-go has CGo files (CLIPS, FFI) that require
+  # native SDK libraries. CGO_ENABLED=0 skips CGo compilation. Full CGo
+  # vet/build runs upstream and in SDK bundle QA.
+  fmt-go:
+    name: Format (Go)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+      - name: Check formatting
+        run: |
+          cd packages/nxuskit-go
+          UNFORMATTED=$(gofmt -l .)
+          if [ -n "$UNFORMATTED" ]; then
+            echo "::error::Unformatted Go files:"
+            echo "$UNFORMATTED"
+            exit 1
+          fi
+
+  vet-go:
+    name: Vet (Go)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Vet
+        run: |
+          cd packages/nxuskit-go
+          CGO_ENABLED=0 go vet ./...
+
+  # Python checks — packages/nxuskit-py is pure Python
+  lint-python:
+    name: Lint (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install tools
+        run: pip install ruff
+      - name: Ruff check
+        run: |
+          cd packages/nxuskit-py
+          ruff check .
+
+  fmt-python:
+    name: Format (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install tools
+        run: pip install ruff
+      - name: Ruff format check
+        run: |
+          cd packages/nxuskit-py
+          ruff format --check .

@@ -1,0 +1,14 @@
+name: smoke-pipeline
+stages:
+  - name: greet
+    type: llm
+    config:
+      prompt: hello
+      provider: loopback
+      model: echo
+  - name: respond
+    type: llm
+    config:
+      prompt: world
+      provider: loopback
+      model: echo

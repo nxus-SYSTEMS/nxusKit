@@ -1,0 +1,30 @@
+{
+  "facts": [
+    {
+      "template": "person",
+      "values": {
+        "name": "John",
+        "age": 65
+      }
+    },
+    {
+      "template": "person",
+      "values": {
+        "name": "Jane",
+        "age": 30
+      }
+    },
+    {
+      "template": "person",
+      "values": {
+        "name": "Tommy",
+        "age": 12
+      }
+    }
+  ],
+  "config": {
+    "include_trace": true,
+    "max_rules": 100,
+    "derived_only": true
+  }
+}

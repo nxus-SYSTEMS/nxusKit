@@ -1,0 +1,562 @@
+[
+  {
+    "evidence": {
+      "Asia": "yes"
+    },
+    "posteriors": {
+      "Bronchitis": {
+        "absent": 0.55,
+        "present": 0.44999999999999996
+      },
+      "Dyspnea": {
+        "absent": 0.5498625,
+        "present": 0.4501375
+      },
+      "LungCancer": {
+        "absent": 0.9450000000000001,
+        "present": 0.055
+      },
+      "Smoking": {
+        "no": 0.5,
+        "yes": 0.5
+      },
+      "TbOrCa": {
+        "false": 0.89775,
+        "true": 0.10225000000000001
+      },
+      "Tuberculosis": {
+        "absent": 0.95,
+        "present": 0.05
+      },
+      "Xray": {
+        "negative": 0.8549074999999999,
+        "positive": 0.1450925
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Asia": "no"
+    },
+    "posteriors": {
+      "Bronchitis": {
+        "absent": 0.55,
+        "present": 0.44999999999999996
+      },
+      "Dyspnea": {
+        "absent": 0.5641725,
+        "present": 0.4358275
+      },
+      "LungCancer": {
+        "absent": 0.9450000000000001,
+        "present": 0.055
+      },
+      "Smoking": {
+        "no": 0.5,
+        "yes": 0.5
+      },
+      "TbOrCa": {
+        "false": 0.9355500000000001,
+        "true": 0.06445000000000001
+      },
+      "Tuberculosis": {
+        "absent": 0.99,
+        "present": 0.01
+      },
+      "Xray": {
+        "negative": 0.8900615000000001,
+        "positive": 0.10993850000000002
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Bronchitis": "present"
+    },
+    "posteriors": {
+      "Asia": {
+        "no": 0.99,
+        "yes": 0.01
+      },
+      "Dyspnea": {
+        "absent": 0.1920328,
+        "present": 0.8079672
+      },
+      "LungCancer": {
+        "absent": 0.93,
+        "present": 0.07
+      },
+      "Smoking": {
+        "no": 0.33333333333333337,
+        "yes": 0.6666666666666667
+      },
+      "TbOrCa": {
+        "false": 0.9203279999999999,
+        "true": 0.07967199999999999
+      },
+      "Tuberculosis": {
+        "absent": 0.9896,
+        "present": 0.010400000000000003
+      },
+      "Xray": {
+        "negative": 0.87590504,
+        "positive": 0.12409495999999999
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Bronchitis": "absent"
+    },
+    "posteriors": {
+      "Asia": {
+        "no": 0.99,
+        "yes": 0.01
+      },
+      "Dyspnea": {
+        "absent": 0.8683902545454546,
+        "present": 0.13160974545454546
+      },
+      "LungCancer": {
+        "absent": 0.9572727272727273,
+        "present": 0.04272727272727274
+      },
+      "Smoking": {
+        "no": 0.6363636363636362,
+        "yes": 0.36363636363636365
+      },
+      "TbOrCa": {
+        "false": 0.9473170909090909,
+        "true": 0.0526829090909091
+      },
+      "Tuberculosis": {
+        "absent": 0.9896,
+        "present": 0.010400000000000003
+      },
+      "Xray": {
+        "negative": 0.9010048945454545,
+        "positive": 0.09899510545454547
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Dyspnea": "present"
+    },
+    "posteriors": {
+      "Asia": {
+        "no": 0.9896750491890968,
+        "yes": 0.010324950810903306
+      },
+      "Bronchitis": {
+        "absent": 0.16603266367044012,
+        "present": 0.8339673363295598
+      },
+      "LungCancer": {
+        "absent": 0.8972407772450711,
+        "present": 0.10275922275492888
+      },
+      "Smoking": {
+        "no": 0.3660031203938981,
+        "yes": 0.6339968796061018
+      },
+      "TbOrCa": {
+        "false": 0.8794641657029166,
+        "true": 0.12053583429708335
+      },
+      "Tuberculosis": {
+        "absent": 0.9811546925411943,
+        "present": 0.01884530745880571
+      },
+      "Xray": {
+        "negative": 0.8379016741037125,
+        "positive": 0.16209832589628753
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Dyspnea": "absent"
+    },
+    "posteriors": {
+      "Asia": {
+        "no": 0.9902511730771482,
+        "yes": 0.009748826922851894
+      },
+      "Bronchitis": {
+        "absent": 0.8467903268872154,
+        "present": 0.15320967311278452
+      },
+      "LungCancer": {
+        "absent": 0.9819158363021502,
+        "present": 0.018084163697849796
+      },
+      "Smoking": {
+        "no": 0.6035738562564292,
+        "yes": 0.39642614374357094
+      },
+      "TbOrCa": {
+        "false": 0.9782317730245975,
+        "true": 0.021768226975402344
+      },
+      "Tuberculosis": {
+        "absent": 0.9961278614199899,
+        "present": 0.003872138580010192
+      },
+      "Xray": {
+        "negative": 0.9297555489128758,
+        "positive": 0.0702444510871242
+      }
+    }
+  },
+  {
+    "evidence": {
+      "LungCancer": "present"
+    },
+    "posteriors": {
+      "Asia": {
+        "no": 0.99,
+        "yes": 0.01
+      },
+      "Bronchitis": {
+        "absent": 0.4272727272727273,
+        "present": 0.5727272727272726
+      },
+      "Dyspnea": {
+        "absent": 0.18545454545454543,
+        "present": 0.8145454545454547
+      },
+      "Smoking": {
+        "no": 0.09090909090909091,
+        "yes": 0.9090909090909092
+      },
+      "TbOrCa": {
+        "false": 0.0,
+        "true": 1.0
+      },
+      "Tuberculosis": {
+        "absent": 0.9896,
+        "present": 0.010400000000000003
+      },
+      "Xray": {
+        "negative": 0.020000000000000004,
+        "positive": 0.98
+      }
+    }
+  },
+  {
+    "evidence": {
+      "LungCancer": "absent"
+    },
+    "posteriors": {
+      "Asia": {
+        "no": 0.99,
+        "yes": 0.01
+      },
+      "Bronchitis": {
+        "absent": 0.5571428571428572,
+        "present": 0.44285714285714284
+      },
+      "Dyspnea": {
+        "absent": 0.5860628571428571,
+        "present": 0.4139371428571429
+      },
+      "Smoking": {
+        "no": 0.5238095238095237,
+        "yes": 0.47619047619047616
+      },
+      "TbOrCa": {
+        "false": 0.9896,
+        "true": 0.010400000000000003
+      },
+      "Tuberculosis": {
+        "absent": 0.9896,
+        "present": 0.010400000000000003
+      },
+      "Xray": {
+        "negative": 0.940328,
+        "positive": 0.05967200000000001
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Smoking": "yes"
+    },
+    "posteriors": {
+      "Asia": {
+        "no": 0.99,
+        "yes": 0.01
+      },
+      "Bronchitis": {
+        "absent": 0.4,
+        "present": 0.6
+      },
+      "Dyspnea": {
+        "absent": 0.44719200000000003,
+        "present": 0.552808
+      },
+      "LungCancer": {
+        "absent": 0.9,
+        "present": 0.1
+      },
+      "TbOrCa": {
+        "false": 0.89064,
+        "true": 0.10936
+      },
+      "Tuberculosis": {
+        "absent": 0.9896,
+        "present": 0.010400000000000003
+      },
+      "Xray": {
+        "negative": 0.8482952,
+        "positive": 0.15170480000000003
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Smoking": "no"
+    },
+    "posteriors": {
+      "Asia": {
+        "no": 0.99,
+        "yes": 0.01
+      },
+      "Bronchitis": {
+        "absent": 0.7,
+        "present": 0.3
+      },
+      "Dyspnea": {
+        "absent": 0.6808668,
+        "present": 0.31913320000000006
+      },
+      "LungCancer": {
+        "absent": 0.99,
+        "present": 0.01
+      },
+      "TbOrCa": {
+        "false": 0.979704,
+        "true": 0.020296000000000005
+      },
+      "Tuberculosis": {
+        "absent": 0.9896,
+        "present": 0.010400000000000003
+      },
+      "Xray": {
+        "negative": 0.93112472,
+        "positive": 0.06887528000000001
+      }
+    }
+  },
+  {
+    "evidence": {
+      "TbOrCa": "true"
+    },
+    "posteriors": {
+      "Asia": {
+        "no": 0.9842274942925897,
+        "yes": 0.015772505707410383
+      },
+      "Bronchitis": {
+        "absent": 0.4469611896094281,
+        "present": 0.553038810390572
+      },
+      "Dyspnea": {
+        "absent": 0.18939223792188556,
+        "present": 0.8106077620781144
+      },
+      "LungCancer": {
+        "absent": 0.15160115999259582,
+        "present": 0.8483988400074042
+      },
+      "Smoking": {
+        "no": 0.15653729869809344,
+        "yes": 0.8434627013019066
+      },
+      "Tuberculosis": {
+        "absent": 0.8395754920713272,
+        "present": 0.16042450792867283
+      },
+      "Xray": {
+        "negative": 0.02,
+        "positive": 0.98
+      }
+    }
+  },
+  {
+    "evidence": {
+      "TbOrCa": "false"
+    },
+    "posteriors": {
+      "Asia": {
+        "no": 0.9904001616814875,
+        "yes": 0.00959983831851253
+      },
+      "Bronchitis": {
+        "absent": 0.5571428571428572,
+        "present": 0.44285714285714284
+      },
+      "Dyspnea": {
+        "absent": 0.5900000000000001,
+        "present": 0.41000000000000003
+      },
+      "LungCancer": {
+        "absent": 1.0,
+        "present": 0.0
+      },
+      "Smoking": {
+        "no": 0.5238095238095238,
+        "yes": 0.4761904761904762
+      },
+      "Tuberculosis": {
+        "absent": 1.0,
+        "present": 0.0
+      },
+      "Xray": {
+        "negative": 0.95,
+        "positive": 0.05
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Tuberculosis": "present"
+    },
+    "posteriors": {
+      "Asia": {
+        "no": 0.9519230769230769,
+        "yes": 0.04807692307692307
+      },
+      "Bronchitis": {
+        "absent": 0.55,
+        "present": 0.44999999999999996
+      },
+      "Dyspnea": {
+        "absent": 0.21,
+        "present": 0.79
+      },
+      "LungCancer": {
+        "absent": 0.9450000000000001,
+        "present": 0.055
+      },
+      "Smoking": {
+        "no": 0.5,
+        "yes": 0.5
+      },
+      "TbOrCa": {
+        "false": 0.0,
+        "true": 1.0
+      },
+      "Xray": {
+        "negative": 0.02,
+        "positive": 0.98
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Tuberculosis": "absent"
+    },
+    "posteriors": {
+      "Asia": {
+        "no": 0.9904001616814875,
+        "yes": 0.00959983831851253
+      },
+      "Bronchitis": {
+        "absent": 0.55,
+        "present": 0.44999999999999996
+      },
+      "Dyspnea": {
+        "absent": 0.56775,
+        "present": 0.43225
+      },
+      "LungCancer": {
+        "absent": 0.9450000000000001,
+        "present": 0.055
+      },
+      "Smoking": {
+        "no": 0.5,
+        "yes": 0.5
+      },
+      "TbOrCa": {
+        "false": 0.9450000000000001,
+        "true": 0.055
+      },
+      "Xray": {
+        "negative": 0.89885,
+        "positive": 0.10115
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Xray": "positive"
+    },
+    "posteriors": {
+      "Asia": {
+        "no": 0.9868444602975934,
+        "yes": 0.013155539702406493
+      },
+      "Bronchitis": {
+        "absent": 0.49367384398446135,
+        "present": 0.5063261560155387
+      },
+      "Dyspnea": {
+        "absent": 0.35923403056159925,
+        "present": 0.6407659694384008
+      },
+      "LungCancer": {
+        "absent": 0.5112885986803523,
+        "present": 0.4887114013196477
+      },
+      "Smoking": {
+        "no": 0.31224614661487116,
+        "yes": 0.6877538533851288
+      },
+      "TbOrCa": {
+        "false": 0.4239603140954523,
+        "true": 0.5760396859045476
+      },
+      "Tuberculosis": {
+        "absent": 0.9075891168413757,
+        "present": 0.09241088315862431
+      }
+    }
+  },
+  {
+    "evidence": {
+      "Xray": "negative"
+    },
+    "posteriors": {
+      "Asia": {
+        "no": 0.9903911663526842,
+        "yes": 0.009608833647315808
+      },
+      "Bronchitis": {
+        "absent": 0.5569822911727323,
+        "present": 0.44301770882726776
+      },
+      "Dyspnea": {
+        "absent": 0.5894162007582786,
+        "present": 0.41058379924172145
+      },
+      "LungCancer": {
+        "absent": 0.9987636420300386,
+        "present": 0.001236357969961357
+      },
+      "Smoking": {
+        "no": 0.5232743039091077,
+        "yes": 0.47672569609089244
+      },
+      "TbOrCa": {
+        "false": 0.9985427161004244,
+        "true": 0.0014572838995755427
+      },
+      "Tuberculosis": {
+        "absent": 0.9997662159474983,
+        "present": 0.0002337840525017839
+      }
+    }
+  }
+]

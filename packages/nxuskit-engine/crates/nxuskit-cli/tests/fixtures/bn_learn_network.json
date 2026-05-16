@@ -1,0 +1,15 @@
+{
+  "network": {
+    "nodes": [
+      { "name": "Rain", "states": ["yes", "no"] },
+      { "name": "Sprinkler", "states": ["on", "off"] },
+      { "name": "WetGrass", "states": ["yes", "no"] }
+    ],
+    "edges": [
+      { "from": "Rain", "to": "WetGrass" },
+      { "from": "Sprinkler", "to": "WetGrass" }
+    ]
+  },
+  "learner": "mle",
+  "pseudocount": 0.0
+}
