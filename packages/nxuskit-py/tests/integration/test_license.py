@@ -38,7 +38,7 @@ pytestmark = pytest.mark.skipif(
 
 def test_deployment_token_via_env_var():
     """Test deployment token resolution via NXUSKIT_LICENSE_TOKEN env var."""
-    pytest.skip("requires ES256-signed deployment token from external licensing client test utilities")
+    pytest.skip("requires ES256-signed deployment token fixtures")
     # TODO: When ES256 test fixtures are available for Python:
     # 1. Set NXUSKIT_LICENSE_TOKEN env var with ES256 deployment token
     # 2. Call license_resolve()
@@ -51,5 +51,5 @@ def test_deployment_token_via_env_var():
 
 def test_license_resolve_precedence():
     """Test env var > file > API param resolution with ES256 tokens."""
-    pytest.skip("requires ES256-signed tokens from external licensing client test utilities")
+    pytest.skip("requires ES256-signed token fixtures")
     # TODO: Test resolution chain with ES256 tokens
