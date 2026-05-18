@@ -130,6 +130,29 @@ for term in "${forbidden_doc_spec_terms[@]}"; do
   fi
 done
 
+forbidden_public_roadmap_terms=(
+  "deferral register"
+  "deferral registry"
+  "deferred-v"
+  "v0.9.4-deferral-register"
+  "### Deferred"
+  "**Status**: Deferred"
+  "deferred from v"
+  "deferred to v"
+  "deferred beyond v"
+  "Deferred indefinitely"
+)
+for term in "${forbidden_public_roadmap_terms[@]}"; do
+  if grep -F -R -n \
+      --include="*.md" --include="*.mdx" \
+      "${term}" "${ROOT_DIR}" 2>/dev/null | grep -q .; then
+    grep -F -R -n \
+      --include="*.md" --include="*.mdx" \
+      "${term}" "${ROOT_DIR}" 2>/dev/null >&2 || true
+    fail "forbidden public Markdown term found in public CE docs: ${term}"
+  fi
+done
+
 if [[ "${NXUSKIT_PUBLIC_CE_SKIP_CARGO_TREE:-0}" == "1" ]]; then
   echo "public CE boundary check: cargo tree dependency check skipped"
 elif command -v cargo >/dev/null 2>&1; then

@@ -49,8 +49,7 @@ historical version resets.
 - `CapabilityManifest` v2 concept with a public preview subset for
   provider/model capability discovery (full internal manifest unchanged); the
   publication decision is recorded in the 099 artifacts.
-- OpenAI remains Chat-Completions-first (no full Responses API migration; see
-  the deferral register).
+- OpenAI remains Chat-Completions-first (no full Responses API migration).
 
 ### Added - S4: CLI Level 2 completion & stabilization (branch 100)
 
@@ -70,9 +69,7 @@ historical version resets.
 - **`nxuskit-cli bn learn`** - parameter learning (MLE / Bayesian) of a
   Bayesian network's CPDs from a CSV dataset given the network skeleton; output
   is the learned network, BIF-exportable. **`nxuskit-cli bn evidence`** -
-  validate/normalize an observations map against a network. (Community edition;
-  structure search `hill_climb`/`k2` remains engine-only - see the deferral
-  register.)
+  validate/normalize an observations map against a network. (Community edition.)
 - `solver what-if --compare` and the unsatisfiable-assumptions path are now
   covered by non-`#[ignore]`d, entitlement-aware tests (skip-with-reason in CE,
   assertions run in the Pro CI lane `.github/workflows/ci-pro.yml`).
@@ -110,15 +107,6 @@ historical version resets.
   is unchanged; the new ZEN commands introduce new `code` strings within exit 5.
 - S1/S2/S3 baseline behavior (streaming logprobs, provider capability metadata)
   is preserved.
-- A deferral register (`internal/v0.9.4-deferral-register.md`) lists items
-  deferred from v0.9.4 (full ARM64/RPi release gate, Plugin Wave 2/3, CLIPS
-  SIGABRT hardening, full conversation-graph/team-runtime GA, full MCP policy
-  layer + public `mcp-workflow`, full Responses API migration, GPT-5.5+ claims,
-  computer-use harness in core, remaining direct-provider implementations,
-  shared OCR/audio/batch/moderation/embeddings/rerank surfaces, provider-hosted
-  server tools, enterprise governance surfaces, Go 1.26.3 toolchain bump vs
-  advisory waiver, Level 2 replay/session-history, BN structure-search CLI,
-  remaining Python example parity) with owners and target releases.
 
 ## [0.9.3] - 2026-04-29
 
@@ -174,16 +162,6 @@ historical version resets.
   (matches Rust/Python/C ABI implementations and OpenAI wire format),
   not the earlier draft's `tokens`. Pinned by ABI passthrough test.
 
-### Deferred
-
-- Streaming logprobs - additive in v0.9.4; v0.9.3 keeps `StreamChunk`
-  free of logprobs surface.
-- `CapabilityManifest` v2 public/preview surface - deferred beyond v0.9.3.
-- Broad provider capability modernization - coordinated v0.9.4 rollout.
-- New direct providers - sequenced for v0.9.4.
-- CLI Level 2 remainder - focused fast-track left this for v0.9.4.
-- Examples-repo broad alignment - v0.9.4; only the narrow logprobs
-  regression example is in v0.9.3 scope.
 
 ### Test counts (logprobs surface, cumulative)
 

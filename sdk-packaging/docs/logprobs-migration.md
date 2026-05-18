@@ -106,17 +106,4 @@ C ABI / direct JSON:
   the full internal manifest is unchanged. The publication decision is recorded
   in the 099 artifacts.
 
-## Out Of Scope For v0.9.3 (historical - now shipped in v0.9.4)
-
-> This section describes the v0.9.3 release scope; the items below shipped in
-> v0.9.4 - see the "v0.9.4 update" section above. Kept for historical context.
-
-- **Streaming logprobs.** `StreamChunk` deliberately had no logprobs
-  surface in v0.9.3. See the internal v0.9.4 deferral register and the regression guard
-  `packages/nxuskit-engine/crates/nxuskit-engine/tests/streaming_logprobs_scope_test.rs`.
-  When streaming logprobs ship, the contract will be added additively
-  rather than retrofitted into the unary path. *(Shipped in v0.9.4.)*
-- **Public `CapabilityManifest` v2.** Capability detection was internal in
-  v0.9.3; the manifest type and any associated client-side discovery API
-  were deferred to v0.9.4. *(Public preview subset shipped in v0.9.4.)*
 

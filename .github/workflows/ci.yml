@@ -24,6 +24,38 @@ env:
   GO_VERSION: '1.26'
 
 jobs:
+  public-docs-check:
+    name: Public docs check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check public Markdown
+        run: |
+          set -eu -o pipefail
+          FORBIDDEN_TERMS=(
+            "deferral register"
+            "deferral registry"
+            "deferred-v"
+            "v0.9.4-deferral-register"
+            "### Deferred"
+            "**Status**: Deferred"
+            "deferred from v"
+            "deferred to v"
+            "deferred beyond v"
+            "Deferred indefinitely"
+          )
+
+          for term in "${FORBIDDEN_TERMS[@]}"; do
+            hits=$(find . \
+              -path './.git' -prune -o \
+              -type f \( -name '*.md' -o -name '*.mdx' \) \
+              -print0 | xargs -0 grep -F -n "$term" 2>/dev/null || true)
+            if [ -n "$hits" ]; then
+              echo "$hits"
+              echo "::error::Forbidden public Markdown term found: $term"
+              exit 1
+            fi
+          done
 
   ce-boundary:
     name: Community Edition boundary

@@ -35,7 +35,7 @@ typedef struct NxuskitProvider NxuskitProvider;
 typedef struct NxuskitResponse NxuskitResponse;
 
 /**
- * Opaque solver session handle for C ABI consumers.
+ * Opaque solver session handle for ABI compatibility.
  */
 typedef struct NxuskitSolverSession NxuskitSolverSession;
 
@@ -1055,329 +1055,62 @@ int32_t nxuskit_clips_dribble_on(uint64_t session, const char *path);
  */
 int32_t nxuskit_clips_dribble_off(uint64_t session);
 
-/**
- * Create a new solver session.
- *
- * `config_json` may be NULL for default configuration, or a JSON string
- * with optional fields: `timeout_ms`, `random_seed`, `max_conflicts`.
- *
- * Returns an opaque handle, or NULL on error (check `nxuskit_last_error()`).
- *
- * # Safety
- *
- * If non-null, `config_json` must point to a valid, NUL-terminated C string.
- */
-struct NxuskitSolverSession *nxuskit_solver_session_create(const char *config_json);
+struct NxuskitSolverSession *nxuskit_solver_session_create(const char *_config_json);
 
-/**
- * Destroy a solver session and free its memory.
- *
- * NULL is a no-op (safe to call with NULL).
- *
- * # Safety
- *
- * `session` must be NULL or a valid pointer previously returned by
- * `nxuskit_solver_session_create`. Must not be called more than once
- * for the same handle.
- */
-void nxuskit_solver_session_destroy(struct NxuskitSolverSession *session);
+void nxuskit_solver_session_destroy(struct NxuskitSolverSession *_session);
 
-/**
- * Add variables to the session.
- *
- * `variables_json` is a JSON array of variable definitions.
- * Returns true on success, false on error.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- * `variables_json` must point to a valid, NUL-terminated C string.
- */
-bool nxuskit_solver_add_variables(struct NxuskitSolverSession *session, const char *variables_json);
+bool nxuskit_solver_add_variables(struct NxuskitSolverSession *_session,
+                                  const char *_variables_json);
 
-/**
- * Add constraints to the session.
- *
- * `constraints_json` is a JSON array of constraint definitions.
- * Returns true on success, false on error.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- * `constraints_json` must point to a valid, NUL-terminated C string.
- */
-bool nxuskit_solver_add_constraints(struct NxuskitSolverSession *session,
-                                    const char *constraints_json);
+bool nxuskit_solver_add_constraints(struct NxuskitSolverSession *_session,
+                                    const char *_constraints_json);
 
-/**
- * Set the optimization objective.
- *
- * `objective_json` is a JSON object with direction, expression, and
- * optional variable fields. Returns true on success, false on error.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- * `objective_json` must point to a valid, NUL-terminated C string.
- */
-bool nxuskit_solver_set_objective(struct NxuskitSolverSession *session, const char *objective_json);
+bool nxuskit_solver_set_objective(struct NxuskitSolverSession *_session,
+                                  const char *_objective_json);
 
-/**
- * Retract (remove) constraints by name.
- *
- * `names_json` is a JSON array of strings. Returns true on success.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- * `names_json` must point to a valid, NUL-terminated C string.
- */
-bool nxuskit_solver_retract(struct NxuskitSolverSession *session, const char *names_json);
+bool nxuskit_solver_retract(struct NxuskitSolverSession *_session, const char *_names_json);
 
-/**
- * Push a scope checkpoint.
- *
- * Returns true on success, false on error.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- */
-bool nxuskit_solver_push(struct NxuskitSolverSession *session);
+bool nxuskit_solver_push(struct NxuskitSolverSession *_session);
 
-/**
- * Pop a scope checkpoint, restoring state.
- *
- * Returns true on success, false if stack is empty.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- */
-bool nxuskit_solver_pop(struct NxuskitSolverSession *session);
+bool nxuskit_solver_pop(struct NxuskitSolverSession *_session);
 
-/**
- * Solve the accumulated model.
- *
- * `config_json` may be NULL for session defaults, or a JSON config override.
- * Returns a JSON string (caller must free with `nxuskit_free_string`),
- * or NULL on error.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- * If non-null, `config_json` must point to a valid, NUL-terminated C string.
- * The caller must free the returned string with `nxuskit_free_string`.
- */
-char *nxuskit_solver_solve(struct NxuskitSolverSession *session, const char *config_json);
+char *nxuskit_solver_solve(struct NxuskitSolverSession *_session, const char *_config_json);
 
-/**
- * Solve with streaming progress callback.
- *
- * For optimization problems (sessions with objectives), this uses iterative
- * constraint tightening to emit incremental progress events via `on_chunk`.
- * Each progress event is a JSON-serialized [`SolverProgressEvent`] with the
- * best-so-far objective value.
- *
- * For satisfaction problems (no objectives) or when `on_chunk` is NULL,
- * this delegates to synchronous solve with no intermediate events.
- *
- * The `on_chunk` callback returns `0` to continue solving or non-zero to
- * cancel. The `on_done` callback receives the final result JSON.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- * If non-null, `config_json` must point to a valid, NUL-terminated C string.
- * Callback function pointers (`on_chunk`, `on_done`) must be valid for the
- * duration of this call. `user_data` is forwarded opaquely to callbacks.
- */
-bool nxuskit_solver_solve_stream(struct NxuskitSolverSession *session,
-                                 const char *config_json,
-                                 int32_t (*on_chunk)(const char*, void*),
-                                 void (*on_done)(const char*, void*),
-                                 void *user_data);
+bool nxuskit_solver_solve_stream(struct NxuskitSolverSession *_session,
+                                 const char *_config_json,
+                                 int32_t (*_on_chunk)(const char*, void*),
+                                 void (*_on_done)(const char*, void*),
+                                 void *_user_data);
 
-/**
- * Reset the session, clearing all state.
- *
- * Returns true on success.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- */
-bool nxuskit_solver_reset(struct NxuskitSolverSession *session);
+bool nxuskit_solver_reset(struct NxuskitSolverSession *_session);
 
-/**
- * Return current variables as a JSON string.
- *
- * Caller must free the returned string with `nxuskit_free_string`.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- * The caller must free the returned string with `nxuskit_free_string`.
- */
-char *nxuskit_solver_variables(struct NxuskitSolverSession *session);
+char *nxuskit_solver_variables(struct NxuskitSolverSession *_session);
 
-/**
- * Return current constraints as a JSON string.
- *
- * Caller must free the returned string with `nxuskit_free_string`.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- * The caller must free the returned string with `nxuskit_free_string`.
- */
-char *nxuskit_solver_constraints(struct NxuskitSolverSession *session);
+char *nxuskit_solver_constraints(struct NxuskitSolverSession *_session);
 
-/**
- * Return session status as a JSON string.
- *
- * Caller must free the returned string with `nxuskit_free_string`.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- * The caller must free the returned string with `nxuskit_free_string`.
- */
-char *nxuskit_solver_status(struct NxuskitSolverSession *session);
+char *nxuskit_solver_status(struct NxuskitSolverSession *_session);
 
-/**
- * Return solver capabilities as a JSON string.
- *
- * Caller must free the returned string with `nxuskit_free_string`.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- * The caller must free the returned string with `nxuskit_free_string`.
- */
-char *nxuskit_solver_capabilities(struct NxuskitSolverSession *session);
+char *nxuskit_solver_capabilities(struct NxuskitSolverSession *_session);
 
-/**
- * Return the number of variables in the session.
- *
- * Returns -1 if session is NULL.
- *
- * # Safety
- *
- * `session` must be NULL or a valid pointer returned by `nxuskit_solver_session_create`.
- */
-int64_t nxuskit_solver_num_variables(struct NxuskitSolverSession *session);
+int64_t nxuskit_solver_num_variables(struct NxuskitSolverSession *_session);
 
-/**
- * Return the number of constraints in the session.
- *
- * Returns -1 if session is NULL.
- *
- * # Safety
- *
- * `session` must be NULL or a valid pointer returned by `nxuskit_solver_session_create`.
- */
-int64_t nxuskit_solver_num_constraints(struct NxuskitSolverSession *session);
+int64_t nxuskit_solver_num_constraints(struct NxuskitSolverSession *_session);
 
-/**
- * Add an objective to the multi-objective list.
- *
- * `objective_json` is a JSON string describing an `ObjectiveDef`.
- * Returns true on success.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- * `objective_json` must point to a valid, NUL-terminated C string.
- */
-bool nxuskit_solver_add_objective(struct NxuskitSolverSession *session, const char *objective_json);
+bool nxuskit_solver_add_objective(struct NxuskitSolverSession *_session,
+                                  const char *_objective_json);
 
-/**
- * Remove a named objective from the multi-objective list.
- *
- * `name` is a C string with the objective name. Returns true if found and removed.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- * `name` must point to a valid, NUL-terminated C string.
- */
-bool nxuskit_solver_retract_objective(struct NxuskitSolverSession *session, const char *name);
+bool nxuskit_solver_retract_objective(struct NxuskitSolverSession *_session, const char *_name);
 
-/**
- * Get the current objectives list as a JSON array.
- *
- * Returns a JSON string (caller must free with `nxuskit_free_string()`),
- * or NULL on error.
- *
- * # Safety
- *
- * `session` must be NULL or a valid pointer returned by `nxuskit_solver_session_create`.
- * The caller must free the returned string with `nxuskit_free_string`.
- */
-char *nxuskit_solver_objectives(struct NxuskitSolverSession *session);
+char *nxuskit_solver_objectives(struct NxuskitSolverSession *_session);
 
-/**
- * Get the explanation artifacts from the last solve.
- *
- * Returns a JSON string representing the explanation (caller must free
- * with `nxuskit_free_string()`), or NULL if no explanation available.
- *
- * # Safety
- *
- * `session` must be NULL or a valid pointer returned by `nxuskit_solver_session_create`.
- * The caller must free the returned string with `nxuskit_free_string`.
- */
-char *nxuskit_solver_explanation(struct NxuskitSolverSession *session);
+char *nxuskit_solver_explanation(struct NxuskitSolverSession *_session);
 
-/**
- * Add temporary assumptions for the next solve call.
- *
- * `assumptions_json` is a JSON array of constraint definitions.
- * Assumptions are auto-retracted after solve completes.
- * Returns true on success.
- *
- * # Safety
- *
- * `session` must be a valid pointer returned by `nxuskit_solver_session_create`.
- * `assumptions_json` must point to a valid, NUL-terminated C string.
- */
-bool nxuskit_solver_add_assumptions(struct NxuskitSolverSession *session,
-                                    const char *assumptions_json);
+bool nxuskit_solver_add_assumptions(struct NxuskitSolverSession *_session,
+                                    const char *_assumptions_json);
 
-/**
- * Evaluate a ZEN Pro decision model against structured input.
- *
- * Stateless evaluation — no session or lifecycle management needed.
- * Function nodes (JavaScript) in the model are rejected with an error.
- *
- * Returns a JSON string on success (caller must free with
- * `nxuskit_zen_free_result`), or NULL on error (check `nxuskit_last_error()`).
- *
- * When the `provider-zen` feature is not compiled in, returns NULL and sets
- * last error to `{"error_type":"feature_unavailable","message":"zen"}`.
- *
- * # Safety
- *
- * Both `model_json` and `input_json` must be valid, NUL-terminated C strings.
- * The returned pointer must be freed with `nxuskit_zen_free_result`.
- */
-char *nxuskit_zen_evaluate(const char *model_json, const char *input_json);
+char *nxuskit_zen_evaluate(const char *_model_json, const char *_input_json);
 
-/**
- * Free a result string returned by `nxuskit_zen_evaluate`.
- *
- * NULL is a safe no-op.
- *
- * When the `provider-zen` feature is not compiled in, this is a no-op
- * (stubs never allocate result strings).
- *
- * # Safety
- *
- * `result` must be a pointer previously returned by `nxuskit_zen_evaluate`,
- * or NULL.
- */
-void nxuskit_zen_free_result(char *result);
+void nxuskit_zen_free_result(char *_result);
 
 #endif  /* NXUSKIT_H */
 
