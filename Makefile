@@ -6,7 +6,7 @@ GO_DIR := packages/nxuskit-go
 PYTHON_DIR := packages/nxuskit-py
 PYTHON ?= $(shell command -v python3.13 2>/dev/null || command -v python3.12 2>/dev/null || command -v python3.11 2>/dev/null || command -v python3 2>/dev/null)
 VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' $(RUST_ENGINE_MANIFEST) | head -1)
-RUST_TARGET_DIR := packages/nxuskit-engine/target
+RUST_TARGET_DIR ?= $(if $(CARGO_TARGET_DIR),$(CARGO_TARGET_DIR),packages/nxuskit-engine/target)
 RUST_DEBUG_DIR := $(RUST_TARGET_DIR)/debug
 RUST_RELEASE_DIR := $(RUST_TARGET_DIR)/release
 DIST_DIR ?= dist

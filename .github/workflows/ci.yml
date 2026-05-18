@@ -19,16 +19,62 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 env:
   GO_VERSION: '1.26'
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      source: ${{ steps.filter.outputs.source }}
+      go: ${{ steps.filter.outputs.go }}
+      python: ${{ steps.filter.outputs.python }}
+      trusted_mirror_push: ${{ steps.trust.outputs.trusted_mirror_push }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Detect trusted mirror push
+        id: trust
+        run: |
+          set -eu -o pipefail
+          trusted="false"
+          if [[ "${{ github.event_name }}" == "push" && \
+                "${{ github.ref }}" == "refs/heads/main" && \
+                "${{ github.event.head_commit.committer.email }}" == "mirror@nxuskit.local" ]]; then
+            trusted="true"
+          fi
+          echo "trusted_mirror_push=${trusted}" >> "$GITHUB_OUTPUT"
+          echo "Trusted mirror push: ${trusted}"
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            source:
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'Makefile'
+              - 'packages/nxuskit-engine/**'
+              - 'packages/nxuskit/**'
+              - 'packages/nxuskit-go/**'
+              - 'packages/nxuskit-py/**'
+              - 'scripts/**'
+              - 'tools/**'
+              - 'conformance/**'
+              - 'sdk-packaging/**'
+              - '!sdk-packaging/docs/**'
+              - '.github/workflows/ci.yml'
+            go:
+              - 'packages/nxuskit-go/**'
+            python:
+              - 'packages/nxuskit-py/**'
+
   public-docs-check:
     name: Public docs check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Check public Markdown
         run: |
           set -eu -o pipefail
@@ -61,22 +107,24 @@ jobs:
     name: Community Edition boundary
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: Verify public CE boundary
         run: bash scripts/assert-public-ce-clean.sh
 
   ce-source-build:
     name: Community Edition source build
-    needs: ce-boundary
+    needs: [changes, ce-boundary]
+    if: needs.changes.outputs.source == 'true' && needs.changes.outputs.trusted_mirror_push != 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
-      - uses: actions/setup-python@v5
+          cache-dependency-path: packages/nxuskit-go/go.sum
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
       - name: Build and QA
@@ -86,10 +134,11 @@ jobs:
 
   ce-bundle-smoke:
     name: Community Edition bundle smoke
-    needs: ce-source-build
+    needs: [changes, ce-source-build]
+    if: needs.changes.outputs.source == 'true' && needs.changes.outputs.trusted_mirror_push != 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: Build release-like CE bundle
         run: |
@@ -107,10 +156,12 @@ jobs:
   # vet/build runs upstream and in SDK bundle QA.
   fmt-go:
     name: Format (Go)
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: false
@@ -126,12 +177,15 @@ jobs:
 
   vet-go:
     name: Vet (Go)
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: packages/nxuskit-go/go.sum
       - name: Vet
         run: |
           cd packages/nxuskit-go
@@ -140,10 +194,12 @@ jobs:
   # Python checks — packages/nxuskit-py is pure Python
   lint-python:
     name: Lint (Python)
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
       - name: Install tools
@@ -155,10 +211,12 @@ jobs:
 
   fmt-python:
     name: Format (Python)
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
       - name: Install tools
