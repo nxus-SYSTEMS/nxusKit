@@ -54,6 +54,9 @@ LLM invocation. Accepts either `prompt` (single-turn) or `messages` (multi-turn)
 | `provider` | string | no | Provider name (default: `loopback`, or `$NXUSKIT_PROVIDER`) |
 | `model` | string | no | Model identifier (default: `"default"`) |
 | `tool_definitions` | array of JSON objects | no | Tool/function schemas passed to the LLM |
+| `tool_choice` | JSON value | no | Provider-compatible tool choice policy passed with `tool_definitions` |
+| `response_format` | object | no | Response format constraint: `{"type":"text"}`, `{"type":"json_object"}`, or `{"type":"json_schema","schema":{...}}` |
+| `thinking_mode` | string | no | Thinking policy: `auto`, `enabled`, `disabled`, or `omit` |
 | `max_tokens` | u32 | no | Maximum output tokens |
 | `temperature` | f32 | no | Sampling temperature |
 | `stream` | bool | no | Enable streaming (JSONL output) |
