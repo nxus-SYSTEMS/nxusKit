@@ -5,15 +5,17 @@ to call LLM providers from Rust, Go, Python, or the C ABI.
 
 ## Prerequisites
 
-- GitHub account with access to `nxus-SYSTEMS/nxusKit` (private repository)
-- [GitHub CLI](https://cli.github.com/) (`gh`) installed and authenticated
+- [GitHub CLI](https://cli.github.com/) (`gh`) installed
+- Optional: authenticate with `gh auth login` for CI reliability, higher API
+  limits, or entitlement-gated/private assets
 
 ## 1. Download and Install the SDK
 
-The examples below download Community Edition. Current release asset names use
-`oss` for the Community Edition archive segment. Pro users can replace `oss`
-with `pro` in the asset patterns and extracted directory names after activating
-or receiving a Pro entitlement.
+The examples below download Community Edition from the public
+`nxus-SYSTEMS/nxusKit` release. Current release asset names use `oss` for the
+Community Edition archive segment. Pro users can replace `oss` with `pro` in the
+asset patterns and extracted directory names after activating or receiving a Pro
+entitlement.
 
 ### macOS (Apple Silicon)
 
@@ -310,7 +312,8 @@ lib = ffi.dlopen("sdk/lib/libnxuskit.so")  # or .dylib / .dll
 
 ## Download via PAT
 
-For CI systems that can't use `gh`:
+For CI systems that can't use `gh`, or that need authenticated GitHub API
+access:
 
 1. Create a fine-grained PAT at https://github.com/settings/personal-access-tokens
    - **Repository access**: Select `nxus-SYSTEMS/nxusKit`

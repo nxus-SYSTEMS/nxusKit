@@ -1,8 +1,17 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
+use std::path::PathBuf;
 
 fn cli() -> Command {
     Command::cargo_bin("nxuskit-cli").unwrap()
+}
+
+fn sdk_packaging_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .expect("nxusKit repo root")
+        .join("sdk-packaging")
 }
 
 // T027: --help verification for all public subcommands
@@ -88,4 +97,26 @@ fn capabilities_loopback_default_fallback() {
         .assert()
         .success()
         .stdout(predicate::str::contains(r#""source": "default""#));
+}
+
+#[test]
+fn examples_show_newer_manifest_entries_json() {
+    for name in ["common-sense-guardrails", "model-research-harness"] {
+        let output = cli()
+            .env("NXUSKIT_SDK_DIR", sdk_packaging_root())
+            .args(["examples", "show", name, "--json"])
+            .output()
+            .unwrap();
+
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "examples show {name} should succeed; stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let parsed: serde_json::Value =
+            serde_json::from_slice(&output.stdout).expect("examples show output is JSON");
+        assert_eq!(parsed["name"], name);
+        assert_eq!(parsed["tier"], "community");
+    }
 }
