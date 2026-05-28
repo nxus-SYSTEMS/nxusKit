@@ -166,7 +166,7 @@ pub fn make_deployment_token() -> (String, String) {
         machine_id: None,
         seat_index: None,
         activated: None,
-        sdk_version_ceiling: Some("0.9".to_string()),
+        sdk_version_ceiling: Some("1.0".to_string()),
         customer_email: Some("test@example.com".to_string()),
     };
     (sign_test_jwt(&claims, &priv_pem), pub_pem)

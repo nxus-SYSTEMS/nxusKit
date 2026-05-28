@@ -1690,12 +1690,12 @@ mod tests {
     #[test]
     fn test_license_error_display() {
         let err = LicenseError::VersionCeilingExceeded {
-            ceiling: "0.9".to_string(),
-            sdk_version: "0.10.0".to_string(),
+            ceiling: "1.0".to_string(),
+            sdk_version: "1.1.0".to_string(),
         };
         let msg = err.to_string();
-        assert!(msg.contains("v0.9.x"));
-        assert!(msg.contains("v0.10.0"));
+        assert!(msg.contains("v1.0.x"));
+        assert!(msg.contains("v1.1.0"));
     }
 
     #[test]
@@ -2012,7 +2012,7 @@ mod tests {
 
         #[test]
         fn test_deployment_token_no_expiry() {
-            let jwt = match make_deployment_token("0.9") {
+            let jwt = match make_deployment_token("1.0") {
                 Some(t) => t,
                 None => {
                     eprintln!("SKIP: private key not available");
@@ -2028,8 +2028,8 @@ mod tests {
 
         #[test]
         fn test_deployment_token_version_ceiling_within() {
-            // Ceiling "0.9" should allow SDK 0.9.x
-            let jwt = match make_deployment_token("0.9") {
+            // Ceiling "1.0" should allow SDK 1.0.x
+            let jwt = match make_deployment_token("1.0") {
                 Some(t) => t,
                 None => {
                     eprintln!("SKIP: private key not available");
@@ -2037,19 +2037,19 @@ mod tests {
                 }
             };
 
-            // SDK version is 0.9.1, ceiling is 0.9 — should pass
+            // SDK version is 1.0.0, ceiling is 1.0 — should pass
             let validated = validate_token_full(&jwt)
                 .expect("deployment token with matching ceiling should pass");
             assert_eq!(validated.claims.token_type, TokenType::Deployment);
             assert_eq!(
                 validated.claims.sdk_version_ceiling,
-                Some("0.9".to_string())
+                Some("1.0".to_string())
             );
         }
 
         #[test]
         fn test_deployment_token_version_ceiling_exceeded() {
-            // Ceiling "0.8" should reject SDK 0.9.x
+            // Ceiling "0.8" should reject SDK 1.0.x
             let jwt = match make_deployment_token("0.8") {
                 Some(t) => t,
                 None => {
@@ -2066,7 +2066,7 @@ mod tests {
 
         #[test]
         fn test_deployment_token_no_machine_binding() {
-            let jwt = match make_deployment_token("0.9") {
+            let jwt = match make_deployment_token("1.0") {
                 Some(t) => t,
                 None => {
                     eprintln!("SKIP: private key not available");
@@ -2117,7 +2117,7 @@ mod tests {
                     return;
                 }
             };
-            let deploy_jwt = match make_deployment_token("0.9") {
+            let deploy_jwt = match make_deployment_token("1.0") {
                 Some(t) => t,
                 None => {
                     eprintln!("SKIP: private key not available");
@@ -2145,7 +2145,7 @@ mod tests {
             // Ensure env var is unset so resolution falls through to API param
             unsafe { std::env::set_var(LICENSE_ENV_VAR, "") };
 
-            let jwt = match make_deployment_token("0.9") {
+            let jwt = match make_deployment_token("1.0") {
                 Some(t) => t,
                 None => {
                     eprintln!("SKIP: private key not available");
@@ -2317,7 +2317,7 @@ mod tests {
 
         #[test]
         fn test_resolution_chain_under_5ms() {
-            let jwt = match make_deployment_token("0.9") {
+            let jwt = match make_deployment_token("1.0") {
                 Some(t) => t,
                 None => {
                     eprintln!("SKIP: private key not available");
@@ -3534,7 +3534,7 @@ mod tests {
             assert_eq!(claims.edition, "pro");
             assert_eq!(claims.iss, "nxus-licensing");
             assert!(claims.exp.is_none()); // deployment tokens have no expiry
-            assert_eq!(claims.sdk_version_ceiling, Some("0.9".to_string()));
+            assert_eq!(claims.sdk_version_ceiling, Some("1.0".to_string()));
             assert_eq!(claims.customer_email, Some("test@example.com".to_string()));
         }
 

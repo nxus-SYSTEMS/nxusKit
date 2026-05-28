@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-05-28
+
+### Changed
+
+- Promoted the Rust wrapper to the lockstep nxusKit SDK `1.0.0` GA version.
+- Preserved the v0.9.4-stabilized public API surface; this release contains no
+  Rust wrapper API break.
+- SDK bundle packaging now includes the wrapper benchmark target declared in
+  `Cargo.toml`.
+
+## [0.9.4] - 2026-05-11
+
+### Changed
+
+- **SDK lockstep versioning**: Rust wrapper metadata aligned with the published
+  SDK `0.9.4` C ABI and release bundles.
+- **Streaming logprobs**: wrapper types include per-chunk streaming logprob
+  deltas for providers that support them.
+
 ## [0.9.3] - 2026-04-29
 
 ### Added

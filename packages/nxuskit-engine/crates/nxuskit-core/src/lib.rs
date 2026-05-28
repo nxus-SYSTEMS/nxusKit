@@ -57,7 +57,7 @@ pub extern "C" fn nxuskit_version() -> *const c_char {
 
 /// ABI compatibility version (major.minor format).
 /// Static string — caller MUST NOT free.
-const ABI_VERSION: &CStr = c"0.9.4";
+const ABI_VERSION: &CStr = c"1.0.0";
 
 /// Edition constant from build script (defaults to "oss").
 const EDITION: &CStr =
@@ -115,7 +115,7 @@ pub extern "C" fn nxuskit_capabilities() -> *mut c_char {
     error::clear_last_error();
 
     let caps = Capabilities {
-        abi_version: "0.9.4",
+        abi_version: "1.0.0",
         sdk_version: env!("CARGO_PKG_VERSION"),
         edition: env!("NXUSKIT_EDITION"),
         domains: CapabilityDomains {

@@ -270,16 +270,16 @@ This works for:
 
 ### Version Ceiling
 
-Deployment tokens include a **version ceiling** (e.g., `0.9`). The token
+Deployment tokens include a **version ceiling** (e.g., `1.0`). The token
 is valid for any SDK version at or below that ceiling:
 
-- Token ceiling `0.9` → works with v0.9.0, v0.9.1, v0.9.5
-- Token ceiling `0.9` → does NOT work with v0.10.0+
+- Token ceiling `1.0` → works with v1.0.0 and patch releases such as v1.0.5
+- Token ceiling `1.0` → does NOT work with v1.1.0+
 
 When you upgrade the SDK past the ceiling, you will see:
 
 ```
-Deployment token covers up to v0.9.x. Update your deployment token for v0.10+ support.
+Deployment token covers up to v1.0.x. Update your deployment token for v1.1+ support.
 ```
 
 Organizations with active support subscriptions receive updated deployment

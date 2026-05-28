@@ -1,5 +1,5 @@
 """Version information for nxuskit package."""
 
-__version__ = "0.9.4"
+__version__ = "1.0.0"
 __author__ = "nxusKit Contributors"
 __license__ = "MIT OR Apache-2.0"

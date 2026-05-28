@@ -11,6 +11,37 @@ historical version resets.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-05-28
+
+> General Availability release for the v0.9.4-stabilized SDK API surface.
+> This release is intentionally narrow: version metadata moves to `1.0.0`,
+> public documentation now reflects GA posture, and SDK bundle packaging guards
+> include the Rust benchmark targets required by the wrapper manifest.
+
+### Changed
+
+- Promoted nxusKit SDK to GA in public README/support copy.
+- Updated Rust workspace, C ABI, Go SDK, Python SDK, and package metadata to
+  lockstep version `1.0.0`.
+- Promoted Python package classifier to `Development Status :: 5 -
+  Production/Stable`.
+- Refreshed public architecture and README links to the hosted docs site.
+- Clarified loopback CLI examples so local copy-paste commands use explicit
+  loopback model names.
+
+### Fixed
+
+- SDK release workflows now copy `packages/nxuskit/benches` into the bundled
+  Rust wrapper so the declared benchmark target is present in release archives.
+- Packaging verification now fails if the bundled Rust wrapper omits the
+  declared `logprobs_serialization` benchmark target.
+
+### Compatibility
+
+- No API or C ABI signature changes from v0.9.4 are introduced in this GA cut.
+- Pro installation packages continue to be published on the public release page;
+  Pro capabilities still require a valid license key.
+
 ## [0.9.4] - 2026-05-11
 
 > v0.9.4 release candidate. Provider-capability modernization and release

@@ -10,9 +10,9 @@ Polyglot SDK for 16+ LLM providers, CLIPS rule engines, and Bayesian networks in
 ![Go](https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)
 
-**[Website](https://nxus.systems)** · **[Examples](https://github.com/nxus-SYSTEMS/nxusKit-examples)** · **[Getting Started](sdk-packaging/docs/getting-started.md)**
+**[Documentation](https://docs.nxus.systems/nxuskit/)** · **[Getting Started](https://docs.nxus.systems/nxuskit/getting-started/installation/)** · **[Examples Docs](https://docs.nxus.systems/nxuskit/examples/)** · **[Examples Repo](https://github.com/nxus-SYSTEMS/nxusKit-examples)** · **[Website](https://nxus.systems)**
 
-> **Beta**: nxusKit is in public beta (v0.9.x). APIs are stabilized as of v0.9.4. Bug reports and feedback welcome via [GitHub Issues](https://github.com/nxus-SYSTEMS/nxusKit/issues).
+> **General Availability**: nxusKit SDK v1.0.0 is the GA release of the stabilized v0.9.4 API surface, with packaging and documentation hardening for production use. Bug reports and feedback welcome via [GitHub Issues](https://github.com/nxus-SYSTEMS/nxusKit/issues).
 
 ---
 
@@ -25,7 +25,7 @@ Choose your language:
 | **Rust** | [nxuskit](packages/nxuskit/) | Path dependency from SDK bundle |
 | **Go** | [nxuskit-go](packages/nxuskit-go/) | `go get github.com/nxus-SYSTEMS/nxusKit/packages/nxuskit-go` |
 | **Python** | [nxuskit-py](packages/nxuskit-py/) | `pip install nxuskit-py` |
-| **C ABI** | [Pre-built binaries](sdk-packaging/docs/getting-started.md) | Download from [Releases](https://github.com/nxus-SYSTEMS/nxusKit/releases) |
+| **C ABI** | [Pre-built binaries](https://docs.nxus.systems/nxuskit/getting-started/installation/) | Download from [Releases](https://github.com/nxus-SYSTEMS/nxusKit/releases) |
 
 ### Build Community Edition From Source
 
@@ -58,11 +58,11 @@ nxuskit-cli solver solve --input problem.json --format json
 # What-if analysis with base vs. assumed comparison (Pro)
 nxuskit-cli solver what-if --input base.json --compare assumed.json --format json
 
-# ZEN decision-table utilities (Pro, v0.9.4): structural validation + fixture testing
+# ZEN decision-table utilities (Pro): structural validation + fixture testing
 nxuskit-cli zen validate --input my_table.jdm.json --format json
 nxuskit-cli zen test --input fixtures.json --format json
 
-# Bayesian network parameter learning + evidence validation (v0.9.4)
+# Bayesian network parameter learning + evidence validation
 nxuskit-cli bn learn --input bn_learn.json --format json     # learn CPDs from CSV; output is BIF-exportable
 nxuskit-cli bn evidence --input observations.json --format json
 
@@ -82,9 +82,9 @@ nxuskit-cli completions zsh > ~/.zfunc/_nxuskit-cli
 nxuskit-cli completions fish > ~/.config/fish/completions/nxuskit-cli.fish
 ```
 
-The CLI is bundled in the [SDK release archive](https://github.com/nxus-SYSTEMS/nxusKit/releases). See the [CLI Input Reference](sdk-packaging/docs/cli-input-reference.md) for all commands and input schemas.
+The CLI is bundled in the [SDK release archive](https://github.com/nxus-SYSTEMS/nxusKit/releases). See the [CLI Input Format Reference](https://docs.nxus.systems/nxuskit/reference/cli-reference/) for all commands and input schemas.
 
-Looking for runnable examples? See the **[nxusKit Examples](https://github.com/nxus-SYSTEMS/nxusKit-examples)** repository — 30+ examples across Rust, Go, Python, and CLI/Bash covering streaming, vision, tool calling, CLIPS rules, constraint solving, and more. Each example is labeled by edition so developers can see what works with Community Edition and what requires Pro before they run it.
+Looking for runnable examples? Start with the **[nxusKit examples documentation](https://docs.nxus.systems/nxuskit/examples/)** or open the **[nxusKit Examples](https://github.com/nxus-SYSTEMS/nxusKit-examples)** repository — 30+ examples across Rust, Go, Python, and CLI/Bash covering streaming, vision, tool calling, CLIPS rules, constraint solving, and more. Each example is labeled by edition so developers can see what works with Community Edition and what requires Pro before they run it.
 
 ---
 
@@ -252,9 +252,9 @@ Language SDKs provide idiomatic APIs, mock/loopback testing utilities, and FFI-b
 
 ## Testing and Public Test Releases
 
-The internal test suite spans Rust, Go, Python, CLI, C ABI, parity fixtures, conformance vectors, provider adapters, reasoning engines, entitlement behavior, and release smoke tests. The public repository will receive the portions of that coverage that can be released without exposing private implementation details, credentials, customer data, or proprietary Pro internals.
+The internal test suite spans Rust, Go, Python, CLI, C ABI, parity fixtures, conformance vectors, provider adapters, reasoning engines, entitlement behavior, and release smoke tests. The public repository receives the portions of that coverage that can be released without exposing private implementation details, credentials, customer data, or proprietary Pro internals.
 
-Initial public test releases will focus on Community Edition conformance vectors, mock/loopback provider tests, language parity fixtures, CLI JSON contract tests, and safe Pro boundary tests that assert edition behavior without leaking implementation IP. Those releases will begin as nxusKit approaches the end of public beta; the first visible tranche of public tests should be treated as a signal that beta is close to closing.
+Public test releases focus on Community Edition conformance vectors, mock/loopback provider tests, language parity fixtures, CLI JSON contract tests, and safe Pro boundary tests that assert edition behavior without leaking implementation IP. Coverage will continue to expand after GA.
 
 See [TESTING.md](TESTING.md) for the testing philosophy, current internal coverage snapshot, release boundaries, and open questions for maintainers.
 
@@ -284,7 +284,7 @@ See [TESTING.md](TESTING.md) for the testing philosophy, current internal covera
 
 ## Examples
 
-The **[nxusKit-examples](https://github.com/nxus-SYSTEMS/nxusKit-examples)** repository contains 30+ runnable examples:
+The **[nxusKit examples documentation](https://docs.nxus.systems/nxuskit/examples/)** catalogs 30+ runnable examples, with source available in the **[nxusKit-examples](https://github.com/nxus-SYSTEMS/nxusKit-examples)** repository:
 
 | Category | Examples |
 |----------|----------|
@@ -302,22 +302,20 @@ Each example includes Rust, Go, and Python implementations.
 
 ## Support
 
-nxusKit SDK is currently in **public beta** (v0.9.x). APIs are stabilized as of v0.9.4.
+nxusKit SDK v1.0.0 is generally available. The v1.0.0 release preserves the stabilized v0.9.4 API surface and adds GA packaging and documentation hardening.
 
-**During beta, support is provided on a best-effort basis through [GitHub Issues](https://github.com/nxus-SYSTEMS/nxusKit/issues).** We actively monitor and respond to issues, but we cannot guarantee response times or resolution timelines.
+Community support is provided through [GitHub Issues](https://github.com/nxus-SYSTEMS/nxusKit/issues). Commercial support options are published at [nxus.systems/support](https://nxus.systems/support).
 
 Before opening an issue, please:
 - Search existing issues to avoid duplicates
 - Include your SDK version, language (Rust/Go/Python), and OS
 - Provide a minimal reproduction if possible
 
-**What to expect during beta:**
-- APIs are stabilized as of v0.9.4; bug fixes, provider behavior refinements, and additive features may still arrive between releases
-- Breaking changes are still possible but not likely from now (v0.9.4) through GA, but will be documented in release notes if they occur
+**What to expect after GA:**
+- The v1.0 API surface is stable; bug fixes, provider behavior refinements, and additive features may still arrive between releases
+- Breaking changes require a major-version release and will be documented in release notes
 - Bug reports and feature requests are welcome and encouraged
 - Community contributions (PRs, docs improvements) are appreciated
-
-**Post-GA support tiers** will be available when the SDK reaches general availability. Details will be published at [nxus.systems/support](https://nxus.systems/support).
 
 ---
 

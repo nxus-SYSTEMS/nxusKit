@@ -77,7 +77,7 @@ pub struct TokenClaims {
     /// Whether trial has been activated (trial tokens)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub activated: Option<bool>,
-    /// Major.minor version ceiling, e.g. "0.9" (deployment tokens)
+    /// Major.minor version ceiling, e.g. "1.0" (deployment tokens)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sdk_version_ceiling: Option<String>,
     /// Customer email for audit trail (deployment tokens)
@@ -535,7 +535,7 @@ mod tests {
             machine_id: None,
             seat_index: None,
             activated: None,
-            sdk_version_ceiling: Some("0.9".to_string()),
+            sdk_version_ceiling: Some("1.0".to_string()),
             customer_email: Some("dev@co.com".to_string()),
         };
 

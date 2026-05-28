@@ -116,7 +116,7 @@ pub fn make_license_fixture(kind: LicenseFixtureKind) -> LicenseFixture {
                 "product_id": "nxuskit",
                 "tenant_id": "org-deploy-fixture",
                 "customer_email": "fixture@example.invalid",
-                "sdk_version_ceiling": "0.9",
+                "sdk_version_ceiling": "1.0",
                 "environment": "test",
                 "features_override": ["solver", "zen", "clips", "bayesian"],
                 "limits_override": {"deployment.nodes": 10}
