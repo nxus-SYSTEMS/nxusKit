@@ -40,7 +40,12 @@ missing_panics_doc = "allow"
 
 [features]
 default = []
-pro-engines = []
+pro-engines = [
+    "nxuskit-core/provider-zen",
+    "nxuskit-core/provider-z3",
+    "nxuskit-engine/provider-zen",
+    "nxuskit-engine/provider-z3",
+]
 
 [dependencies]
 nxuskit-engine = { path = "../nxuskit-engine" }

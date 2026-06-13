@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "nxuskit.validated_examples_portfolio_snapshot",
+  "validation_date": "2026-06-12",
+  "validated_with_sdk_release": "sdk-v1.0.2",
+  "validation_scope": "SDK release QA validated the SDK-local offline Examples catalog snapshot against the public Examples companion portfolio.",
+  "examples_portfolio_repository": "nxus-SYSTEMS/nxusKit-examples",
+  "examples_portfolio_tag": "v1.0.1-20260609",
+  "examples_portfolio_commit": "e58646e9f23e5381f3df10dcea42d99e432339cc",
+  "examples_manifest_schema_version": "4.0.0"
+}

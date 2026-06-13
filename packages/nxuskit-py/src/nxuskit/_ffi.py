@@ -23,7 +23,7 @@ from pathlib import Path
 from cffi import FFI
 
 # Expected version — must match the linked nxuskit library.
-EXPECTED_VERSION = "1.0.0"
+EXPECTED_VERSION = "1.0.2"
 
 # ── cffi setup ────────────────────────────────────────────────
 

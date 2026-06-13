@@ -17,7 +17,7 @@ nxusKit provides two in-process inference backends:
 
 | Backend | Feature Flag | Engine | Status |
 |---------|-------------|--------|--------|
-| llama.cpp | `provider-local-llama` | [llama-cpp-2](https://github.com/utilityai/llama-cpp-rs) (safe Rust bindings to llama.cpp) | Production-ready |
+| llama.cpp | `provider-local-llama` | [llama-cpp-2](https://github.com/utilityai/llama-cpp-rs) (safe Rust bindings to llama.cpp) | Mature upstream backend |
 | mistral.rs | `provider-local-mistralrs` | [mistral.rs](https://github.com/EricLBuehler/mistral.rs) (pure-Rust inference on Candle) | Experimental |
 
 Both backends load the same **GGUF** model format. If both features are enabled, you can select a backend explicitly or let nxusKit auto-select the first available one.
@@ -41,7 +41,7 @@ Any model published in GGUF format that is compatible with llama.cpp should work
 | **Llama 3.2** | 1B, 3B | `Llama-3.2-1B-Instruct-Q4_K_M.gguf` | Meta's latest small models. Great for CPU. |
 | **Llama 3.1** | 8B, 70B, 405B | `Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf` | Excellent general-purpose. 8B runs well on 16GB RAM. |
 | **Llama 3** | 8B, 70B | `Meta-Llama-3-8B-Instruct-Q4_K_M.gguf` | Predecessor to 3.1, widely available. |
-| **Llama 2** | 7B, 13B, 70B | `llama-2-7b-chat.Q4_K_M.gguf` | Older but battle-tested. |
+| **Llama 2** | 7B, 13B, 70B | `llama-2-7b-chat.Q4_K_M.gguf` | Older and widely available. |
 | **Mistral** | 7B | `mistral-7b-instruct-v0.3.Q4_K_M.gguf` | Strong performance relative to size. |
 | **Mixtral** | 8x7B, 8x22B | `mixtral-8x7b-instruct-v0.1.Q4_K_M.gguf` | Mixture-of-experts. Needs more RAM. |
 | **Phi-3 / Phi-3.5** | 3.8B, 14B | `Phi-3.5-mini-instruct-Q4_K_M.gguf` | Microsoft. Strong reasoning for size. |
@@ -221,7 +221,7 @@ provider.unload_model("/models/llama-3.2-1b.Q4_K_M.gguf");
 
 | Feature | llama.cpp (`provider-local-llama`) | mistral.rs (`provider-local-mistralrs`) |
 |---|---|---|
-| Maturity | Production-ready | Experimental |
+| Maturity | Mature upstream backend | Experimental |
 | Language | C++ with Rust bindings | Pure Rust (Candle) |
 | Build time | Fast (~30s) | Slow (~3-5 min, pulls Candle) |
 | GPU support | Metal, CUDA, Vulkan | Metal, CUDA (via Candle) |

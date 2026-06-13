@@ -1,7 +1,7 @@
 //! Examples manifest browser for the nxusKit CLI.
 //!
-//! Reads `examples_manifest.json` and `example-groups.json` from the installed
-//! SDK and provides list/show/filter functionality. Files are discovered at
+//! Reads `examples_manifest.json`, `example-groups.json`, and optional validated
+//! Examples portfolio provenance from the installed SDK. Files are discovered at
 //! runtime via `NXUSKIT_SDK_DIR` or `~/.nxuskit/sdk/current/`.
 
 use serde::{Deserialize, Serialize};
@@ -16,6 +16,53 @@ use std::path::{Path, PathBuf};
 pub struct ExamplesManifest {
     pub version: String,
     pub examples: Vec<Example>,
+}
+
+/// SDK release QA provenance for the validated companion Examples portfolio.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ValidatedExamplesPortfolioSnapshot {
+    pub schema_version: String,
+    pub examples_portfolio_repository: String,
+    pub examples_portfolio_tag: String,
+    pub examples_portfolio_commit: String,
+    #[serde(default)]
+    pub examples_manifest_schema_version: Option<String>,
+    #[serde(default)]
+    pub validated_with_sdk_release: Option<String>,
+    #[serde(default)]
+    pub validation_date: Option<String>,
+    #[serde(default)]
+    pub validation_scope: Option<String>,
+}
+
+impl ValidatedExamplesPortfolioSnapshot {
+    fn source_ref(&self) -> &str {
+        &self.examples_portfolio_commit
+    }
+
+    fn source_url_for_path(&self, path: &str) -> String {
+        format!(
+            "https://github.com/{}/tree/{}/{}",
+            self.examples_portfolio_repository,
+            self.source_ref(),
+            path
+        )
+    }
+
+    fn display_label(&self) -> String {
+        let short_commit: String = self.examples_portfolio_commit.chars().take(8).collect();
+        format!(
+            "{} {}@{}",
+            self.examples_portfolio_repository, self.examples_portfolio_tag, short_commit
+        )
+    }
+
+    fn validation_statement(&self) -> String {
+        format!(
+            "This SDK release was validated with Examples portfolio snapshot {}; the latest compatible Examples release may be newer.",
+            self.display_label()
+        )
+    }
 }
 
 /// A single SDK example with metadata, editorial content, and implementation links.
@@ -224,6 +271,15 @@ pub fn load_manifest(conformance_dir: &Path) -> Result<ExamplesManifest, Manifes
 /// doesn't exist (groups are optional — the CLI can fall back to category-based grouping).
 pub fn load_groups(conformance_dir: &Path) -> Option<ExampleGroupsConfig> {
     let path = conformance_dir.join("example-groups.json");
+    let content = std::fs::read_to_string(&path).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
+/// Load optional portfolio validation provenance for SDK-local Examples metadata.
+pub fn load_validated_examples_portfolio_snapshot(
+    conformance_dir: &Path,
+) -> Option<ValidatedExamplesPortfolioSnapshot> {
+    let path = conformance_dir.join("validated_examples_portfolio_snapshot.json");
     let content = std::fs::read_to_string(&path).ok()?;
     serde_json::from_str(&content).ok()
 }
@@ -458,6 +514,7 @@ pub fn format_examples_table(
     total_count: usize,
     filtered_count: usize,
     filter_desc: &str,
+    snapshot: Option<&ValidatedExamplesPortfolioSnapshot>,
 ) -> String {
     let use_emoji = !no_color();
     let mut out = String::new();
@@ -514,11 +571,18 @@ pub fn format_examples_table(
         ));
     }
 
+    if let Some(snapshot) = snapshot {
+        out.push_str(&format!("{}\n", snapshot.validation_statement()));
+    }
+
     out
 }
 
 /// Format full detail output for a single example.
-pub fn format_example_detail(ex: &Example) -> String {
+pub fn format_example_detail(
+    ex: &Example,
+    snapshot: Option<&ValidatedExamplesPortfolioSnapshot>,
+) -> String {
     let use_emoji = !no_color();
     let mut out = String::new();
 
@@ -541,6 +605,12 @@ pub fn format_example_detail(ex: &Example) -> String {
     out.push_str(&format!("  Difficulty:   {diff_str}\n"));
     out.push_str(&format!("  Tier:         {}\n", ex.tier));
     out.push_str(&format!("  Tags:         {}\n", ex.tech_tags.join(", ")));
+    if let Some(snapshot) = snapshot {
+        out.push_str(&format!(
+            "  Validation:   {}\n",
+            snapshot.validation_statement()
+        ));
+    }
 
     let langs = ex
         .languages
@@ -557,7 +627,10 @@ pub fn format_example_detail(ex: &Example) -> String {
         let mut impls: Vec<_> = ex.implementations.iter().collect();
         impls.sort_by_key(|(lang, _)| lang.to_string());
         for (lang, path) in impls {
-            let url = format!("https://github.com/nxus-SYSTEMS/nxusKit-examples/tree/main/{path}");
+            let url = snapshot.map_or_else(
+                || format!("https://github.com/nxus-SYSTEMS/nxusKit-examples/tree/main/{path}"),
+                |snapshot| snapshot.source_url_for_path(path),
+            );
             out.push_str(&format!("    {:<10}{url}\n", capitalize(lang)));
         }
     }
@@ -641,6 +714,7 @@ pub fn handle_examples_command(action: ExamplesAction) -> i32 {
     };
 
     let groups_config = load_groups(&conformance_dir);
+    let validated_examples_snapshot = load_validated_examples_portfolio_snapshot(&conformance_dir);
 
     match action {
         ExamplesAction::List {
@@ -657,8 +731,11 @@ pub fn handle_examples_command(action: ExamplesAction) -> i32 {
             lang,
             tag,
             json,
+            validated_examples_snapshot.as_ref(),
         ),
-        ExamplesAction::Show { name, json } => handle_show(&manifest, &name, json),
+        ExamplesAction::Show { name, json } => {
+            handle_show(&manifest, validated_examples_snapshot.as_ref(), &name, json)
+        }
     }
 }
 
@@ -670,6 +747,7 @@ fn handle_list(
     lang: Option<String>,
     tag: Option<String>,
     json_output: bool,
+    validated_examples_snapshot: Option<&ValidatedExamplesPortfolioSnapshot>,
 ) -> i32 {
     let opts = FilterOptions {
         difficulty,
@@ -712,12 +790,23 @@ fn handle_list(
 
     let groups = group_and_sort(&filtered, groups_config);
     let filter_desc = opts.description();
-    let table = format_examples_table(&groups, total, filtered_count, &filter_desc);
+    let table = format_examples_table(
+        &groups,
+        total,
+        filtered_count,
+        &filter_desc,
+        validated_examples_snapshot,
+    );
     print!("{table}");
     0
 }
 
-fn handle_show(manifest: &ExamplesManifest, name: &str, json_output: bool) -> i32 {
+fn handle_show(
+    manifest: &ExamplesManifest,
+    validated_examples_snapshot: Option<&ValidatedExamplesPortfolioSnapshot>,
+    name: &str,
+    json_output: bool,
+) -> i32 {
     if let Some(ex) = manifest.examples.iter().find(|e| e.name == name) {
         if json_output {
             match serde_json::to_string_pretty(ex) {
@@ -731,7 +820,7 @@ fn handle_show(manifest: &ExamplesManifest, name: &str, json_output: bool) -> i3
                 }
             }
         }
-        print!("{}", format_example_detail(ex));
+        print!("{}", format_example_detail(ex, validated_examples_snapshot));
         return 0;
     }
 
@@ -807,6 +896,11 @@ mod tests {
         load_groups(&fixture_dir()).expect("fixture groups should load")
     }
 
+    fn load_fixture_snapshot() -> ValidatedExamplesPortfolioSnapshot {
+        load_validated_examples_portfolio_snapshot(&fixture_dir())
+            .expect("fixture snapshot should load")
+    }
+
     // ── T007/T009: manifest loading tests ───────────────────────
 
     #[test]
@@ -869,14 +963,26 @@ mod tests {
         assert_eq!(groups.groups[0].slug, "llm-patterns");
     }
 
+    #[test]
+    fn test_load_validated_examples_portfolio_snapshot_from_fixture() {
+        let snapshot = load_fixture_snapshot();
+        assert_eq!(snapshot.schema_version, "1.0.0");
+        assert_eq!(snapshot.examples_portfolio_tag, "v1.0.1-20260609");
+        assert_eq!(
+            snapshot.source_url_for_path("examples/patterns/basic-chat/rust"),
+            "https://github.com/nxus-SYSTEMS/nxusKit-examples/tree/e58646e9f23e5381f3df10dcea42d99e432339cc/examples/patterns/basic-chat/rust"
+        );
+    }
+
     // ── T010: format_examples_table ─────────────────────────────
 
     #[test]
     fn test_format_examples_table_contains_metadata() {
         let manifest = load_fixture_manifest();
         let groups_config = load_fixture_groups();
+        let snapshot = load_fixture_snapshot();
         let groups = group_and_sort(&manifest.examples, Some(&groups_config));
-        let output = format_examples_table(&groups, 5, 5, "");
+        let output = format_examples_table(&groups, 5, 5, "", Some(&snapshot));
 
         assert!(
             output.contains("basic-chat"),
@@ -902,6 +1008,12 @@ mod tests {
         assert!(
             output.contains("Showing 5 examples"),
             "should contain summary line, got:\n{output}"
+        );
+        assert!(
+            output.contains(
+                "This SDK release was validated with Examples portfolio snapshot nxus-SYSTEMS/nxusKit-examples v1.0.1-20260609@e58646e9; the latest compatible Examples release may be newer."
+            ),
+            "should contain validated portfolio provenance, got:\n{output}"
         );
     }
 
@@ -1045,12 +1157,13 @@ mod tests {
     #[test]
     fn test_format_example_detail_contains_all_fields() {
         let manifest = load_fixture_manifest();
+        let snapshot = load_fixture_snapshot();
         let ex = manifest
             .examples
             .iter()
             .find(|e| e.name == "cost-routing")
             .unwrap();
-        let output = format_example_detail(ex);
+        let output = format_example_detail(ex, Some(&snapshot));
 
         assert!(output.contains("cost-routing"));
         assert!(output.contains(&ex.tagline));
@@ -1060,6 +1173,8 @@ mod tests {
         assert!(output.contains("LLM"));
         assert!(output.contains("Rust · Go"));
         assert!(output.contains("github.com/nxus-SYSTEMS/nxusKit-examples"));
+        assert!(output.contains("v1.0.1-20260609@e58646e9"));
+        assert!(output.contains("e58646e9f23e5381f3df10dcea42d99e432339cc"));
     }
 
     // ── T024: suggest_similar_names ─────────────────────────────

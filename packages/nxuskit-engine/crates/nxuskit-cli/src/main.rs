@@ -1182,6 +1182,21 @@ fn handle_license_command(action: LicenseAction) {
             let info = nxuskit_core::entitlement::entitlement_info(None);
             let endpoint_override = std::env::var("NXUSKIT_LICENSE_SERVER").ok();
             let environment_override = std::env::var("NXUSKIT_LICENSE_ENVIRONMENT").ok();
+            let pro_engines_compiled = cfg!(feature = "pro-engines");
+            let effective_edition = info
+                .get("effective_edition")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            let pro_engine_warning =
+                matches!(effective_edition, "pro" | "enterprise") && !pro_engines_compiled;
+            let cli_diagnostics = serde_json::json!({
+                "pro_engines_compiled": pro_engines_compiled,
+                "warnings": if pro_engine_warning {
+                    vec!["valid Pro entitlement is present, but this CLI was built without Pro solver/ZEN engine modules"]
+                } else {
+                    Vec::<&str>::new()
+                },
+            });
             let licensing_diagnostics = serde_json::json!({
                 "environment": nxuskit_core::license::license_environment(),
                 "default_environment": nxuskit_core::license::default_license_environment(),
@@ -1212,6 +1227,7 @@ fn handle_license_command(action: LicenseAction) {
                 let out = serde_json::json!({
                     "auth": auth_json,
                     "license": info,
+                    "cli": cli_diagnostics,
                     "licensing": licensing_diagnostics,
                 });
                 println!("{}", serde_json::to_string_pretty(&out).unwrap());
@@ -1282,6 +1298,11 @@ fn handle_license_command(action: LicenseAction) {
                 };
 
                 println!("Edition: {} ({})", edition, status);
+                if pro_engine_warning {
+                    println!(
+                        "CLI warning: valid Pro entitlement is present, but this CLI was built without Pro solver/ZEN engine modules"
+                    );
+                }
                 println!(
                     "Licensing endpoint: {}",
                     nxuskit_core::license::license_server_url()

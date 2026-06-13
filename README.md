@@ -12,7 +12,7 @@ Polyglot SDK for 16+ LLM providers, CLIPS rule engines, and Bayesian networks in
 
 **[Documentation](https://docs.nxus.systems/nxuskit/)** · **[Getting Started](https://docs.nxus.systems/nxuskit/getting-started/installation/)** · **[Examples Docs](https://docs.nxus.systems/nxuskit/examples/)** · **[Examples Repo](https://github.com/nxus-SYSTEMS/nxusKit-examples)** · **[Website](https://nxus.systems)**
 
-> **General Availability**: nxusKit SDK v1.0.0 is the GA release of the stabilized v0.9.4 API surface, with packaging and documentation hardening for production use. Bug reports and feedback welcome via [GitHub Issues](https://github.com/nxus-SYSTEMS/nxusKit/issues).
+> **General Availability**: nxusKit SDK v1.0.2 is the current GA patch release of the stabilized v1.0 API surface. It preserves the v1.0.0 API and C ABI contracts while hardening release provenance, bundled Python setup guidance, and public trust wording. The v1.0.1 Pro SDK CLI packaging fix remains included.
 
 ---
 
@@ -24,7 +24,7 @@ Choose your language:
 |----------|---------|---------|
 | **Rust** | [nxuskit](packages/nxuskit/) | Path dependency from SDK bundle |
 | **Go** | [nxuskit-go](packages/nxuskit-go/) | `go get github.com/nxus-SYSTEMS/nxusKit/packages/nxuskit-go` |
-| **Python** | [nxuskit-py](packages/nxuskit-py/) | `pip install nxuskit-py` |
+| **Python** | [nxuskit-py](packages/nxuskit-py/) | SDK bundle `python/src` on `PYTHONPATH` |
 | **C ABI** | [Pre-built binaries](https://docs.nxus.systems/nxuskit/getting-started/installation/) | Download from [Releases](https://github.com/nxus-SYSTEMS/nxusKit/releases) |
 
 ### Build Community Edition From Source
@@ -286,6 +286,11 @@ See [TESTING.md](TESTING.md) for the testing philosophy, current internal covera
 
 The **[nxusKit examples documentation](https://docs.nxus.systems/nxuskit/examples/)** catalogs 30+ runnable examples, with source available in the **[nxusKit-examples](https://github.com/nxus-SYSTEMS/nxusKit-examples)** repository:
 
+SDK releases record a validated Examples portfolio snapshot under
+`conformance/validated_examples_portfolio_snapshot.json`. Use that file for
+release QA provenance and reproducible offline catalog validation; use the
+Examples repository for the latest independently released companion portfolio.
+
 | Category | Examples |
 |----------|----------|
 | **Patterns** | Streaming, retry, cost routing, token budgets, structured output |
@@ -302,7 +307,7 @@ Each example includes Rust, Go, and Python implementations.
 
 ## Support
 
-nxusKit SDK v1.0.0 is generally available. The v1.0.0 release preserves the stabilized v0.9.4 API surface and adds GA packaging and documentation hardening.
+nxusKit SDK v1.0.2 is generally available. This patch preserves the v1.0.0 API and C ABI contracts, keeps the v1.0.1 Pro CLI packaging fix, and tightens release provenance plus bundled Python setup guidance.
 
 Community support is provided through [GitHub Issues](https://github.com/nxus-SYSTEMS/nxusKit/issues). Commercial support options are published at [nxus.systems/support](https://nxus.systems/support).
 

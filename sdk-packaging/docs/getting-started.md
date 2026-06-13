@@ -72,7 +72,7 @@ To persist across sessions, add to your shell profile (`~/.bashrc`, `~/.zshrc`,
 etc.):
 
 ```bash
-export NXUSKIT_SDK_DIR="/absolute/path/to/nxuskit-sdk-1.0.0-oss-macos-arm64"
+export NXUSKIT_SDK_DIR="/absolute/path/to/nxuskit-sdk-1.0.2-oss-macos-arm64"
 ```
 
 For CI systems, see [Download via PAT](#download-via-pat) below.
@@ -87,11 +87,13 @@ nxuskit-cli completions zsh  > ~/.zfunc/_nxuskit-cli      # add ~/.zfunc to $fpa
 nxuskit-cli completions fish > ~/.config/fish/completions/nxuskit-cli.fish
 ```
 
-Supported shells for `completions` in v1.0.0: **bash**, **zsh**, **fish**.
-PowerShell completion is **not generated** in v1.0.0 (the `completions` command
-accepts only those three shell names). JSON schemas referenced by the CLI ship
-under the bundle's `include/` (the C header) and `conformance/` (packet/pipeline
-schemas) directories; see [SDK Bundle Contents](#2-sdk-bundle-contents) above.
+Supported shells for `completions` in v1.0.x: **bash**, **zsh**, **fish**.
+PowerShell completion is **not generated** in v1.0.x (the `completions` command
+accepts only those three shell names). JSON schemas and validated Examples
+portfolio provenance referenced by the CLI ship under the bundle's `include/`
+(the C header) and `conformance/` (packet/pipeline schemas plus
+`validated_examples_portfolio_snapshot.json`) directories; see
+[SDK Bundle Contents](#2-sdk-bundle-contents) above.
 
 ## 2. SDK Bundle Contents
 
@@ -99,6 +101,12 @@ schemas) directories; see [SDK Bundle Contents](#2-sdk-bundle-contents) above.
 nxuskit-sdk-{version}-{edition}-{platform}/
 ├── include/
 │   └── nxuskit.h          # C header — all API declarations
+├── conformance/
+│   ├── examples_manifest.json
+│   ├── example-groups.json
+│   ├── example-tiers.json
+│   └── validated_examples_portfolio_snapshot.json
+│                         # release QA provenance for the offline catalog
 ├── lib/
 │   ├── libnxuskit.so      # Shared library (Linux)
 │   │   libnxuskit.dylib   # Shared library (macOS)
@@ -128,7 +136,7 @@ See [examples/c/basic_chat.c](../examples/c/basic_chat.c) for the source.
 ## 4. First Example — Go
 
 ```bash
-export OPENAI_API_KEY="sk-..."
+export OPENAI_API_KEY="<your-openai-api-key>"
 
 cd nxuskit-sdk-*/examples/go
 go run basic_chat.go
@@ -144,7 +152,7 @@ in your `Cargo.toml` using the **absolute path** to the SDK's `rust/` directory:
 ```toml
 # Cargo.toml
 [dependencies]
-nxuskit = { path = "/Users/you/nxuskit-sdk-1.0.0-oss-macos-arm64/rust" }
+nxuskit = { path = "/Users/you/nxuskit-sdk-1.0.2-oss-macos-arm64/rust" }
 ```
 
 Then set your environment and run:
@@ -152,7 +160,7 @@ Then set your environment and run:
 ```bash
 # NXUSKIT_SDK_DIR tells the wrapper where to find libnxuskit at runtime.
 # Must be an absolute path (relative paths are unreliable across tools).
-export NXUSKIT_SDK_DIR="/Users/you/nxuskit-sdk-1.0.0-oss-macos-arm64"
+export NXUSKIT_SDK_DIR="/Users/you/nxuskit-sdk-1.0.2-oss-macos-arm64"
 export OPENAI_API_KEY="sk-..."
 
 cargo run
@@ -187,8 +195,13 @@ See [examples/rust/](../examples/rust/) for a runnable project, and
 
 ## 6. First Example — Python
 
+The Python SDK source ships inside the SDK bundle. Point `PYTHONPATH` at the
+bundle's `python/src` directory and set `NXUSKIT_SDK_DIR` so FFI-backed features
+can locate the native library:
+
 ```bash
-pip install nxuskit-py
+export NXUSKIT_SDK_DIR="/Users/you/nxuskit-sdk-1.0.2-oss-macos-arm64"
+export PYTHONPATH="$NXUSKIT_SDK_DIR/python/src:${PYTHONPATH:-}"
 export OPENAI_API_KEY="sk-..."
 
 python examples/python/basic_chat.py

@@ -9,7 +9,7 @@ Output is wrapped in a `ResponseEnvelope` with `trace_id`, `request_metadata`,
 and timing fields.
 
 Loopback examples that are intended to execute locally use explicit loopback
-model names. In nxusKit CLI v1.0.0, do not rely on an omitted model resolving
+model names. In nxusKit CLI v1.0.x, do not rely on an omitted model resolving
 to `"default"` for the `loopback` provider; use `"echo"` for plain echo tests
 or `"echo-json-native"` when you need a loopback model that advertises native
 JSON support. Commands that require a semantic structured answer, such as
@@ -61,7 +61,7 @@ LLM invocation. Accepts either `prompt` (single-turn) or `messages` (multi-turn)
 | `messages` | array of `{role, content}` | no | Multi-turn conversation messages |
 | `system` | string | no | System message prepended to the conversation |
 | `provider` | string | no | Provider name (default: `loopback`, or `$NXUSKIT_PROVIDER`) |
-| `model` | string | no | Model identifier. For `loopback`, use a valid loopback model such as `"echo"` or `"echo-json-native"`; do not rely on the implicit `"default"` model in v1.0.0. |
+| `model` | string | no | Model identifier. For `loopback`, use a valid loopback model such as `"echo"` or `"echo-json-native"`; do not rely on the implicit `"default"` model in v1.0.x. |
 | `tool_definitions` | array of JSON objects | no | Tool/function schemas passed to the LLM |
 | `tool_choice` | JSON value | no | Provider-compatible tool choice policy passed with `tool_definitions` |
 | `response_format` | object | no | Response format constraint: `{"type":"text"}`, `{"type":"json_object"}`, or `{"type":"json_schema","schema":{...}}` |
@@ -265,7 +265,7 @@ echo '{
 - `Failed to load dataset '...': ...` -- Fix: CSV column headers must match the network's variable names; cell values must match declared states (empty / `?` cells are treated as missing).
 - `Unknown learner '...'. Valid: mle, bayesian` -- Fix: use one of the two supported learners.
 
-**Excluded from v1.0.0:** structure *search* (`hill_climb` / `k2`) is engine-only, not a CLI surface; streaming; team-runtime lineage.
+**Excluded from v1.0.x:** structure *search* (`hill_climb` / `k2`) is engine-only, not a CLI surface; streaming; team-runtime lineage.
 
 ---
 
@@ -476,7 +476,7 @@ converges (stops requesting tool calls) or hits `max_iterations`.
 |-------|------|----------|-------------|
 | `prompt` | string | **yes** | Initial user prompt |
 | `provider` | string | no | Provider name (default: `loopback` or `$NXUSKIT_PROVIDER`) |
-| `model` | string | no | Model identifier. For `loopback`, use a valid loopback model such as `"echo"`; do not rely on the implicit `"default"` model in v1.0.0. |
+| `model` | string | no | Model identifier. For `loopback`, use a valid loopback model such as `"echo"`; do not rely on the implicit `"default"` model in v1.0.x. |
 | `max_iterations` | u32 | no | Maximum loop iterations (default: `10`) |
 | `tools` | array of strings | no | Tool adapter names: `"file_reader"`, `"calculator"`, `"web_search"` |
 | `tool_configs` | JSON object | no | Per-tool configuration |

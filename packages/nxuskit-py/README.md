@@ -1,6 +1,6 @@
 # nxuskit-py: Python SDK for nxusKit
 
-[![PyPI](https://img.shields.io/pypi/v/nxuskit-py.svg)](https://pypi.org/project/nxuskit-py/)
+[![SDK bundle](https://img.shields.io/badge/distribution-SDK%20bundle-blue.svg)](https://github.com/nxus-SYSTEMS/nxusKit/releases)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 
@@ -22,11 +22,16 @@ Pure Python library for the [nxusKit](https://github.com/nxus-SYSTEMS/nxusKit) p
 
 ## Installation
 
+The v1.0.x Python package ships inside the nxusKit SDK release archive. From an
+extracted SDK bundle:
+
 ```bash
-pip install nxuskit-py
+export NXUSKIT_SDK_DIR="$HOME/.nxuskit/sdk/current"
+export PYTHONPATH="$NXUSKIT_SDK_DIR/python/src:${PYTHONPATH:-}"
+python -c "import nxuskit; print(nxuskit.__version__)"
 ```
 
-For FFI features (CLIPS, BN, Solver, ZEN), install the [nxusKit SDK](https://github.com/nxus-SYSTEMS/nxusKit/releases) and set `NXUSKIT_SDK_DIR` or install at `~/.nxuskit/sdk/current/`. CLIPS and Bayesian inference are Community Edition features; Solver and ZEN require Pro.
+For FFI features (CLIPS, BN, Solver, ZEN), install the [nxusKit SDK](https://github.com/nxus-SYSTEMS/nxusKit/releases) and set `NXUSKIT_SDK_DIR` or install at `~/.nxuskit/sdk/current/`. CLIPS and Bayesian inference are Community Edition features; Solver and ZEN require Pro. PyPI publication is not part of the v1.0.2 SDK bundle distribution.
 
 ## Quick Start
 
