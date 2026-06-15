@@ -1,0 +1,10 @@
+nxuskit Python package
+Copyright 2026 nxus.SYSTEMS LLC
+
+This Python distribution contains the pure-Python nxuskit package. It does not
+include native libnxuskit binaries or Pro engine binaries. Native/FFI engine
+features require an installed nxusKit SDK bundle, which carries its own license
+and notice material.
+
+Runtime dependencies are declared in pyproject.toml and are installed as their
+own Python distributions with their own license metadata.

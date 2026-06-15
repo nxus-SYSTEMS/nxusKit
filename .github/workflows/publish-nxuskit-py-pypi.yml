@@ -1,0 +1,125 @@
+name: Publish nxuskit-py to PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Exact release/sdk-v1.0.4 commit SHA to publish from"
+        required: true
+      expected_version:
+        description: "Expected nxuskit-py version"
+        required: true
+        default: "1.0.4"
+
+permissions:
+  contents: read
+
+jobs:
+  publish-pypi:
+    name: Build and publish nxuskit-py to PyPI
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Fail closed on release branch and source
+        run: |
+          set -euo pipefail
+
+          expected_ref="refs/heads/release/sdk-v1.0.4"
+          expected_version="1.0.4"
+
+          if [ "${{ github.ref }}" != "${expected_ref}" ]; then
+            echo "This workflow may only publish from ${expected_ref}; got ${{ github.ref }}" >&2
+            exit 1
+          fi
+
+          if [ "${{ inputs.expected_version }}" != "${expected_version}" ]; then
+            echo "expected_version must be ${expected_version}; got ${{ inputs.expected_version }}" >&2
+            exit 1
+          fi
+
+          if [ "${{ inputs.source_ref }}" != "${{ github.sha }}" ]; then
+            echo "source_ref must match the dispatched release branch commit ${{ github.sha }}; got ${{ inputs.source_ref }}" >&2
+            exit 1
+          fi
+
+      - name: Checkout source ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Verify package metadata
+        working-directory: packages/nxuskit-py
+        run: |
+          python - <<'PY'
+          import sys
+          import tomllib
+          from pathlib import Path
+
+          expected_version = "${{ inputs.expected_version }}"
+          data = tomllib.loads(Path("pyproject.toml").read_text())
+          project = data["project"]
+          if project["name"] != "nxuskit-py":
+              raise SystemExit(f"unexpected distribution name: {project['name']}")
+          if project["version"] != expected_version:
+              raise SystemExit(
+                  f"unexpected version: {project['version']} != {expected_version}"
+              )
+          if project.get("license") != "MIT OR Apache-2.0":
+              raise SystemExit(f"unexpected license expression: {project.get('license')}")
+          print(f"nxuskit-py metadata OK: {project['version']}")
+          PY
+
+      - name: Build Python artifacts
+        working-directory: packages/nxuskit-py
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build --sdist --wheel --outdir dist
+          python -m twine check dist/*
+
+      - name: Verify pure-Python artifacts
+        working-directory: packages/nxuskit-py
+        run: |
+          python - <<'PY'
+          import tarfile
+          import zipfile
+          from pathlib import Path
+
+          dist = Path("dist")
+          wheels = sorted(dist.glob("nxuskit_py-*-py3-none-any.whl"))
+          sdists = sorted(dist.glob("nxuskit_py-*.tar.gz"))
+          if len(wheels) != 1 or len(sdists) != 1:
+              raise SystemExit(f"expected one wheel and one sdist, got {wheels} {sdists}")
+
+          forbidden_suffixes = (".so", ".dylib", ".dll", ".pyd")
+          with zipfile.ZipFile(wheels[0]) as wheel:
+              wheel_names = wheel.namelist()
+          with tarfile.open(sdists[0]) as sdist:
+              sdist_names = sdist.getnames()
+
+          for name in [*wheel_names, *sdist_names]:
+              lowered = name.lower()
+              if lowered.endswith(forbidden_suffixes):
+                  raise SystemExit(f"native binary leaked into Python artifact: {name}")
+              if ".venv" in lowered or "/target/" in lowered:
+                  raise SystemExit(f"local build artifact leaked into Python artifact: {name}")
+
+          print(f"pure-Python artifacts OK: {wheels[0].name}, {sdists[0].name}")
+          PY
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://upload.pypi.org/legacy/
+          packages-dir: packages/nxuskit-py/dist/
+          # Public-repo publishing uses OIDC Trusted Publisher and emits
+          # attestations that point at public nxusKit source provenance.
+          attestations: true

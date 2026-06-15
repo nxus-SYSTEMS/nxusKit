@@ -2,9 +2,9 @@
 
 [![SDK bundle](https://img.shields.io/badge/distribution-SDK%20bundle-blue.svg)](https://github.com/nxus-SYSTEMS/nxusKit/releases)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/nxus-SYSTEMS/nxusKit/blob/sdk-v1.0.4/LICENSE)
 
-Pure Python library for the [nxusKit](https://github.com/nxus-SYSTEMS/nxusKit) polyglot SDK. Provides a synchronous interface to 11 LLM providers, CLIPS rule engines, Bayesian networks, and FFI-backed native engines. Z3 solver and ZEN decision table workflows require nxusKit SDK Pro.
+Pure Python library for the [nxusKit](https://github.com/nxus-SYSTEMS/nxusKit) polyglot SDK. The public distribution package is `nxuskit-py` and imports as `nxuskit`. Pure-Python provider APIs work from the Python package; native/FFI engine APIs require an installed nxusKit SDK bundle. Z3 solver and ZEN decision table workflows require nxusKit SDK Pro.
 
 ## Features
 
@@ -22,8 +22,19 @@ Pure Python library for the [nxusKit](https://github.com/nxus-SYSTEMS/nxusKit) p
 
 ## Installation
 
-The v1.0.x Python package ships inside the nxusKit SDK release archive. From an
-extracted SDK bundle:
+Install the Python package from PyPI:
+
+```bash
+python -m pip install nxuskit-py==1.0.4
+python -c "import nxuskit; print(nxuskit.__version__)"
+```
+
+`nxuskit-py` is the distribution package and `nxuskit` is the Python import
+package. The package-index wheel installs the pure-Python package only; it does
+**not** install native `libnxuskit` engines or Pro command modules.
+
+The Python package is also shipped inside nxusKit SDK bundles for offline or
+bundle-local use:
 
 ```bash
 export NXUSKIT_SDK_DIR="$HOME/.nxuskit/sdk/current"
@@ -31,7 +42,12 @@ export PYTHONPATH="$NXUSKIT_SDK_DIR/python/src:${PYTHONPATH:-}"
 python -c "import nxuskit; print(nxuskit.__version__)"
 ```
 
-For FFI features (CLIPS, BN, Solver, ZEN), install the [nxusKit SDK](https://github.com/nxus-SYSTEMS/nxusKit/releases) and set `NXUSKIT_SDK_DIR` or install at `~/.nxuskit/sdk/current/`. CLIPS and Bayesian inference are Community Edition features; Solver and ZEN require Pro. PyPI publication is not part of the v1.0.2 SDK bundle distribution.
+For FFI features (CLIPS, BN, Solver, ZEN), install the
+[nxusKit SDK](https://github.com/nxus-SYSTEMS/nxusKit/releases) and set
+`NXUSKIT_SDK_DIR`, `NXUSKIT_LIB_DIR`, or install the SDK at
+`~/.nxuskit/sdk/current/`. CLIPS and Bayesian inference are Community Edition
+features where supported by the installed SDK; Solver and ZEN require Pro SDK
+features and Pro entitlement.
 
 ## Quick Start
 
@@ -47,12 +63,12 @@ print(response.content)
 print(f"Tokens: {response.usage.total_tokens}")
 ```
 
-## Capability Manifest Public Preview
+## Capability Manifest Preview
 
-The Python package exposes the stable public Capability Manifest v2 projection
-types. The public shape carries status values and reviewed-on metadata only;
-internal evidence records, model overrides, and provider-specific details stay
-private to the engine registry.
+The Python package exposes public capability manifest projection types. The
+public shape carries status values and reviewed-on metadata only; internal
+evidence records, model overrides, and provider-specific details stay private
+to the engine registry.
 
 ```python
 import nxuskit
@@ -239,6 +255,10 @@ ruff check src/ && ruff format --check .
 
 ## License
 
-Dual-licensed under MIT and Apache 2.0. See [LICENSE-MIT](LICENSE-MIT) and [LICENSE-APACHE](LICENSE-APACHE).
+Dual-licensed under MIT and Apache 2.0. See the
+[MIT](https://github.com/nxus-SYSTEMS/nxusKit/blob/sdk-v1.0.4/LICENSE-MIT)
+and
+[Apache 2.0](https://github.com/nxus-SYSTEMS/nxusKit/blob/sdk-v1.0.4/LICENSE-APACHE)
+license texts.
 
-See also: [nxusKit-examples](https://github.com/nxus-SYSTEMS/nxusKit-examples) for 30+ runnable examples.
+See also: [nxusKit-examples](https://github.com/nxus-SYSTEMS/nxusKit-examples) for runnable examples.
