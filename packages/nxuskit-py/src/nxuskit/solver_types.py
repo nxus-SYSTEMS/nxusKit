@@ -299,7 +299,7 @@ class SolverStats:
 class SolverExplanation:
     """Explainability artifacts from a solve."""
 
-    unsat_core_labels: list[str] = field(default_factory=list)
+    conflict_labels: list[str] = field(default_factory=list)
     binding_constraints: list[str] = field(default_factory=list)
     slack_values: dict[str, float] = field(default_factory=dict)
 
@@ -307,7 +307,7 @@ class SolverExplanation:
     def from_dict(cls, data: dict[str, Any]) -> SolverExplanation:
         """Construct a SolverExplanation from a dict."""
         return cls(
-            unsat_core_labels=data.get("unsat_core_labels", []),
+            conflict_labels=data.get("conflict_labels", []),
             binding_constraints=data.get("binding_constraints", []),
             slack_values=data.get("slack_values", {}),
         )
@@ -321,7 +321,7 @@ class SolveResult:
     assignments: dict[str, SolverValue] = field(default_factory=dict)
     objective_value: float | None = None
     stats: SolverStats = field(default_factory=SolverStats)
-    unsat_core: list[str] = field(default_factory=list)
+    conflict_labels: list[str] = field(default_factory=list)
     objective_values: dict[str, float] = field(default_factory=dict)
     violated_soft_constraints: list[str] = field(default_factory=list)
     explanation: SolverExplanation | None = None
@@ -338,7 +338,7 @@ class SolveResult:
             assignments=assignments,
             objective_value=data.get("objective_value"),
             stats=SolverStats.from_dict(data.get("stats", {})),
-            unsat_core=data.get("unsat_core", []),
+            conflict_labels=data.get("conflict_labels", []),
             objective_values=data.get("objective_values", {}),
             violated_soft_constraints=data.get("violated_soft_constraints", []),
             explanation=SolverExplanation.from_dict(expl) if expl else None,
@@ -351,7 +351,7 @@ class SolverCapabilities:
 
     backend: str = ""
     supports_incremental: bool = False
-    supports_unsat_core: bool = False
+    supports_conflict_explanations: bool = False
     supports_multi_objective: bool = False
     supports_push_pop: bool = False
     supports_assumptions: bool = False
@@ -364,7 +364,7 @@ class SolverCapabilities:
         return cls(
             backend=data.get("backend", ""),
             supports_incremental=data.get("supports_incremental", False),
-            supports_unsat_core=data.get("supports_unsat_core", False),
+            supports_conflict_explanations=data.get("supports_conflict_explanations", False),
             supports_multi_objective=data.get("supports_multi_objective", False),
             supports_push_pop=data.get("supports_push_pop", False),
             supports_assumptions=data.get("supports_assumptions", False),

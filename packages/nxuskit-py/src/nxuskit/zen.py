@@ -1,7 +1,7 @@
 """Pythonic ZEN decision table evaluation wrapper over the nxusKit C ABI.
 
-Provides a simple ``zen_evaluate`` function that evaluates a ZEN JSON Decision
-Model (JDM) against structured input and returns the evaluation result.
+Provides a simple ``zen_evaluate`` function that evaluates a ZEN decision table
+model against structured input and returns the evaluation result.
 
 Example::
 
@@ -42,7 +42,7 @@ def _get_lib():
 
 
 def zen_evaluate(model: Dict[str, Any], input_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Evaluate a ZEN JSON Decision Model against structured input.
+    """Evaluate a ZEN decision table model against structured input.
 
     Args:
         model: JDM content as a Python dict (nodes, edges, etc.).

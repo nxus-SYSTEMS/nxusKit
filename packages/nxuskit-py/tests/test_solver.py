@@ -175,25 +175,25 @@ class TestSolveResult:
     def test_from_dict_unsat(self):
         data = {
             "status": "unsat",
-            "unsat_core": ["c1", "c2"],
+            "conflict_labels": ["c1", "c2"],
             "stats": {},
         }
         r = SolveResult.from_dict(data)
         assert r.status == SolveStatus.UNSAT
-        assert r.unsat_core == ["c1", "c2"]
+        assert r.conflict_labels == ["c1", "c2"]
 
     def test_from_dict_with_explanation(self):
         data = {
             "status": "unsat",
             "stats": {},
             "explanation": {
-                "unsat_core_labels": ["label1", "label2"],
+                "conflict_labels": ["label1", "label2"],
                 "slack_values": {"c1": 0.5},
             },
         }
         r = SolveResult.from_dict(data)
         assert r.explanation is not None
-        assert r.explanation.unsat_core_labels == ["label1", "label2"]
+        assert r.explanation.conflict_labels == ["label1", "label2"]
         assert r.explanation.slack_values["c1"] == 0.5
 
     def test_from_dict_with_multi_objective(self):
@@ -221,7 +221,7 @@ class TestSolverCapabilities:
         data = {
             "backend": "z3",
             "supports_incremental": True,
-            "supports_unsat_core": True,
+            "supports_conflict_explanations": True,
             "supports_multi_objective": True,
             "supports_push_pop": True,
             "supports_assumptions": True,
@@ -237,18 +237,18 @@ class TestSolverCapabilities:
 class TestSolverExplanation:
     def test_from_dict(self):
         data = {
-            "unsat_core_labels": ["a", "b"],
+            "conflict_labels": ["a", "b"],
             "binding_constraints": ["c1"],
             "slack_values": {"c2": 1.5},
         }
         expl = SolverExplanation.from_dict(data)
-        assert expl.unsat_core_labels == ["a", "b"]
+        assert expl.conflict_labels == ["a", "b"]
         assert expl.binding_constraints == ["c1"]
         assert expl.slack_values["c2"] == 1.5
 
     def test_empty(self):
         expl = SolverExplanation.from_dict({})
-        assert expl.unsat_core_labels == []
+        assert expl.conflict_labels == []
         assert expl.slack_values == {}
 
 
