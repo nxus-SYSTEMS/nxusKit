@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-06-15
+
+### Changed
+
+- Updated Rust wrapper package metadata to the SDK lockstep `1.0.4` release.
+- Kept the v1.0.0 Rust wrapper API and C ABI compatibility contract unchanged.
+
+### Fixed
+
+- Aligned release QA/provenance and SDK bundle documentation with the v1.0.4
+  Python PyPI/TestPyPI source-readiness pass.
+
 ## [1.0.2] - 2026-06-12
 
 ### Changed

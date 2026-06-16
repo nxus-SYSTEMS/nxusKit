@@ -12,7 +12,7 @@ Polyglot SDK for 16+ LLM providers, CLIPS rule engines, and Bayesian networks in
 
 **[Documentation](https://docs.nxus.systems/nxuskit/)** · **[Getting Started](https://docs.nxus.systems/nxuskit/getting-started/installation/)** · **[Examples Docs](https://docs.nxus.systems/nxuskit/examples/)** · **[Examples Repo](https://github.com/nxus-SYSTEMS/nxusKit-examples)** · **[Website](https://nxus.systems)**
 
-> **General Availability**: nxusKit SDK v1.0.2 is the current GA patch release of the stabilized v1.0 API surface. It preserves the v1.0.0 API and C ABI contracts while hardening release provenance, bundled Python setup guidance, and public trust wording. The v1.0.1 Pro SDK CLI packaging fix remains included.
+> **General Availability**: nxusKit SDK v1.0.4 is the current GA patch release of the stabilized v1.0 API surface. It preserves the v1.0.0 API and C ABI contracts while hardening release provenance, bundled Python setup guidance, and public trust wording. The v1.0.1 Pro SDK CLI packaging fix remains included.
 
 ---
 
@@ -24,7 +24,7 @@ Choose your language:
 |----------|---------|---------|
 | **Rust** | [nxuskit](packages/nxuskit/) | Path dependency from SDK bundle |
 | **Go** | [nxuskit-go](packages/nxuskit-go/) | `go get github.com/nxus-SYSTEMS/nxusKit/packages/nxuskit-go` |
-| **Python** | [nxuskit-py](packages/nxuskit-py/) | SDK bundle `python/src` on `PYTHONPATH` |
+| **Python** | [nxuskit-py](packages/nxuskit-py/) | `python -m pip install nxuskit-py==1.0.4`; SDK bundle `python/src` for native/FFI engines |
 | **C ABI** | [Pre-built binaries](https://docs.nxus.systems/nxuskit/getting-started/installation/) | Download from [Releases](https://github.com/nxus-SYSTEMS/nxusKit/releases) |
 
 ### Build Community Edition From Source
@@ -307,7 +307,7 @@ Each example includes Rust, Go, and Python implementations.
 
 ## Support
 
-nxusKit SDK v1.0.2 is generally available. This patch preserves the v1.0.0 API and C ABI contracts, keeps the v1.0.1 Pro CLI packaging fix, and tightens release provenance plus bundled Python setup guidance.
+nxusKit SDK v1.0.4 is generally available. This patch preserves the v1.0.0 API and C ABI contracts, keeps the v1.0.1 Pro CLI packaging fix, and tightens release provenance plus bundled Python setup guidance.
 
 Community support is provided through [GitHub Issues](https://github.com/nxus-SYSTEMS/nxusKit/issues). Commercial support options are published at [nxus.systems/support](https://nxus.systems/support).
 

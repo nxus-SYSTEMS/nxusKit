@@ -261,54 +261,6 @@ ffi.cdef("""
     int32_t nxuskit_clips_session_preload(const char *name, const char *rules_json);
     uint64_t nxuskit_clips_session_get_cached(const char *name);
     int32_t nxuskit_clips_session_cache_remove(const char *name);
-
-    /* ── Constraint Solver ─────────────────────────────────────── */
-
-    typedef struct NxuskitSolverSession NxuskitSolverSession;
-
-    typedef int32_t (*NxuskitSolverStreamOnChunk)(
-        const char *chunk_json, void *user_data
-    );
-    typedef void (*NxuskitSolverStreamOnDone)(
-        const char *result_json, void *user_data
-    );
-
-    NxuskitSolverSession *nxuskit_solver_session_create(const char *config_json);
-    void nxuskit_solver_session_destroy(NxuskitSolverSession *session);
-
-    _Bool nxuskit_solver_add_variables(NxuskitSolverSession *s, const char *json);
-    _Bool nxuskit_solver_add_constraints(NxuskitSolverSession *s, const char *json);
-    _Bool nxuskit_solver_set_objective(NxuskitSolverSession *s, const char *json);
-    _Bool nxuskit_solver_add_objective(NxuskitSolverSession *s, const char *json);
-    _Bool nxuskit_solver_retract(NxuskitSolverSession *s, const char *json);
-    _Bool nxuskit_solver_retract_objective(NxuskitSolverSession *s, const char *name);
-    _Bool nxuskit_solver_add_assumptions(NxuskitSolverSession *s, const char *json);
-
-    _Bool nxuskit_solver_push(NxuskitSolverSession *s);
-    _Bool nxuskit_solver_pop(NxuskitSolverSession *s);
-    _Bool nxuskit_solver_reset(NxuskitSolverSession *s);
-
-    char *nxuskit_solver_solve(NxuskitSolverSession *s, const char *config_json);
-    _Bool nxuskit_solver_solve_stream(
-        NxuskitSolverSession *session,
-        const char *config_json,
-        NxuskitSolverStreamOnChunk on_chunk,
-        NxuskitSolverStreamOnDone on_done,
-        void *user_data
-    );
-    char *nxuskit_solver_explanation(NxuskitSolverSession *s);
-
-    char *nxuskit_solver_variables(const NxuskitSolverSession *s);
-    char *nxuskit_solver_constraints(const NxuskitSolverSession *s);
-    char *nxuskit_solver_objectives(const NxuskitSolverSession *s);
-    char *nxuskit_solver_status(const NxuskitSolverSession *s);
-    char *nxuskit_solver_capabilities(const NxuskitSolverSession *s);
-    int64_t nxuskit_solver_num_variables(const NxuskitSolverSession *s);
-    int64_t nxuskit_solver_num_constraints(const NxuskitSolverSession *s);
-
-    /* ── ZEN Decision Tables ───────────────────────────────────── */
-
-    char *nxuskit_zen_evaluate(const char *model_json, const char *input_json);
 """)
 
 # ── Library discovery ─────────────────────────────────────────

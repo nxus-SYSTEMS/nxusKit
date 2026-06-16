@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-06-15
+
+### Changed
+
+- Updated Go SDK version constants to the SDK lockstep `1.0.4` release.
+- Kept the Go native FFI expected-version guard aligned with the v1.0.4 C ABI
+  version string.
+
+### Compatibility
+
+- No Go API changes are introduced in this patch.
+
 ## [0.9.3] - 2026-04-29
 
 ### Changed

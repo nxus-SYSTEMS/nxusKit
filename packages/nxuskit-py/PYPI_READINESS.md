@@ -96,10 +96,11 @@ The controlled sequence should be:
    production PyPI install/smoke verification is green, so SDK release text does
    not advertise an unavailable package-index install path.
 
-Production publication for v1.0.4 should run from this public
-`nxus-SYSTEMS/nxusKit` repository. The public repository must contain the exact
-public-safe `packages/nxuskit-py` source, the manual PyPI workflow, and the
-release branch/tag that PyPI Trusted Publisher is configured to trust.
+Preferred production publication path for v1.0.4 is the public
+`nxus-SYSTEMS/nxusKit` repository, not the internal repository. The public
+repository should contain the exact public-safe `packages/nxuskit-py` source,
+the manual PyPI workflow, and the release branch/tag that PyPI Trusted Publisher
+is configured to trust.
 
 Required PyPI Trusted Publisher fields for the preferred public path:
 
@@ -111,6 +112,8 @@ Required PyPI Trusted Publisher fields for the preferred public path:
 - Environment: `pypi`
 - Source branch for this cycle: `release/sdk-v1.0.4`
 
-The public PyPI workflow uses OIDC Trusted Publisher and enables PyPI
-attestations so package artifacts are publicly bound to the public
-`nxus-SYSTEMS/nxusKit` source provenance for this release cycle.
+If an internal-repo fallback is approved, use the internal manual workflows only
+with their fail-closed branch/SHA/version guards. Internal-repo workflows keep
+attestations disabled so package artifacts are not publicly bound to private
+source provenance. Public-repo publication may enable attestations after the
+operator confirms that public provenance is desired for the cycle.

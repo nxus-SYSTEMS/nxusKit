@@ -7,7 +7,7 @@ Run:
     python basic_chat.py
 
 Prerequisites:
-    export NXUSKIT_SDK_DIR="/path/to/nxuskit-sdk-1.0.2-oss-<platform>"
+    export NXUSKIT_SDK_DIR="/path/to/nxuskit-sdk-1.0.4-oss-<platform>"
     export PYTHONPATH="$NXUSKIT_SDK_DIR/python/src:${PYTHONPATH:-}"
 """
 

@@ -2,8 +2,8 @@ package nxuskit
 
 import "testing"
 
-func TestVersionMarkerReportsV102(t *testing.T) {
-	if Version != "1.0.2" {
-		t.Fatalf("Version = %q, want 1.0.2", Version)
+func TestVersionMarkerReportsV104(t *testing.T) {
+	if Version != "1.0.4" {
+		t.Fatalf("Version = %q, want 1.0.4", Version)
 	}
 }
