@@ -13,15 +13,15 @@ def _pyproject_metadata() -> dict:
 
 def test_runtime_version_matches_package_metadata():
     metadata = _pyproject_metadata()
-    assert metadata["version"] == "1.0.2"
+    assert metadata["version"] == "1.0.4"
     assert nxuskit.__version__ == metadata["version"]
 
 
-def test_installed_metadata_when_available_matches_v102():
+def test_installed_metadata_when_available_matches_v104():
     try:
         distribution = importlib.metadata.distribution("nxuskit-py")
     except importlib.metadata.PackageNotFoundError:
-        assert _pyproject_metadata()["version"] == "1.0.2"
+        assert _pyproject_metadata()["version"] == "1.0.4"
         return
 
     project_root = Path(__file__).resolve().parents[1]
@@ -29,7 +29,7 @@ def test_installed_metadata_when_available_matches_v102():
     if not dist_root.is_relative_to(project_root):
         # A globally installed nxuskit-py can be present on developer machines;
         # this source-tree test validates the local package metadata instead.
-        assert _pyproject_metadata()["version"] == "1.0.2"
+        assert _pyproject_metadata()["version"] == "1.0.4"
         return
 
-    assert distribution.version == "1.0.2"
+    assert distribution.version == "1.0.4"

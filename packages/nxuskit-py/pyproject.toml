@@ -4,17 +4,18 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nxuskit-py"
-version = "1.0.2"
-description = "Python SDK for nxusKit — LLM providers, rule engines, solvers, and reasoning"
+version = "1.0.4"
+description = "Python SDK for nxusKit — pure-Python providers with optional SDK-bundle native engines"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "MIT OR Apache-2.0"}
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 authors = [
     {name = "nxusKit Contributors"}
 ]
 keywords = ["llm", "api", "claude", "openai", "ollama", "groq", "xai", "grok", "mistral", "fireworks", "together", "perplexity", "tool-calling", "function-calling", "streaming", "vision", "clips", "solver", "bayesian"]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "License :: OSI Approved :: Apache Software License",
@@ -47,19 +48,12 @@ Documentation = "https://github.com/nxus-SYSTEMS/nxusKit"
 Repository = "https://github.com/nxus-SYSTEMS/nxusKit"
 Issues = "https://github.com/nxus-SYSTEMS/nxusKit/issues"
 
-[tool.hatch.build]
-# Include compliance files from repo root in built artifacts
-artifacts = ["NOTICE", "LICENSE"]
-
 [tool.hatch.build.targets.wheel]
 packages = ["src/nxuskit"]
 
-[tool.hatch.build.targets.wheel.shared-data]
-"../../NOTICE" = "nxuskit-py/NOTICE"
-"../../LICENSE" = "nxuskit-py/LICENSE"
-
 [tool.hatch.build.targets.sdist]
-include = ["src/", "NOTICE", "LICENSE", "README.md", "pyproject.toml"]
+include = ["src/", "README.md", "pyproject.toml", "LICENSE", "NOTICE"]
+exclude = [".venv*/", "dist/", "build/", "*.egg-info/"]
 
 [tool.ruff]
 line-length = 100
