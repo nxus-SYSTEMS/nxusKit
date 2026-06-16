@@ -72,7 +72,7 @@ To persist across sessions, add to your shell profile (`~/.bashrc`, `~/.zshrc`,
 etc.):
 
 ```bash
-export NXUSKIT_SDK_DIR="/absolute/path/to/nxuskit-sdk-1.0.4-oss-macos-arm64"
+export NXUSKIT_SDK_DIR="/absolute/path/to/nxuskit-sdk-1.0.5-oss-macos-arm64"
 ```
 
 For CI systems, see [Download via PAT](#download-via-pat) below.
@@ -152,7 +152,7 @@ in your `Cargo.toml` using the **absolute path** to the SDK's `rust/` directory:
 ```toml
 # Cargo.toml
 [dependencies]
-nxuskit = { path = "/Users/you/nxuskit-sdk-1.0.4-oss-macos-arm64/rust" }
+nxuskit = { path = "/Users/you/nxuskit-sdk-1.0.5-oss-macos-arm64/rust" }
 ```
 
 Then set your environment and run:
@@ -160,7 +160,7 @@ Then set your environment and run:
 ```bash
 # NXUSKIT_SDK_DIR tells the wrapper where to find libnxuskit at runtime.
 # Must be an absolute path (relative paths are unreliable across tools).
-export NXUSKIT_SDK_DIR="/Users/you/nxuskit-sdk-1.0.4-oss-macos-arm64"
+export NXUSKIT_SDK_DIR="/Users/you/nxuskit-sdk-1.0.5-oss-macos-arm64"
 export OPENAI_API_KEY="sk-..."
 
 cargo run
@@ -200,7 +200,7 @@ bundle's `python/src` directory and set `NXUSKIT_SDK_DIR` so FFI-backed features
 can locate the native library:
 
 ```bash
-export NXUSKIT_SDK_DIR="/Users/you/nxuskit-sdk-1.0.4-oss-macos-arm64"
+export NXUSKIT_SDK_DIR="/Users/you/nxuskit-sdk-1.0.5-oss-macos-arm64"
 export PYTHONPATH="$NXUSKIT_SDK_DIR/python/src:${PYTHONPATH:-}"
 export OPENAI_API_KEY="sk-..."
 

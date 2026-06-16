@@ -12,7 +12,7 @@ Polyglot SDK for 16+ LLM providers, CLIPS rule engines, and Bayesian networks in
 
 **[Documentation](https://docs.nxus.systems/nxuskit/)** · **[Getting Started](https://docs.nxus.systems/nxuskit/getting-started/installation/)** · **[Examples Docs](https://docs.nxus.systems/nxuskit/examples/)** · **[Examples Repo](https://github.com/nxus-SYSTEMS/nxusKit-examples)** · **[Website](https://nxus.systems)**
 
-> **General Availability**: nxusKit SDK v1.0.4 is the current GA patch release of the stabilized v1.0 API surface. It preserves the v1.0.0 API and C ABI contracts while hardening release provenance, bundled Python setup guidance, and public trust wording. The v1.0.1 Pro SDK CLI packaging fix remains included.
+> **General Availability**: nxusKit SDK v1.0.5 is the current GA patch release of the stabilized v1.0 API surface. It preserves the v1.0.0 API and C ABI contracts while hardening release provenance, package-index Python guidance, public SDK asset publication, and public trust wording. The v1.0.1 Pro SDK CLI packaging fix remains included.
 
 ---
 
@@ -24,7 +24,7 @@ Choose your language:
 |----------|---------|---------|
 | **Rust** | [nxuskit](packages/nxuskit/) | Path dependency from SDK bundle |
 | **Go** | [nxuskit-go](packages/nxuskit-go/) | `go get github.com/nxus-SYSTEMS/nxusKit/packages/nxuskit-go` |
-| **Python** | [nxuskit-py](packages/nxuskit-py/) | `python -m pip install nxuskit-py==1.0.4`; SDK bundle `python/src` for native/FFI engines |
+| **Python** | [nxuskit-py](packages/nxuskit-py/) | `python -m pip install nxuskit-py==1.0.5`; SDK bundle `python/src` for native/FFI engines |
 | **C ABI** | [Pre-built binaries](https://docs.nxus.systems/nxuskit/getting-started/installation/) | Download from [Releases](https://github.com/nxus-SYSTEMS/nxusKit/releases) |
 
 ### Build Community Edition From Source
@@ -183,7 +183,7 @@ The public `nxusKit` repository contains nxusKit SDK Community Edition, which is
 
 Community Edition is useful on its own without Pro. The public `nxusKit-examples` repository labels examples by edition, so developers can see which workflows run with CE alone and which require Pro.
 
-nxusKit SDK Pro adds proprietary commercial capabilities for teams that need solver-backed workflows, ZEN decision tables, plugin loading, and trust-policy features. Pro is distributed under a paid, trial, or evaluation entitlement.
+nxusKit SDK Pro adds proprietary commercial capabilities for teams that need solver-backed workflows, ZEN decision tables, plugin loading, and trust-policy features. Pro is distributed under a paid, trial, or evaluation entitlement. Public SDK release pages include both Community/OSS and Pro binary packages; public source/tag archives remain CE-safe, and Pro capabilities remain protected by runtime license-key entitlement.
 
 ---
 
@@ -307,7 +307,7 @@ Each example includes Rust, Go, and Python implementations.
 
 ## Support
 
-nxusKit SDK v1.0.4 is generally available. This patch preserves the v1.0.0 API and C ABI contracts, keeps the v1.0.1 Pro CLI packaging fix, and tightens release provenance plus bundled Python setup guidance.
+nxusKit SDK v1.0.5 is generally available. This patch preserves the v1.0.0 API and C ABI contracts, keeps the v1.0.1 Pro CLI packaging fix, and tightens release provenance, PyPI metadata/content, public SDK asset publication, and Python package/native-SDK boundary guidance.
 
 Community support is provided through [GitHub Issues](https://github.com/nxus-SYSTEMS/nxusKit/issues). Commercial support options are published at [nxus.systems/support](https://nxus.systems/support).
 

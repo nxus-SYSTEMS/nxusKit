@@ -1,6 +1,6 @@
 # nxuskit-py Python PyPI Readiness
 
-**Status:** v1.0.4 release-candidate readiness note. This file documents the
+**Status:** v1.0.5 release readiness note. This file documents the
 package shape, local checks, and operator setup needed for package-index
 publication. It does not itself approve TestPyPI/PyPI upload, SDK release tags,
 or GitHub release assets.
@@ -9,11 +9,11 @@ or GitHub release assets.
 
 - Public distribution name: `nxuskit-py`
 - Python import name: `nxuskit`
-- Version: `1.0.4`
+- Version: `1.0.5`
 - Wheel target: pure-Python `py3-none-any`
 - Native libraries: not included in PyPI wheels or sdists
-- Trove classifier: `Development Status :: 4 - Beta`, reflecting first-time
-  PyPI publication readiness rather than a change to the v1.0.x SDK API status
+- Trove classifier: `Development Status :: 5 - Production/Stable`, reflecting
+  the stabilized v1 SDK posture.
 
 The Python package supports pure-Python provider APIs directly. Native/FFI
 features require an installed nxusKit SDK bundle discovered through
@@ -34,7 +34,7 @@ python -m build
 python -m twine check dist/*
 python -m venv .venv-pypi-check
 . .venv-pypi-check/bin/activate
-python -m pip install dist/nxuskit_py-1.0.4-py3-none-any.whl
+python -m pip install dist/nxuskit_py-1.0.5-py3-none-any.whl
 python -c "import nxuskit; print(nxuskit.__version__)"
 python -c "from nxuskit.mock import MockProvider; print(''.join(c.delta for c in MockProvider().chat_stream([])))"
 ```
@@ -47,14 +47,14 @@ NXUSKIT_LIB_DIR=/nonexistent python -c "import nxuskit._ffi"
 
 Expected result: a helpful `ConfigError` mentioning `NXUSKIT_LIB_DIR`.
 
-Native/FFI success smoke, when a local SDK v1.0.4 bundle is available:
+Native/FFI success smoke, when a local SDK v1.0.5 bundle is available:
 
 ```bash
 NXUSKIT_SDK_DIR="$HOME/.nxuskit/sdk/current" python -c \
   "from nxuskit._ffi import lib, ffi; print(ffi.string(lib.nxuskit_version()).decode())"
 ```
 
-Expected result: `1.0.4`.
+Expected result: `1.0.5`.
 
 Archive inspection:
 
@@ -87,16 +87,16 @@ or secrets in chat; stop and request the exact operator action.
 
 The controlled sequence should be:
 
-1. Source branch is green and carries `nxuskit-py==1.0.4` metadata.
+1. Source branch is green and carries `nxuskit-py==1.0.5` metadata.
 2. TestPyPI upload/install/smoke runs from the exact approved release branch
    commit.
 3. Production PyPI upload/install/smoke runs only after a manager/operator
    go-gate.
-4. Move/push `sdk-v1.0.4` and trigger aggregate SDK release only after
+4. Move/push `sdk-v1.0.5` and trigger aggregate SDK release only after
    production PyPI install/smoke verification is green, so SDK release text does
    not advertise an unavailable package-index install path.
 
-Preferred production publication path for v1.0.4 is the public
+Preferred production publication path for v1.0.5 is the public
 `nxus-SYSTEMS/nxusKit` repository, not the internal repository. The public
 repository should contain the exact public-safe `packages/nxuskit-py` source,
 the manual PyPI workflow, and the release branch/tag that PyPI Trusted Publisher
@@ -110,10 +110,11 @@ Required PyPI Trusted Publisher fields for the preferred public path:
 - Repository: `nxusKit`
 - Workflow: `publish-nxuskit-py-pypi.yml`
 - Environment: `pypi`
-- Source branch for this cycle: `release/sdk-v1.0.4`
+- Source branch for this cycle: `release/sdk-v1.0.5`
 
 If an internal-repo fallback is approved, use the internal manual workflows only
 with their fail-closed branch/SHA/version guards. Internal-repo workflows keep
 attestations disabled so package artifacts are not publicly bound to private
-source provenance. Public-repo publication may enable attestations after the
-operator confirms that public provenance is desired for the cycle.
+source provenance. Public-repo production publication should enable
+attestations when the operator confirms that public provenance is desired for
+the cycle.

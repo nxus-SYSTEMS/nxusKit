@@ -11,6 +11,46 @@ historical version resets.
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-06-16
+
+> Public-trust, PyPI metadata, and release workflow hardening patch for the
+> v1.0 SDK line. This patch preserves the v1.0.0 API and C ABI contracts; no
+> API or C ABI signature change is introduced.
+
+### Changed
+
+- Updated lockstep SDK version metadata across Rust, Go, Python, bundle
+  documentation, and release verification guards to `1.0.5`.
+- Promoted `nxuskit-py` package metadata to `Development Status :: 5 -
+  Production/Stable` for the stabilized v1 SDK posture.
+- Pointed PyPI project URLs to nxusKit docs, SDK downloads, examples,
+  changelog, issue tracker, and repository.
+- Clarified Python package README and shipped docs: `pip install nxuskit-py`
+  installs the pure-Python package; native CLIPS/BN/FFI features require a
+  compatible SDK bundle; Solver and ZEN require Pro SDK features and
+  entitlement.
+- Documented the confirmed public release policy: public release pages include
+  both Community/OSS and Pro binary SDK packages while public source/tag
+  archives remain CE-safe.
+
+### Fixed
+
+- Added fail-fast release preflight checks before expensive platform builds for
+  version/posture, PyPI metadata, public asset policy, and packaging verifier
+  assumptions.
+- Kept public SDK release asset checks aligned with the OSS+Pro public binary
+  policy and exact expected platform asset set.
+- Carried forward the `MIT OR Apache-2.0` Python license allow-list and Windows
+  Visual Studio discovery remediation.
+
+### Compatibility
+
+- No API or C ABI signature changes from v1.0.0 are introduced.
+- The v1.0.1 Pro CLI packaging fix remains included: Pro SDK bundles compile
+  solver and ZEN command modules with `pro-engines`.
+- Native/FFI Python features require an installed matching SDK bundle; Solver
+  and ZEN remain Pro-only and require Pro SDK/entitlement.
+
 ## [1.0.4] - 2026-06-15
 
 > Python package publication-readiness and source/tag alignment patch for the
