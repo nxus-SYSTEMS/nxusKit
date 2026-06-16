@@ -2,9 +2,9 @@
 
 [![SDK bundle](https://img.shields.io/badge/distribution-SDK%20bundle-blue.svg)](https://github.com/nxus-SYSTEMS/nxusKit/releases)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/nxus-SYSTEMS/nxusKit/blob/sdk-v1.0.4/LICENSE)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/nxus-SYSTEMS/nxusKit/blob/sdk-v1.0.5/LICENSE)
 
-Pure Python library for the [nxusKit](https://github.com/nxus-SYSTEMS/nxusKit) polyglot SDK. The public distribution package is `nxuskit-py` and imports as `nxuskit`. Pure-Python provider APIs work from the Python package; native/FFI engine APIs require an installed nxusKit SDK bundle. Z3 solver and ZEN decision table workflows require nxusKit SDK Pro.
+Pure Python library for the [nxusKit](https://github.com/nxus-SYSTEMS/nxusKit) polyglot SDK. The public distribution package is `nxuskit-py` and imports as `nxuskit`. Pure-Python provider APIs work directly from the package-index wheel; native/FFI engine APIs require an installed compatible nxusKit SDK bundle. Z3 solver and ZEN decision table workflows require nxusKit SDK Pro plus a valid Pro entitlement.
 
 ## Features
 
@@ -18,20 +18,21 @@ Pure Python library for the [nxusKit](https://github.com/nxus-SYSTEMS/nxusKit) p
 - **Retry Utilities** — `RetryConfig`, `retry_with_backoff`, `AdaptiveRateLimiter`
 - **CLIPS / BN / Solver / ZEN** — FFI access to nxusKit reasoning engines (native library required; Solver and ZEN require Pro)
 
-**Dependencies**: `requests`, `cffi` (FFI), `keyring` (credential storage), `PyJWT[crypto]` (license tokens)
+**Dependencies**: `requests`, `cffi` (loaded only by FFI paths), `keyring` (credential storage), `PyJWT[crypto]` (license tokens)
 
 ## Installation
 
-Install the Python package from PyPI:
+Install the pure-Python package from PyPI:
 
 ```bash
-python -m pip install nxuskit-py==1.0.4
+python -m pip install nxuskit-py==1.0.5
 python -c "import nxuskit; print(nxuskit.__version__)"
 ```
 
 `nxuskit-py` is the distribution package and `nxuskit` is the Python import
 package. The package-index wheel installs the pure-Python package only; it does
-**not** install native `libnxuskit` engines or Pro command modules.
+**not** install native `libnxuskit` engines, SDK bundles, or Pro command
+modules.
 
 The Python package is also shipped inside nxusKit SDK bundles for offline or
 bundle-local use:
@@ -42,7 +43,7 @@ export PYTHONPATH="$NXUSKIT_SDK_DIR/python/src:${PYTHONPATH:-}"
 python -c "import nxuskit; print(nxuskit.__version__)"
 ```
 
-For FFI features (CLIPS, BN, Solver, ZEN), install the
+For FFI-backed features (CLIPS, BN, Solver, ZEN), install the
 [nxusKit SDK](https://github.com/nxus-SYSTEMS/nxusKit/releases) and set
 `NXUSKIT_SDK_DIR`, `NXUSKIT_LIB_DIR`, or install the SDK at
 `~/.nxuskit/sdk/current/`. CLIPS and Bayesian inference are Community Edition
@@ -62,6 +63,11 @@ response = provider.chat([nxuskit.Message.user("What is 2 + 2?")])
 print(response.content)
 print(f"Tokens: {response.usage.total_tokens}")
 ```
+
+`Provider` is the public factory for concrete provider clients.
+`LLMProvider` is the protocol/type contract implemented by provider clients and
+exported for type checking and custom providers; it is intentionally separate
+from the `Provider` factory.
 
 ## Capability Manifest Preview
 
@@ -256,9 +262,9 @@ ruff check src/ && ruff format --check .
 ## License
 
 Dual-licensed under MIT and Apache 2.0. See the
-[MIT](https://github.com/nxus-SYSTEMS/nxusKit/blob/sdk-v1.0.4/LICENSE-MIT)
+[MIT](https://github.com/nxus-SYSTEMS/nxusKit/blob/sdk-v1.0.5/LICENSE-MIT)
 and
-[Apache 2.0](https://github.com/nxus-SYSTEMS/nxusKit/blob/sdk-v1.0.4/LICENSE-APACHE)
+[Apache 2.0](https://github.com/nxus-SYSTEMS/nxusKit/blob/sdk-v1.0.5/LICENSE-APACHE)
 license texts.
 
 See also: [nxusKit-examples](https://github.com/nxus-SYSTEMS/nxusKit-examples) for runnable examples.

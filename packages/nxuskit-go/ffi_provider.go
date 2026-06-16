@@ -18,7 +18,7 @@ import (
 
 // ExpectedNxuskitVersion is the nxuskit library version this wrapper
 // was built against. A mismatch at init time produces a clear error.
-const ExpectedNxuskitVersion = "1.0.2"
+const ExpectedNxuskitVersion = "1.0.5"
 
 // ffiProvider implements LLMProvider by delegating to the nxuskit C ABI
 // through cgo. It is the common base for all FFI-backed providers.

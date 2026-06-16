@@ -11,7 +11,7 @@ strings for all data exchange. Every function is thread-safe unless noted.
 const char *nxuskit_version(void);
 ```
 
-Returns the library version string (e.g., `"1.0.2"`). The returned pointer is
+Returns the library version string (e.g., `"1.0.5"`). The returned pointer is
 static and valid for the process lifetime. Never returns NULL.
 
 ## Provider Lifecycle

@@ -43,7 +43,7 @@ if [[ -z "$INPUT" ]]; then
     else
         echo "[setup-sdk] No SDK found. Install one first:" >&2
         echo "  Download a nxuskit-sdk archive, extract it, then source this script with the extracted SDK directory." >&2
-        echo "  Example: source sdk-packaging/scripts/setup-sdk.sh /path/to/nxuskit-sdk-1.0.2-oss-<platform>" >&2
+        echo "  Example: source sdk-packaging/scripts/setup-sdk.sh /path/to/nxuskit-sdk-1.0.5-oss-<platform>" >&2
         [[ "${BASH_SOURCE[0]:-}" != "${0:-}" ]] && return 1
         exit 1
     fi
