@@ -70,7 +70,12 @@ func convertOpenAIFinishReason(reason *string) *FinishReason {
 	}
 
 	fr := ParseFinishReason(*reason)
-	return &fr
+	switch fr {
+	case FinishReasonStop, FinishReasonLength, FinishReasonToolCalls, FinishReasonContentFilter, FinishReasonError:
+		return &fr
+	default:
+		return nil
+	}
 }
 
 // convertFromOpenAIResponse converts an OpenAI response to ChatResponse.
@@ -88,6 +93,7 @@ func convertFromOpenAIResponse(resp *openaiChatResponse) *ChatResponse {
 			}
 		}
 		cr.FinishReason = convertOpenAIFinishReason(choice.FinishReason)
+		cr.RawFinishReason = choice.FinishReason
 	}
 
 	// Set token usage

@@ -100,6 +100,15 @@ char *nxuskit_capabilities(void);
 char *nxuskit_build_info(void);
 
 /**
+ * Evaluate one private, local-only Action Gate preview request.
+ *
+ * The input and result are versioned JSON. The returned safe decision
+ * projection never authorizes or executes an action. Caller MUST free a
+ * non-NULL result with `nxuskit_free_string()`.
+ */
+char *nxuskit_action_gate_preview_evaluate_json(const char *request_json);
+
+/**
  * Returns entitlement information as a JSON string.
  *
  * If `license_key` is non-NULL, it is used to determine the effective edition
@@ -1368,5 +1377,4 @@ char *nxuskit_zen_evaluate(const char *model_json, const char *input_json);
 void nxuskit_zen_free_result(char *result);
 
 #endif  /* NXUSKIT_H */
-
 

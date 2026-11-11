@@ -182,7 +182,6 @@ pub(crate) struct StreamingTokenAccumulator {
     /// Accumulated thinking/reasoning content from thinking-enabled models
     accumulated_thinking: String,
     actual_usage: Option<TokenCount>,
-    is_complete: bool,
 }
 
 impl StreamingTokenAccumulator {
@@ -194,7 +193,6 @@ impl StreamingTokenAccumulator {
             accumulated_response: String::new(),
             accumulated_thinking: String::new(),
             actual_usage: None,
-            is_complete: true,
         }
     }
 
@@ -238,14 +236,11 @@ impl StreamingTokenAccumulator {
         }
     }
 
-    /// Mark stream as interrupted/partial
-    pub fn mark_interrupted(&mut self) {
-        self.is_complete = false;
-    }
-
-    /// Finalize and get complete TokenUsage
+    /// Finalize usage after normal stream completion.
     ///
     /// Completion tokens include both response content and thinking content.
+    /// Interrupted-stream semantics are handled by `LLMProvider::stream_with_usage`,
+    /// because provider streams return immediately on terminal errors.
     pub fn finalize(self) -> TokenUsage {
         let response_tokens = self.estimator.count(&self.accumulated_response);
         let thinking_tokens = self.estimator.count(&self.accumulated_thinking);
@@ -253,15 +248,9 @@ impl StreamingTokenAccumulator {
         let estimated = TokenCount::new(self.prompt_tokens, completion_tokens);
 
         if let Some(actual) = self.actual_usage {
-            if self.is_complete {
-                TokenUsage::with_actual(actual, estimated)
-            } else {
-                TokenUsage::partial(Some(actual), estimated)
-            }
-        } else if self.is_complete {
-            TokenUsage::estimated_only(estimated)
+            TokenUsage::with_actual(actual, estimated)
         } else {
-            TokenUsage::partial(None, estimated)
+            TokenUsage::estimated_only(estimated)
         }
     }
 
@@ -311,17 +300,6 @@ mod tests {
         assert!(
             usage2.best_available().completion_tokens >= usage1.best_available().completion_tokens
         );
-    }
-
-    #[test]
-    fn test_accumulator_partial_marking() {
-        let estimator = TokenEstimator::for_model("unknown-model");
-        let mut acc = StreamingTokenAccumulator::new(estimator, 10);
-        acc.add_chunk("Hello");
-        acc.mark_interrupted();
-
-        let usage = acc.finalize();
-        assert!(!usage.is_complete);
     }
 
     #[test]

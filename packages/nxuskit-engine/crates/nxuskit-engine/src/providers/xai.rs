@@ -12,7 +12,7 @@ use crate::{
     ChatRequest, ChatResponse, LLMProvider, ModelInfo, OpenAIProvider, StreamChunk,
     error::{NxuskitError, Result},
     parameter_adapter::ParameterAdapter,
-    types::{FinishReason, InferenceMetadata, ProviderCapabilities},
+    types::{InferenceMetadata, ProviderCapabilities},
 };
 
 const XAI_API_BASE: &str = "https://api.x.ai/v1";
@@ -31,6 +31,27 @@ pub struct XaiProvider {
     connection_timeout: Duration,
     stream_read_timeout: Duration,
     total_timeout: Duration,
+}
+
+impl XaiProvider {
+    /// Static adapter declarations, not model or endpoint-effective support.
+    pub fn adapter_capabilities() -> ProviderCapabilities {
+        ProviderCapabilities {
+            supports_system_messages: true,
+            supports_streaming: true,
+            supports_vision: true,
+            max_stop_sequences: None,
+            supports_presence_penalty: false,
+            supports_frequency_penalty: false,
+            supports_seed: false,
+            supports_logprobs: false,
+            supports_streaming_logprobs: false,
+            supports_json_mode: true,
+            supports_json_schema: true,
+            penalty_range: None,
+            max_logprobs: None,
+        }
+    }
 }
 
 impl XaiProvider {
@@ -86,6 +107,39 @@ impl XaiProvider {
     /// Create a fresh session with no accumulated state.
     pub fn fresh_session(&self) -> Self {
         self.clone()
+    }
+
+    fn validate_request_surface(&self, request: &ChatRequest) -> Result<()> {
+        request.validate_legacy_sampling(self.provider_name())?;
+
+        for (capability, present) in [
+            ("presence_penalty", request.presence_penalty.is_some()),
+            ("frequency_penalty", request.frequency_penalty.is_some()),
+            ("seed", request.seed.is_some()),
+            ("logprobs", request.logprobs.is_some()),
+            ("top_logprobs", request.top_logprobs.is_some()),
+            ("reasoning_effort", request.reasoning_effort.is_some()),
+        ] {
+            if present {
+                return Err(NxuskitError::unsupported_capability("xai", capability));
+            }
+        }
+
+        if !matches!(
+            request.thinking_mode,
+            crate::types::ThinkingMode::Auto | crate::types::ThinkingMode::Omit
+        ) {
+            return Err(NxuskitError::unsupported_capability("xai", "thinking"));
+        }
+
+        if request.openai_responses.is_some() {
+            return Err(NxuskitError::unsupported_capability(
+                "xai",
+                "openai_responses",
+            ));
+        }
+
+        Ok(())
     }
 
     fn rebuild_inner(&mut self) -> Result<()> {
@@ -232,14 +286,17 @@ fn build_inner(
 
 fn normalize_response(mut response: ChatResponse) -> ChatResponse {
     response.provider = "xai".to_string();
-    let finish_reason = response.finish_reason.unwrap_or(FinishReason::Stop);
     let metadata = serde_json::json!({
         "provider": "xai",
         "transport": "openai_compatible"
     });
-    response.inference_metadata = InferenceMetadata::completed(finish_reason)
-        .with_token_usage(response.usage.clone())
-        .with_provider_metadata(metadata);
+    response.inference_metadata = InferenceMetadata {
+        is_complete: true,
+        finish_reason: response.finish_reason,
+        ..InferenceMetadata::default()
+    }
+    .with_token_usage(response.usage.clone())
+    .with_provider_metadata(metadata);
     response
 }
 
@@ -255,11 +312,7 @@ fn enrich_xai_model(info: &mut ModelInfo) {
 #[async_trait]
 impl LLMProvider for XaiProvider {
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse> {
-        if request.openai_responses.is_some() {
-            return Err(NxuskitError::InvalidRequest(
-                "xAI provider currently registers the OpenAI-compatible chat completions transport; Responses transport is not exposed for provider id xai".into(),
-            ));
-        }
+        self.validate_request_surface(request)?;
 
         let capabilities = self.get_capabilities();
         let adapted = ParameterAdapter::adapt(request, &capabilities);
@@ -272,11 +325,7 @@ impl LLMProvider for XaiProvider {
         &self,
         request: &ChatRequest,
     ) -> Result<Box<dyn Stream<Item = Result<StreamChunk>> + Send + Unpin>> {
-        if request.openai_responses.is_some() {
-            return Err(NxuskitError::InvalidRequest(
-                "xAI provider currently registers the OpenAI-compatible chat completions transport; Responses transport is not exposed for provider id xai".into(),
-            ));
-        }
+        self.validate_request_surface(request)?;
 
         let capabilities = self.get_capabilities();
         let adapted = ParameterAdapter::adapt(request, &capabilities);
@@ -296,21 +345,7 @@ impl LLMProvider for XaiProvider {
     }
 
     fn get_capabilities(&self) -> ProviderCapabilities {
-        ProviderCapabilities {
-            supports_system_messages: true,
-            supports_streaming: true,
-            supports_vision: true,
-            max_stop_sequences: None,
-            supports_presence_penalty: false,
-            supports_frequency_penalty: false,
-            supports_seed: false,
-            supports_logprobs: false,
-            supports_streaming_logprobs: false,
-            supports_json_mode: true,
-            supports_json_schema: true,
-            penalty_range: None,
-            max_logprobs: None,
-        }
+        Self::adapter_capabilities()
     }
 }
 
@@ -345,5 +380,119 @@ mod tests {
         assert!(caps.supports_json_schema);
         assert!(!caps.supports_logprobs);
         assert!(!caps.supports_streaming_logprobs);
+    }
+
+    fn assert_unsupported(request: &ChatRequest, capability: &str) {
+        let provider = XaiProvider::new("test-key");
+        match provider.validate_request_surface(request) {
+            Err(NxuskitError::UnsupportedCapability {
+                provider,
+                capability: actual,
+            }) => {
+                assert_eq!(provider, "xai");
+                assert_eq!(actual, capability);
+            }
+            other => panic!("expected unsupported {capability}, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn xai_request_surface_rejects_explicit_unsupported_controls() {
+        let base = ChatRequest::new("grok-4");
+
+        let mut request = base.clone();
+        request.presence_penalty = Some(0.4);
+        assert_unsupported(&request, "presence_penalty");
+
+        let mut request = base.clone();
+        request.frequency_penalty = Some(-0.3);
+        assert_unsupported(&request, "frequency_penalty");
+
+        let mut request = base.clone();
+        request.seed = Some(42);
+        assert_unsupported(&request, "seed");
+
+        let mut request = base.clone();
+        request.logprobs = Some(true);
+        assert_unsupported(&request, "logprobs");
+
+        let mut request = base.clone();
+        request.top_logprobs = Some(3);
+        assert_unsupported(&request, "top_logprobs");
+
+        let mut request = base.clone();
+        request.reasoning_effort = Some("low".into());
+        assert_unsupported(&request, "reasoning_effort");
+
+        let mut request = base.clone();
+        request.thinking_mode = crate::types::ThinkingMode::Enabled;
+        assert_unsupported(&request, "thinking");
+
+        let mut request = base;
+        request.openai_responses = Some(crate::capabilities::OpenAIResponsesOptions::default());
+        assert_unsupported(&request, "openai_responses");
+    }
+
+    #[test]
+    fn xai_request_surface_preserves_invalid_request_precedence() {
+        let provider = XaiProvider::new("test-key");
+        let mut request = ChatRequest::new("grok-4");
+        request.presence_penalty = Some(2.1);
+        assert!(matches!(
+            provider.validate_request_surface(&request),
+            Err(NxuskitError::InvalidRequest(_))
+        ));
+    }
+
+    #[test]
+    fn xai_request_surface_keeps_supported_compatible_controls() {
+        let provider = XaiProvider::new("test-key");
+        let mut request = ChatRequest::new("grok-4")
+            .with_message(crate::Message::user("hi").with_image_url("https://image.invalid/p.png"));
+        request.stop = Some(vec!["END".into()]);
+        request.response_format = Some(crate::types::ResponseFormat::Json);
+        request.tools = Some(vec![serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "lookup",
+                "parameters": {"type": "object", "properties": {}}
+            }
+        })]);
+        request.tool_choice = Some(serde_json::json!("auto"));
+        request.structured_output = Some(crate::capabilities::StructuredOutputConfig {
+            mode: crate::capabilities::StructuredOutputMode::JsonObject,
+            schema: None,
+            schema_name: None,
+            strict: None,
+            schema_subset: None,
+        });
+
+        provider.validate_request_surface(&request).unwrap();
+    }
+
+    #[tokio::test]
+    async fn xai_unsupported_seed_rejects_before_http() {
+        let provider = XaiProvider::builder()
+            .api_key("test-key")
+            .base_url("http://127.0.0.1:1")
+            .build()
+            .unwrap();
+        let mut request = ChatRequest::new("grok-4");
+        request.seed = Some(42);
+
+        assert!(matches!(
+            provider.chat(&request).await,
+            Err(NxuskitError::UnsupportedCapability {
+                ref provider,
+                ref capability,
+            }) if provider == "xai" && capability == "seed"
+        ));
+        assert!(matches!(
+            provider.chat_stream(&request).await,
+            Err(NxuskitError::UnsupportedCapability {
+                ref provider,
+                ref capability,
+            }) if provider == "xai" && capability == "seed"
+        ));
     }
 }

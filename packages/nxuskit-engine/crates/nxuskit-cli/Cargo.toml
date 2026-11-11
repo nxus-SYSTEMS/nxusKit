@@ -40,16 +40,15 @@ missing_panics_doc = "allow"
 
 [features]
 default = []
-pro-engines = [
-    "nxuskit-core/provider-zen",
-    "nxuskit-core/provider-z3",
-    "nxuskit-engine/provider-zen",
-    "nxuskit-engine/provider-z3",
-]
+pro-engines = []
 
 [dependencies]
 nxuskit-engine = { path = "../nxuskit-engine" }
+# The public CLI is a production verification boundary.  It must use the same
+# named ES256 verifier bundle as the SDK runtime rather than silently falling
+# back to the legacy single-key verifier.
 nxuskit-core = { path = "../nxuskit-core", default-features = false }
+nxuskit = { path = "../../../nxuskit" }
 clips-sys = { path = "../clips-sys" }
 tokio = { workspace = true }
 clap = { workspace = true }
@@ -74,3 +73,5 @@ assert_cmd = "2.0"
 predicates = "3.1"
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
+jsonwebtoken = { workspace = true }
+p256 = { workspace = true }

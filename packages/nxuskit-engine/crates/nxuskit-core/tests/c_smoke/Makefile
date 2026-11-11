@@ -13,8 +13,10 @@
 CRATE_DIR := ../..
 INCLUDE_DIR := $(CRATE_DIR)/include
 
-# Detect target directory (respect CARGO_TARGET_DIR)
-CARGO_TARGET_DIR ?= $(shell cargo metadata --format-version 1 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['target_directory'])" 2>/dev/null || echo "$(CRATE_DIR)/../../../../target")
+# The smoke test lives inside the nested engine workspace, while its documented
+# build prerequisite runs from the outer SDK workspace. Respect an explicit
+# CARGO_TARGET_DIR; otherwise use that outer workspace's target directory.
+CARGO_TARGET_DIR ?= $(abspath $(CRATE_DIR)/../../../..)/target
 
 CC := cc
 CFLAGS := -Wall -Wextra -Werror -I$(INCLUDE_DIR)

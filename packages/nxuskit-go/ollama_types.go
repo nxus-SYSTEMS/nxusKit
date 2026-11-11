@@ -1,10 +1,13 @@
 package nxuskit
 
+import "encoding/json"
+
 // ollamaMessage represents a message in Ollama's format.
 type ollamaMessage struct {
-	Role    string   `json:"role"`
-	Content string   `json:"content"`
-	Images  []string `json:"images,omitempty"` // base64-encoded images
+	Role     string   `json:"role"`
+	Content  string   `json:"content"`
+	Images   []string `json:"images,omitempty"` // base64-encoded images
+	Thinking string   `json:"thinking,omitempty"`
 }
 
 // ollamaChatRequest is the request body for /api/chat.
@@ -14,16 +17,18 @@ type ollamaChatRequest struct {
 	Stream   bool                   `json:"stream"`
 	Options  map[string]interface{} `json:"options,omitempty"`
 	Think    *bool                  `json:"think,omitempty"`
+	Format   any                    `json:"format,omitempty"`
 }
 
 // ollamaChatResponse is the response from /api/chat (streaming or non-streaming).
 type ollamaChatResponse struct {
-	Model           string        `json:"model"`
-	Message         ollamaMessage `json:"message"`
-	Done            bool          `json:"done"`
-	Thinking        string        `json:"thinking,omitempty"`
-	EvalCount       int           `json:"eval_count,omitempty"`
-	PromptEvalCount int           `json:"prompt_eval_count,omitempty"`
+	Error           json.RawMessage `json:"error,omitempty"`
+	Model           string          `json:"model"`
+	Message         ollamaMessage   `json:"message"`
+	Done            bool            `json:"done"`
+	DoneReason      *string         `json:"done_reason,omitempty"`
+	EvalCount       int             `json:"eval_count,omitempty"`
+	PromptEvalCount int             `json:"prompt_eval_count,omitempty"`
 }
 
 // ollamaTagsResponse is the response from /api/tags.

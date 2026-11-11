@@ -45,6 +45,16 @@ class TokenInfo:
     """Edition granted by the token"""
     days_remaining: Optional[int]
     """Days until token expiry (None for deployment tokens)"""
+    sdk_release_line: Optional[int]
+    """Numeric SDK release line for a validated v2 deployment token"""
+    grant_revision: Optional[int]
+    """Immutable grant revision for a validated v2 deployment token"""
+    authorization_scope: Optional[str]
+    """Safe authorization scope for a validated v2 deployment token"""
+    signing_key_id: Optional[str]
+    """ES256 key id used for a validated v2 deployment token"""
+    token_fingerprint: Optional[str]
+    """SHA-256 fingerprint for a validated v2 deployment token"""
     error: Optional[str]
     """Error message if validation failed"""
     result: str
@@ -94,8 +104,8 @@ def license_resolve(explicit_key: Optional[str] = None) -> LicenseResolution:
 def license_validate(token: str) -> TokenInfo:
     """Validate a license token JWT string.
 
-    Performs RS384 signature verification, claim parsing, and type-specific
-    validation (expiry, machine binding, version ceiling).
+    Performs ES256 signature verification, claim parsing, and type-specific
+    validation (including strict DeploymentClaimsV2 for deployment tokens).
 
     Args:
         token: The JWT token string to validate.
@@ -123,6 +133,11 @@ def license_validate(token: str) -> TokenInfo:
         token_type=raw["token_type"],
         edition=raw.get("edition"),
         days_remaining=raw.get("days_remaining"),
+        sdk_release_line=raw.get("sdk_release_line"),
+        grant_revision=raw.get("grant_revision"),
+        authorization_scope=raw.get("authorization_scope"),
+        signing_key_id=raw.get("signing_key_id"),
+        token_fingerprint=raw.get("token_fingerprint"),
         error=raw.get("error"),
         result=raw["result"],
     )

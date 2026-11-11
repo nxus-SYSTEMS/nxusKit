@@ -76,6 +76,8 @@ def chat_response_from_ffi(data: dict) -> ChatResponse:
         model=str(data.get("model", "")),
         usage=usage,
         finish_reason=data.get("finish_reason"),
+        raw_finish_reason=data.get("raw_finish_reason"),
+        provider_metadata=data.get("provider_metadata"),
         tool_calls=tool_calls,
         provider=str(data.get("provider", "")),
         warnings=[f"{w.code}: {w.message}" for w in warn_list] if warn_list else [],
@@ -93,10 +95,16 @@ def stream_chunk_from_ffi(data: dict) -> StreamChunk:
     if data.get("logprobs") is not None:
         logprobs = StreamLogprobsDelta.from_dict(data["logprobs"])
 
+    terminal = data.get("terminal", False)
+    if type(terminal) is not bool:
+        raise ValueError("terminal must be a boolean")
     return StreamChunk(
         delta=str(data.get("delta", data.get("content", ""))),
         thinking=data.get("thinking"),
         finish_reason=data.get("finish_reason"),
+        raw_finish_reason=data.get("raw_finish_reason"),
+        provider_metadata=data.get("provider_metadata"),
+        terminal=terminal,
         usage=usage,
         tool_calls=data.get("tool_calls"),
         logprobs=logprobs,

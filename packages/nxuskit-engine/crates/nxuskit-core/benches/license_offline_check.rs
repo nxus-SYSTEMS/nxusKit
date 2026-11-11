@@ -32,7 +32,7 @@ fn make_deployment_token() -> (String, String) {
         .expect("PKCS8 encoding")
         .to_string();
 
-    let point = verifying_key.to_encoded_point(false);
+    let point = verifying_key.to_sec1_point(false);
     let point_bytes = point.as_bytes();
     let algo_oid: &[u8] = &[
         0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a, 0x86,

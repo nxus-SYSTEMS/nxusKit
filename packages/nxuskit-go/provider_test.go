@@ -3,9 +3,101 @@ package nxuskit
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestGenerationBoundsInclusiveAndOmitted(t *testing.T) {
+	if err := validateGenerationControls(&ChatRequest{}, "literal"); err != nil {
+		t.Fatal(err)
+	}
+	for _, limits := range []struct {
+		temperature, topP, penalty float64
+		maxTokens                  int
+	}{{0, 0, -2, 1}, {2, 1, 2, 1048576}} {
+		req := &ChatRequest{Temperature: &limits.temperature, TopP: &limits.topP,
+			PresencePenalty: &limits.penalty, FrequencyPenalty: &limits.penalty, MaxTokens: &limits.maxTokens}
+		if err := validateGenerationControls(req, "literal"); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestNativeGenerationBoundsBeforeTransport(t *testing.T) {
+	var calls atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+	factories := map[string]func() (LLMProvider, error){
+		"openai": func() (LLMProvider, error) {
+			return NewOpenAIProvider(WithOpenAIAPIKey("loopback"), WithOpenAIBaseURL(server.URL))
+		},
+		"claude": func() (LLMProvider, error) {
+			return NewClaudeProvider(WithClaudeAPIKey("loopback"), WithClaudeBaseURL(server.URL))
+		},
+		"ollama":   func() (LLMProvider, error) { return NewOllamaProvider(WithOllamaBaseURL(server.URL)) },
+		"lmstudio": func() (LLMProvider, error) { return NewLmStudioProvider(WithLmStudioBaseURL(server.URL)) },
+	}
+	cases := map[string]*ChatRequest{}
+	for _, value := range []float64{-0.1, 2.1, math.NaN(), math.Inf(1)} {
+		v := value
+		cases[fmt.Sprintf("temperature=%v", v)] = &ChatRequest{Temperature: &v}
+	}
+	for _, value := range []float64{-0.1, 1.1, math.NaN(), math.Inf(-1)} {
+		v := value
+		cases[fmt.Sprintf("top_p=%v", v)] = &ChatRequest{TopP: &v}
+	}
+	for _, value := range []float64{-2.1, 2.1, math.NaN(), math.Inf(1)} {
+		v := value
+		cases[fmt.Sprintf("presence=%v", v)] = &ChatRequest{PresencePenalty: &v}
+		cases[fmt.Sprintf("frequency=%v", v)] = &ChatRequest{FrequencyPenalty: &v}
+	}
+	for _, value := range []int{0, 1048577} {
+		v := value
+		cases[fmt.Sprintf("max_tokens=%v", v)] = &ChatRequest{MaxTokens: &v}
+	}
+	for name, factory := range factories {
+		for label, request := range cases {
+			t.Run(name+"/"+label, func(t *testing.T) {
+				provider, err := factory()
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.Model = "m"
+				request.Messages = []Message{UserMessage("hi")}
+				_, err = provider.Chat(context.Background(), request)
+				var typed *LLMError
+				if !errors.As(err, &typed) || typed.Kind != ErrorKindInvalidRequest {
+					t.Errorf("unary error=%v", err)
+				}
+				chunks, errs := provider.ChatStream(context.Background(), request)
+				for range chunks {
+					t.Error("invalid request produced chunk")
+				}
+				count := 0
+				for err := range errs {
+					count++
+					if !errors.As(err, &typed) || typed.Kind != ErrorKindInvalidRequest {
+						t.Errorf("stream error=%v", err)
+					}
+				}
+				if count != 1 {
+					t.Errorf("errors=%d", count)
+				}
+			})
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("invalid requests reached HTTP %d times", calls.Load())
+	}
+}
 
 // testMockProvider is a test implementation of LLMProvider used only in provider_test.go.
 type testMockProvider struct {

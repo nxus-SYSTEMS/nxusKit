@@ -4,9 +4,9 @@
 
 #[allow(unused_imports)]
 use nxuskit::{
-    AsyncProvider, ChatRequest, ChatResponse, Message, MockProvider, MockProviderBuilder,
-    LogprobsData, ModelInfo, NxuskitError, ProviderConfig, Role, StreamReceiver, ThinkingMode,
-    TokenLogprob, TopLogprob,
+    AsyncProvider, ChatRequest, ChatResponse, LogprobsData, Message, MockProvider,
+    MockProviderBuilder, ModelInfo, NxuskitError, ProviderConfig, Role, StreamReceiver,
+    ThinkingMode, TokenLogprob, TopLogprob,
 };
 
 // =========================================================================
@@ -372,11 +372,13 @@ fn chatresponse_logprobs_deserializes_typed_data() {
 #[test]
 fn chatresponse_logprobs_serializes_typed_data() {
     let response = ChatResponse {
+        provider_metadata: None,
         content: "Hello".into(),
         model: "gpt-5.4".into(),
         provider: "openai".into(),
         usage: Default::default(),
         finish_reason: None,
+        raw_finish_reason: None,
         metadata: Default::default(),
         warnings: vec![],
         logprobs: Some(LogprobsData {
@@ -397,7 +399,10 @@ fn chatresponse_logprobs_serializes_typed_data() {
 
     let json = serde_json::to_value(&response).unwrap();
     assert_eq!(json["logprobs"]["content"][0]["token"], "Hello");
-    assert_eq!(json["logprobs"]["content"][0]["top_logprobs"][0]["token"], "Hi");
+    assert_eq!(
+        json["logprobs"]["content"][0]["top_logprobs"][0]["token"],
+        "Hi"
+    );
 }
 
 /// v0.9.3 (T058): a request without logprobs serializes byte-identically
@@ -406,8 +411,7 @@ fn chatresponse_logprobs_serializes_typed_data() {
 /// as `null`) so v0.9.2 consumers see no schema drift.
 #[test]
 fn chatrequest_without_logprobs_matches_v092_fixture_bytes() {
-    let request = ChatRequest::new("gpt-5.4")
-        .with_message(Message::user("Hello from v0.9.2"));
+    let request = ChatRequest::new("gpt-5.4").with_message(Message::user("Hello from v0.9.2"));
 
     let serialized = serde_json::to_string(&request).unwrap();
     let fixture = include_str!("fixtures/v092-chat-request-no-logprobs.json");
@@ -419,8 +423,14 @@ fn chatrequest_without_logprobs_matches_v092_fixture_bytes() {
     );
 
     let json: serde_json::Value = serde_json::from_str(&serialized).unwrap();
-    assert!(json.get("logprobs").is_none(), "logprobs key must be absent, not null");
-    assert!(json.get("top_logprobs").is_none(), "top_logprobs key must be absent, not null");
+    assert!(
+        json.get("logprobs").is_none(),
+        "logprobs key must be absent, not null"
+    );
+    assert!(
+        json.get("top_logprobs").is_none(),
+        "top_logprobs key must be absent, not null"
+    );
 }
 
 /// v0.9.3 (T060): logprobs flow through first-class request fields, never
@@ -437,12 +447,24 @@ fn chatrequest_provider_options_does_not_tunnel_logprobs_to_top_level() {
             "top_logprobs": 7,
         }));
 
-    assert_eq!(request.logprobs, None, "with_provider_options must not set first-class logprobs");
-    assert_eq!(request.top_logprobs, None, "with_provider_options must not set first-class top_logprobs");
+    assert_eq!(
+        request.logprobs, None,
+        "with_provider_options must not set first-class logprobs"
+    );
+    assert_eq!(
+        request.top_logprobs, None,
+        "with_provider_options must not set first-class top_logprobs"
+    );
 
     let json = serde_json::to_value(&request).unwrap();
-    assert!(json.get("logprobs").is_none(), "top-level logprobs must remain absent");
-    assert!(json.get("top_logprobs").is_none(), "top-level top_logprobs must remain absent");
+    assert!(
+        json.get("logprobs").is_none(),
+        "top-level logprobs must remain absent"
+    );
+    assert!(
+        json.get("top_logprobs").is_none(),
+        "top-level top_logprobs must remain absent"
+    );
     assert_eq!(json["provider_options"]["logprobs"], true);
     assert_eq!(json["provider_options"]["top_logprobs"], 7);
 }

@@ -22,6 +22,40 @@ func TestStreamChunkIsFinal(t *testing.T) {
 	})
 }
 
+func TestTerminalTruthJSONCompatibility(t *testing.T) {
+	for _, tc := range []struct {
+		body  string
+		final bool
+		raw   any
+	}{
+		{`{"delta":"old"}`, false, nil},
+		{`{"delta":"old","finish_reason":null}`, false, nil},
+		{`{"delta":"old","finish_reason":"stop"}`, true, nil},
+		{`{"delta":"x","terminal":false,"finish_reason":null}`, false, nil},
+		{`{"delta":"x","terminal":true,"finish_reason":null,"raw_finish_reason":"vendor-new"}`, true, "vendor-new"},
+		{`{"delta":"x","terminal":true,"finish_reason":null,"raw_finish_reason":null}`, true, nil},
+	} {
+		var chunk StreamChunk
+		if err := json.Unmarshal([]byte(tc.body), &chunk); err != nil {
+			t.Fatal(err)
+		}
+		if chunk.IsFinal() != tc.final {
+			t.Errorf("terminal mismatch: %s", tc.body)
+		}
+		encoded, err := json.Marshal(chunk)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var object map[string]any
+		if err := json.Unmarshal(encoded, &object); err != nil {
+			t.Fatal(err)
+		}
+		if object["raw_finish_reason"] != tc.raw {
+			t.Errorf("raw finish lost: %s", encoded)
+		}
+	}
+}
+
 func TestStreamChunkHasThinking(t *testing.T) {
 	t.Run("no thinking", func(t *testing.T) {
 		sc := StreamChunk{Delta: "hello"}

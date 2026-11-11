@@ -252,6 +252,87 @@ void clips_cv_set_external_address(Environment *env, CLIPSValue *cv,
     }
 }
 
+/* User-defined function helpers */
+
+/**
+ * Return the user context pointer supplied to AddUDF.
+ */
+void *clips_udf_context_data(const UDFContext *context) {
+    if (context == NULL) {
+        return NULL;
+    }
+    return context->context;
+}
+
+/**
+ * Read the nth UDF argument as a string or symbol.
+ */
+const char *clips_udf_nth_argument_string(UDFContext *context,
+                                          unsigned int position) {
+    UDFValue value;
+
+    if (context == NULL) {
+        return NULL;
+    }
+
+    if (!UDFNthArgument(context, position, LEXEME_BITS, &value)) {
+        return NULL;
+    }
+
+    if (value.lexemeValue == NULL) {
+        return NULL;
+    }
+
+    return value.lexemeValue->contents;
+}
+
+/**
+ * Set a UDF return value to a CLIPS string.
+ */
+void clips_udf_set_string(Environment *env, UDFValue *value,
+                          const char *string) {
+    if (env == NULL || value == NULL || string == NULL) {
+        return;
+    }
+
+    value->lexemeValue = CreateString(env, string);
+    value->begin = 0;
+    value->range = 0;
+}
+
+/**
+ * Set a UDF return value to a multifield containing string fields.
+ */
+void clips_udf_set_string_multifield(Environment *env, UDFValue *value,
+                                     const char **items, size_t length) {
+    MultifieldBuilder *builder;
+
+    if (env == NULL || value == NULL) {
+        return;
+    }
+
+    builder = CreateMultifieldBuilder(env, length);
+    if (builder == NULL) {
+        value->value = CreateMultifield(env, 0);
+        value->begin = 0;
+        value->range = 0;
+        return;
+    }
+
+    for (size_t i = 0; i < length; i++) {
+        if (items != NULL && items[i] != NULL) {
+            MBAppendString(builder, items[i]);
+        } else {
+            MBAppendString(builder, "");
+        }
+    }
+
+    value->value = MBCreate(builder);
+    value->begin = 0;
+    value->range = length;
+    MBDispose(builder);
+}
+
 /* ========================================================================
  * Missing CLIPS API wrappers
  * These provide compatibility for functions that don't exist in CLIPS 6.4.2

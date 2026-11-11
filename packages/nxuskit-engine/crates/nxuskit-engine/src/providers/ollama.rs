@@ -13,14 +13,40 @@ use crate::{
     capability::{CapabilityDetector, ModelCapabilities, VisionMode},
     error::{NxuskitError, Result},
     parameter_adapter::ParameterAdapter,
+    provider::ProviderContractMapper,
     token_estimator::{StreamingTokenAccumulator, TokenEstimator},
     types::{
-        ContentPart, FinishReason, InferenceMetadata, MessageContent, ProviderCapabilities,
-        ResponseFormat,
+        ContentPart, FinishReason, InferenceMetadata, LogprobsData, MessageContent,
+        ProviderCapabilities, ResponseFormat, StreamLogprobsDelta,
     },
 };
 
 const OLLAMA_API_BASE: &str = "http://localhost:11434";
+
+fn decode_chat_envelope<T: serde::de::DeserializeOwned>(
+    value: serde_json::Value,
+    unary: bool,
+) -> Result<T> {
+    if !value.is_object()
+        || value.get("error").is_some()
+        || (unary && value.get("done") != Some(&serde_json::Value::Bool(true)))
+    {
+        return Err(NxuskitError::Stream(
+            "Invalid or incomplete Ollama response".into(),
+        ));
+    }
+    let mut total = 0_u32;
+    for name in ["prompt_eval_count", "eval_count"] {
+        if let Some(count) = value.get(name).filter(|count| !count.is_null()) {
+            let count = count.as_u64().and_then(|count| u32::try_from(count).ok());
+            total = count
+                .and_then(|count| total.checked_add(count))
+                .ok_or_else(|| NxuskitError::Stream("Malformed Ollama usage counts".into()))?;
+        }
+    }
+    serde_json::from_value(value)
+        .map_err(|_| NxuskitError::Stream("Malformed Ollama response".into()))
+}
 
 /// Ollama provider for local models
 pub struct OllamaProvider {
@@ -30,6 +56,30 @@ pub struct OllamaProvider {
     connection_timeout: Duration,
     stream_read_timeout: Duration,
     total_timeout: Duration,
+}
+
+impl OllamaProvider {
+    /// Static adapter declarations, not model or endpoint-effective support.
+    pub fn adapter_capabilities() -> ProviderCapabilities {
+        ProviderCapabilities {
+            supports_system_messages: true,
+            supports_streaming: true,
+            supports_vision: true,
+            max_stop_sequences: None, // Ollama supports variable stop sequences
+            supports_presence_penalty: false,
+            supports_frequency_penalty: false,
+            supports_seed: true,
+            // Current /api/chat accepts logprobs/top_logprobs and returns
+            // per-token logprobs on unary and streamed chat responses.
+            supports_logprobs: true,
+            supports_streaming_logprobs: true,
+            supports_json_mode: true,
+            // Ollama 0.5.0+ supports JSON schema validation via the format field
+            supports_json_schema: true,
+            penalty_range: None,
+            max_logprobs: Some(20),
+        }
+    }
 }
 
 impl OllamaProvider {
@@ -155,6 +205,7 @@ impl OllamaProvider {
                     content,
                     images,
                     thinking: None, // Thinking is only for responses, not outgoing messages
+                    tool_calls: None,
                 }
             })
             .collect()
@@ -228,6 +279,7 @@ fn enrich_ollama_model(info: &mut ModelInfo) {
 #[async_trait]
 impl LLMProvider for OllamaProvider {
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse> {
+        request.validate_legacy_sampling(self.provider_name())?;
         // Adapt request to provider capabilities
         let capabilities = self.get_capabilities();
         let mut adapted = ParameterAdapter::adapt(request, &capabilities);
@@ -261,9 +313,19 @@ impl LLMProvider for OllamaProvider {
                 temperature: adapted_request.temperature,
                 num_predict: adapted_request.max_tokens.map(|t| t as i32),
                 top_p: adapted_request.top_p,
+                stop: adapted_request.stop.clone(),
+                seed: adapted_request.seed,
+                top_k: adapted_request.top_k,
+                min_p: adapted_request.min_p,
             }),
             think: Self::get_think_param(adapted_request.thinking_mode, &adapted_request.model),
             format: Self::convert_response_format(adapted_request.response_format.as_ref()),
+            tools: adapted_request
+                .tools
+                .clone()
+                .filter(|tools| !tools.is_empty()),
+            logprobs: adapted_request.logprobs,
+            top_logprobs: adapted_request.top_logprobs,
         };
 
         let response = self
@@ -278,8 +340,7 @@ impl LLMProvider for OllamaProvider {
         let status = response.status();
         if !status.is_success() {
             let retry_after = super::parse_retry_after(response.headers());
-            let error_text = response
-                .text()
+            let error_text = crate::provider::http::read_response_text_bounded(response)
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(match status.as_u16() {
@@ -288,11 +349,14 @@ impl LLMProvider for OllamaProvider {
             });
         }
 
-        let ollama_response: OllamaResponse = response.json().await?;
+        let ollama_response: OllamaResponse = decode_chat_envelope(
+            crate::provider::http::read_response_json_bounded(response).await?,
+            true,
+        )?;
 
         let usage = TokenUsage::estimated_only(TokenCount::new(
-            ollama_response.prompt_eval_count.unwrap_or(0) as u32,
-            ollama_response.eval_count.unwrap_or(0) as u32,
+            ollama_response.prompt_eval_count.unwrap_or(0),
+            ollama_response.eval_count.unwrap_or(0),
         ));
 
         let mut response = ChatResponse::new(
@@ -301,18 +365,32 @@ impl LLMProvider for OllamaProvider {
             usage,
         );
         response.provider = self.provider_name().to_string();
-        response.finish_reason = Some(FinishReason::Stop);
+        response.raw_finish_reason = ollama_response.done_reason;
+        response.finish_reason = response
+            .raw_finish_reason
+            .as_deref()
+            .and_then(FinishReason::from_str_flexible);
+        response.tool_calls = ollama_response
+            .message
+            .tool_calls
+            .filter(|calls| !calls.is_empty());
+        response.logprobs = ollama_response
+            .logprobs
+            .map(|content| LogprobsData { content });
 
         // Add parameter adaptation warnings
         response.warnings = adapted.warnings;
 
         // Populate inference metadata
-        response.inference_metadata =
-            InferenceMetadata::completed(response.finish_reason.unwrap_or(FinishReason::Stop))
-                .with_token_usage(response.usage.clone())
-                .with_provider_metadata(serde_json::json!({
-                    "provider": "ollama"
-                }));
+        response.inference_metadata = InferenceMetadata {
+            is_complete: true,
+            finish_reason: response.finish_reason,
+            ..InferenceMetadata::default()
+        }
+        .with_token_usage(response.usage.clone())
+        .with_provider_metadata(serde_json::json!({
+            "provider": "ollama"
+        }));
 
         Ok(response)
     }
@@ -321,6 +399,7 @@ impl LLMProvider for OllamaProvider {
         &self,
         request: &ChatRequest,
     ) -> Result<Box<dyn Stream<Item = Result<StreamChunk>> + Send + Unpin>> {
+        request.validate_legacy_sampling(self.provider_name())?;
         let messages = self.convert_messages(&request.messages);
 
         // Note: For streaming, warnings about max_tokens for thinking models
@@ -335,9 +414,16 @@ impl LLMProvider for OllamaProvider {
                 temperature: request.temperature,
                 num_predict: request.max_tokens.map(|t| t as i32),
                 top_p: request.top_p,
+                stop: request.stop.clone(),
+                seed: request.seed,
+                top_k: request.top_k,
+                min_p: request.min_p,
             }),
             think: Self::get_think_param(request.thinking_mode, &request.model),
             format: Self::convert_response_format(request.response_format.as_ref()),
+            tools: request.tools.clone().filter(|tools| !tools.is_empty()),
+            logprobs: request.logprobs,
+            top_logprobs: request.top_logprobs,
         };
 
         // Note: The client already has timeouts configured via build_http_client():
@@ -359,8 +445,7 @@ impl LLMProvider for OllamaProvider {
         let status = response.status();
         if !status.is_success() {
             let retry_after = super::parse_retry_after(response.headers());
-            let error_text = response
-                .text()
+            let error_text = crate::provider::http::read_response_text_bounded(response)
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(match status.as_u16() {
@@ -381,85 +466,131 @@ impl LLMProvider for OllamaProvider {
             let mut accumulator = StreamingTokenAccumulator::new(estimator, prompt_tokens);
 
             let mut stream = stream;
-            let mut buffer = String::new();
+            let mut buffer = Vec::new();
+            let mut completed = false;
+            let mut raw_finish_reason = None;
 
             'stream_loop: loop {
-                match stream.next().await {
+                let mut transport_bytes = None;
+                let eof = match stream.next().await {
                     Some(Ok(bytes)) => {
-                        let text = String::from_utf8_lossy(&bytes);
-                        buffer.push_str(&text);
-
-                        // Process complete NDJSON lines
-                        while let Some(pos) = buffer.find('\n') {
-                            let line = buffer[..pos].to_string();
-                            buffer = buffer[pos + 1..].to_string();
-
-                            if line.trim().is_empty() {
-                                continue;
-                            }
-
-                            match serde_json::from_str::<OllamaStreamChunk>(&line) {
-                                Ok(chunk_data) => {
-                                    if let Some(message) = chunk_data.message {
-                                        let has_content = !message.content.is_empty();
-                                        let has_thinking = message.thinking.as_ref()
-                                            .is_some_and(|t| !t.is_empty());
-
-                                        // Yield chunk if either content or thinking is present
-                                        if has_content || has_thinking {
-                                            // Accumulate content for token estimation
-                                            if has_content {
-                                                accumulator.add_chunk(&message.content);
-                                            }
-                                            // Accumulate thinking for token estimation
-                                            if has_thinking
-                                                && let Some(ref thinking) = message.thinking
-                                            {
-                                                accumulator.add_thinking_chunk(thinking);
-                                            }
-
-                                            // If Ollama returns actual usage, capture it
-                                            if let (Some(prompt), Some(completion)) = (
-                                                chunk_data.prompt_eval_count,
-                                                chunk_data.eval_count,
-                                            ) {
-                                                let actual = TokenCount::new(prompt as u32, completion as u32);
-                                                accumulator.set_actual(actual);
-                                            }
-
-                                            // Create chunk with content and/or thinking
-                                            let mut stream_chunk = StreamChunk::new(message.content);
-                                            if has_thinking {
-                                                stream_chunk.thinking = message.thinking;
-                                            }
-                                            stream_chunk.usage = Some(accumulator.running_total());
-                                            yield Ok(stream_chunk);
-                                        }
-                                    }
-                                    if chunk_data.done {
-                                        // Done - finalize on next iteration
-                                        break 'stream_loop;
-                                    }
-                                }
-                                Err(e) => {
-                                    yield Err(NxuskitError::Stream(format!("Failed to parse NDJSON: {}", e)));
-                                    break 'stream_loop;
-                                }
-                            }
-                        }
+                        transport_bytes = Some(bytes);
+                        false
                     }
                     Some(Err(e)) => {
-                        accumulator.mark_interrupted();
                         yield Err(NxuskitError::Network(e));
-                        break 'stream_loop;
+                        return;
                     }
-                    None => break 'stream_loop,
+                    None => {
+                        // NDJSON permits a final record without a newline.
+                        if !buffer.is_empty() {
+                            buffer.push(b'\n');
+                        }
+                        true
+                    }
+                };
+                let mut chunk_cursor = transport_bytes.as_ref().map(|bytes| {
+                    crate::provider::http::BoundedStreamChunkCursor::new(bytes.as_ref())
+                });
+
+                loop {
+                    let has_more = match chunk_cursor.as_mut() {
+                        Some(cursor) => match cursor.append_next(&mut buffer) {
+                            Ok(has_more) => has_more,
+                            Err(error) => {
+                                yield Err(NxuskitError::Stream(error.to_string()));
+                                return;
+                            }
+                        },
+                        None => false,
+                    };
+
+
+                // Process complete NDJSON lines, including the final EOF record.
+                while let Some(frame) = next_ollama_ndjson_frame(&mut buffer) {
+                    let parsed = frame
+                        .map_err(|_| NxuskitError::Stream("Malformed Ollama stream record".into()))
+                        .and_then(|value| decode_chat_envelope::<OllamaStreamChunk>(value, false));
+                    match parsed {
+                        Ok(chunk_data) => {
+                            // Actual usage commonly arrives in a message-free terminal record.
+                            if let (Some(prompt), Some(completion)) = (
+                                chunk_data.prompt_eval_count,
+                                chunk_data.eval_count,
+                            ) {
+                                accumulator.set_actual(TokenCount::new(prompt, completion));
+                            }
+                            let logprobs = chunk_data
+                                .logprobs
+                                .map(|content| StreamLogprobsDelta { content });
+                            if let Some(message) = chunk_data.message {
+                                let has_content = !message.content.is_empty();
+                                let has_thinking = message.thinking.as_ref()
+                                    .is_some_and(|t| !t.is_empty());
+                                let has_tools = message.tool_calls.as_ref()
+                                    .is_some_and(|calls| !calls.is_empty());
+
+                                // Preserve every public stream payload class.
+                                if has_content || has_thinking || has_tools || logprobs.is_some() {
+                                    if has_content {
+                                        accumulator.add_chunk(&message.content);
+                                    }
+                                    if has_thinking
+                                        && let Some(ref thinking) = message.thinking
+                                    {
+                                        accumulator.add_thinking_chunk(thinking);
+                                    }
+
+                                    let mut stream_chunk = StreamChunk::new(message.content);
+                                    if has_thinking {
+                                        stream_chunk.thinking = message.thinking;
+                                    }
+                                    stream_chunk.tool_calls = message
+                                        .tool_calls
+                                        .filter(|calls| !calls.is_empty());
+                                    stream_chunk.logprobs = logprobs;
+                                    stream_chunk.usage = Some(accumulator.running_total());
+                                    yield Ok(stream_chunk);
+                                }
+                            } else if let Some(logprobs) = logprobs {
+                                let mut stream_chunk = StreamChunk::new(String::new());
+                                stream_chunk.logprobs = Some(logprobs);
+                                stream_chunk.usage = Some(accumulator.running_total());
+                                yield Ok(stream_chunk);
+                            }
+                            if chunk_data.done {
+                                completed = true;
+                                raw_finish_reason = chunk_data.done_reason;
+                                break 'stream_loop;
+                            }
+                        }
+                        Err(e) => {
+                            yield Err(e);
+                            return;
+                        }
+                    }
+                }
+                    if !has_more {
+                        break;
+                    }
+                }
+                if eof {
+                    break;
                 }
             }
 
-            // Send final chunk after stream ends
+            if !completed {
+                yield Err(NxuskitError::Stream("Ollama stream ended before done".to_string()));
+                return;
+            }
+
             let final_usage = accumulator.finalize();
-            yield Ok(StreamChunk::final_chunk(crate::types::FinishReason::Stop, Some(final_usage)));
+            let mut terminal = StreamChunk::new(String::new());
+            terminal.terminal = true;
+            terminal.finish_reason = raw_finish_reason.as_deref().and_then(FinishReason::from_str_flexible);
+            terminal.raw_finish_reason = raw_finish_reason;
+            terminal.usage = Some(final_usage);
+            yield Ok(terminal);
         };
 
         Ok(Box::new(Box::pin(output_stream)))
@@ -521,7 +652,8 @@ impl LLMProvider for OllamaProvider {
             ));
         }
 
-        let tags_response: OllamaTagsResponse = response.json().await?;
+        let tags_response: OllamaTagsResponse =
+            crate::provider::http::read_response_json_bounded(response).await?;
 
         // Check if vision detection is enabled via environment variable
         let enable_vision_detection = std::env::var("OLLAMA_DETECT_VISION")
@@ -572,28 +704,7 @@ impl LLMProvider for OllamaProvider {
     }
 
     fn get_capabilities(&self) -> ProviderCapabilities {
-        ProviderCapabilities {
-            supports_system_messages: true,
-            supports_streaming: true,
-            supports_vision: true,
-            max_stop_sequences: None, // Ollama supports variable stop sequences
-            supports_presence_penalty: false,
-            supports_frequency_penalty: false,
-            supports_seed: true,
-            supports_logprobs: false,
-
-            // T056: Ollama does not expose a streaming logprob field in its
-            // /api/chat or /api/generate SSE responses in the v0.9.4 Sprint 1
-            // window. Reconciled planning decision: default non-supporting.
-            // Task T070 (local live test, #[ignore]) may flip this to true if
-            // a documented logprob field is discovered and a fixture committed.
-            supports_streaming_logprobs: false,
-            supports_json_mode: true,
-            // Ollama 0.5.0+ supports JSON schema validation via the format field
-            supports_json_schema: true,
-            penalty_range: None,
-            max_logprobs: None,
-        }
+        Self::adapter_capabilities()
     }
 
     fn as_capability_detector(&self) -> Option<&dyn CapabilityDetector> {
@@ -926,6 +1037,12 @@ struct OllamaRequest {
     /// - `None`: Use default text output
     #[serde(skip_serializing_if = "Option::is_none")]
     format: Option<OllamaFormat>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<serde_json::Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    logprobs: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_logprobs: Option<u8>,
 }
 
 /// Ollama format specification for structured output
@@ -946,6 +1063,14 @@ struct OllamaOptions {
     num_predict: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     top_p: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stop: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    seed: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_k: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    min_p: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -957,6 +1082,8 @@ struct OllamaMessage {
     /// Chain-of-thought reasoning from thinking-enabled models (e.g., Qwen3)
     #[serde(default)]
     thinking: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tool_calls: Option<Vec<serde_json::Value>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -964,9 +1091,13 @@ struct OllamaResponse {
     model: String,
     message: OllamaMessage,
     #[serde(default)]
-    prompt_eval_count: Option<i64>,
+    done_reason: Option<String>,
     #[serde(default)]
-    eval_count: Option<i64>,
+    prompt_eval_count: Option<u32>,
+    #[serde(default)]
+    eval_count: Option<u32>,
+    #[serde(default)]
+    logprobs: Option<Vec<crate::types::TokenLogprob>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -975,9 +1106,13 @@ struct OllamaStreamChunk {
     message: Option<OllamaMessage>,
     done: bool,
     #[serde(default)]
-    prompt_eval_count: Option<i64>,
+    done_reason: Option<String>,
     #[serde(default)]
-    eval_count: Option<i64>,
+    prompt_eval_count: Option<u32>,
+    #[serde(default)]
+    eval_count: Option<u32>,
+    #[serde(default)]
+    logprobs: Option<Vec<crate::types::TokenLogprob>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1015,10 +1150,450 @@ struct OllamaShowResponse {
     details: Option<serde_json::Value>,
 }
 
+// ============================================================================
+#[path = "ollama_contract.rs"]
+mod contract;
+
+pub use contract::OllamaContractMapper;
+
+use contract::next_ollama_ndjson_frame;
 #[cfg(test)]
 #[allow(clippy::print_stdout, clippy::print_stderr)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn legacy_stop_seed_sampling_reach_ollama_wire() {
+        use std::io::{Read, Write};
+        for streaming in [false, true] {
+            for supplied in [false, true] {
+                let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+                let endpoint = format!("http://{}", listener.local_addr().unwrap());
+                let server = std::thread::spawn(move || {
+                    let (mut socket, _) = listener.accept().unwrap();
+                    socket
+                        .set_read_timeout(Some(Duration::from_secs(5)))
+                        .unwrap();
+                    let mut headers = Vec::new();
+                    let mut byte = [0];
+                    while !headers.ends_with(b"\r\n\r\n") {
+                        socket.read_exact(&mut byte).unwrap();
+                        headers.push(byte[0]);
+                    }
+                    let headers = String::from_utf8(headers).unwrap();
+                    assert!(headers.starts_with("POST /api/chat HTTP/1.1"));
+                    let length: usize = headers
+                        .lines()
+                        .find_map(|line| {
+                            let (name, value) = line.split_once(':')?;
+                            name.eq_ignore_ascii_case("content-length")
+                                .then(|| value.trim().parse().unwrap())
+                        })
+                        .unwrap();
+                    let mut bytes = vec![0; length];
+                    socket.read_exact(&mut bytes).unwrap();
+                    let request: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                    let body = "{\"model\":\"local\",\"message\":{\"role\":\"assistant\",\"content\":\"ok\"},\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":1,\"eval_count\":1}\n";
+                    write!(
+                        socket,
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    )
+                    .unwrap();
+                    request
+                });
+                let provider = OllamaProvider::builder()
+                    .base_url(endpoint)
+                    .build()
+                    .unwrap();
+                let mut request = ChatRequest::new("local").with_message(Message::user("hi"));
+                if supplied {
+                    request.stop = Some(vec!["END".into(), "HALT".into()]);
+                    request.seed = Some(7);
+                    let mut encoded = serde_json::to_value(&request).unwrap();
+                    encoded["top_k"] = serde_json::json!(40);
+                    encoded["min_p"] = serde_json::json!(0.1);
+                    request = serde_json::from_value(encoded).unwrap();
+                }
+                if streaming {
+                    let chunks: Vec<_> = provider
+                        .chat_stream(&request)
+                        .await
+                        .unwrap()
+                        .collect()
+                        .await;
+                    assert!(chunks.iter().all(Result::is_ok));
+                    assert_eq!(
+                        chunks
+                            .iter()
+                            .filter(|c| c.as_ref().is_ok_and(StreamChunk::is_final))
+                            .count(),
+                        1
+                    );
+                } else {
+                    assert_eq!(provider.chat(&request).await.unwrap().content, "ok");
+                }
+                let wire = server.join().unwrap();
+                assert_eq!(wire["stream"], streaming);
+                if supplied {
+                    assert_eq!(wire["options"]["stop"], serde_json::json!(["END", "HALT"]));
+                    assert_eq!(wire["options"]["seed"], 7);
+                    assert_eq!(wire["options"]["top_k"], 40);
+                    assert_eq!(wire["options"]["min_p"], 0.1);
+                } else {
+                    assert!(wire["options"].get("stop").is_none());
+                    assert!(wire["options"].get("seed").is_none());
+                    assert!(wire["options"].get("top_k").is_none());
+                    assert!(wire["options"].get("min_p").is_none());
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn legacy_logprobs_and_tools_reach_ollama_wire() {
+        use std::io::{Read, Write};
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let server = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut headers = Vec::new();
+            let mut byte = [0];
+            while !headers.ends_with(b"\r\n\r\n") {
+                socket.read_exact(&mut byte).unwrap();
+                headers.push(byte[0]);
+            }
+            let headers = String::from_utf8(headers).unwrap();
+            assert!(headers.starts_with("POST /api/chat HTTP/1.1"));
+            let length: usize = headers
+                .lines()
+                .find_map(|line| {
+                    let (name, value) = line.split_once(':')?;
+                    name.eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse().unwrap())
+                })
+                .unwrap();
+            let mut bytes = vec![0; length];
+            socket.read_exact(&mut bytes).unwrap();
+            let request: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            let body = serde_json::json!({
+                "model": "local",
+                "message": {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{
+                        "function": {
+                            "name": "emit_x",
+                            "arguments": {"x": 1}
+                        }
+                    }]
+                },
+                "done": true,
+                "done_reason": "tool_calls",
+                "prompt_eval_count": 1,
+                "eval_count": 1,
+                "logprobs": [{
+                    "token": "1",
+                    "logprob": -0.1,
+                    "bytes": [49],
+                    "top_logprobs": [{
+                        "token": "2",
+                        "logprob": -1.2,
+                        "bytes": [50]
+                    }]
+                }]
+            })
+            .to_string();
+            write!(
+                socket,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            )
+            .unwrap();
+            request
+        });
+
+        let provider = OllamaProvider::builder()
+            .base_url(endpoint)
+            .build()
+            .unwrap();
+        let mut request = ChatRequest::new("local").with_message(Message::user("hi"));
+        request.logprobs = Some(true);
+        request.top_logprobs = Some(5);
+        request.tools = Some(vec![serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "emit_x",
+                "description": "Return one integer",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"x": {"type": "integer"}},
+                    "required": ["x"]
+                }
+            }
+        })]);
+
+        let response = provider.chat(&request).await.unwrap();
+        let wire = server.join().unwrap();
+        assert_eq!(wire["logprobs"], true);
+        assert_eq!(wire["top_logprobs"], 5);
+        assert_eq!(wire["tools"][0]["function"]["name"], "emit_x");
+        assert_eq!(
+            response
+                .logprobs
+                .as_ref()
+                .and_then(|data| data.content.first())
+                .map(|entry| entry.token.as_str()),
+            Some("1")
+        );
+        assert_eq!(
+            response
+                .tool_calls
+                .as_ref()
+                .and_then(|calls| calls.first())
+                .and_then(|call| call["function"]["name"].as_str()),
+            Some("emit_x")
+        );
+        assert_eq!(response.finish_reason, Some(FinishReason::ToolCalls));
+    }
+
+    async fn legacy_stream_events(
+        body: &'static str,
+        broken_transport: bool,
+    ) -> Vec<Result<StreamChunk>> {
+        legacy_stream_bytes(body.as_bytes(), broken_transport).await
+    }
+
+    async fn legacy_stream_bytes(
+        body: &'static [u8],
+        broken_transport: bool,
+    ) -> Vec<Result<StreamChunk>> {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut request = Vec::new();
+            let mut byte = [0];
+            while !request.ends_with(b"\r\n\r\n") {
+                socket.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            let headers = String::from_utf8(request).unwrap();
+            assert!(headers.starts_with("POST /api/chat HTTP/1.1\r\n"));
+            let length: usize = headers
+                .lines()
+                .find_map(|line| {
+                    let (name, value) = line.split_once(':')?;
+                    name.eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse().unwrap())
+                })
+                .unwrap();
+            socket.read_exact(&mut vec![0; length]).unwrap();
+            write!(socket, "HTTP/1.1 200 OK\r\nContent-Type: application/x-ndjson\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len() + usize::from(broken_transport)).unwrap();
+            socket.write_all(body).unwrap();
+        });
+        let provider = OllamaProvider::builder()
+            .base_url(format!("http://{address}"))
+            .build()
+            .unwrap();
+        let request = ChatRequest::new("local");
+        let events = tokio::time::timeout(Duration::from_secs(5), async {
+            provider
+                .chat_stream(&request)
+                .await
+                .unwrap()
+                .collect::<Vec<_>>()
+                .await
+        })
+        .await
+        .unwrap();
+        server.join().unwrap();
+        events
+    }
+
+    fn assert_stream_failed_without_success(events: &[Result<StreamChunk>]) {
+        assert_eq!(
+            events.iter().filter(|e| e.is_err()).count(),
+            1,
+            "{events:?}"
+        );
+        assert!(
+            events.last().unwrap().is_err(),
+            "error must be terminal: {events:?}"
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|e| e.as_ref().is_ok_and(StreamChunk::is_final)),
+            "no successful final after failure: {events:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn legacy_stream_invalid_utf8_is_not_replaced_with_success() {
+        assert_stream_failed_without_success(
+            &legacy_stream_bytes(
+                b"{\"message\":{\"role\":\"assistant\",\"content\":\"\xff\"},\"done\":true}\n",
+                false,
+            )
+            .await,
+        );
+    }
+
+    #[tokio::test]
+    async fn legacy_terminal_malformed_is_not_success() {
+        assert_stream_failed_without_success(&legacy_stream_events("{broken}\n", false).await);
+    }
+
+    #[tokio::test]
+    async fn legacy_terminal_network_error_is_not_success() {
+        assert_stream_failed_without_success(
+            &legacy_stream_events("{\"done\":false}\n", true).await,
+        );
+    }
+
+    #[tokio::test]
+    async fn legacy_terminal_premature_eof_is_not_success() {
+        assert_stream_failed_without_success(
+            &legacy_stream_events("{\"done\":false}\n", false).await,
+        );
+    }
+
+    #[tokio::test]
+    async fn legacy_terminal_truncated_record_is_not_success() {
+        assert_stream_failed_without_success(&legacy_stream_events("{\"done\":", false).await);
+    }
+
+    #[tokio::test]
+    async fn legacy_terminal_nonnewline_content_is_retained() {
+        let events = legacy_stream_events(
+            "{\"message\":{\"role\":\"assistant\",\"content\":\"tail\"},\"done\":true}",
+            false,
+        )
+        .await;
+        assert_eq!(events.len(), 2, "{events:?}");
+        assert_eq!(events[0].as_ref().unwrap().delta, "tail");
+        assert!(events[1].as_ref().unwrap().is_final());
+    }
+
+    #[tokio::test]
+    async fn legacy_stream_usage_cannot_wrap_or_overflow() {
+        for record in [
+            "{\"done\":true,\"prompt_eval_count\":-1,\"eval_count\":1}\n",
+            "{\"done\":true,\"prompt_eval_count\":1,\"eval_count\":-1}\n",
+            "{\"done\":true,\"prompt_eval_count\":4294967296,\"eval_count\":0}\n",
+            "{\"done\":true,\"prompt_eval_count\":4294967295,\"eval_count\":1}\n",
+        ] {
+            assert_stream_failed_without_success(&legacy_stream_events(record, false).await);
+        }
+    }
+
+    #[test]
+    fn usage_envelope_bounds_apply_to_unary_and_stream() {
+        for unary in [false, true] {
+            for counts in [
+                serde_json::json!({"prompt_eval_count": 0, "eval_count": 0}),
+                serde_json::json!({"prompt_eval_count": 4294967295_u64, "eval_count": 0}),
+                serde_json::json!({"prompt_eval_count": null}),
+                serde_json::json!({}),
+            ] {
+                let mut value = counts;
+                value["done"] = serde_json::json!(true);
+                assert!(decode_chat_envelope::<serde_json::Value>(value, unary).is_ok());
+            }
+            for count in [
+                serde_json::json!(-1),
+                serde_json::json!(1.5),
+                serde_json::json!(4294967296_u64),
+            ] {
+                for name in ["prompt_eval_count", "eval_count"] {
+                    let mut value = serde_json::json!({"done": true});
+                    value[name] = count.clone();
+                    assert!(decode_chat_envelope::<serde_json::Value>(value, unary).is_err());
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn legacy_terminal_usage_only_is_retained() {
+        let events = legacy_stream_events(
+            "{\"done\":true,\"prompt_eval_count\":7,\"eval_count\":3}\n",
+            false,
+        )
+        .await;
+        assert_eq!(events.len(), 1, "{events:?}");
+        let chunk = events[0].as_ref().unwrap();
+        assert!(chunk.is_final());
+        let actual = chunk
+            .usage
+            .as_ref()
+            .unwrap()
+            .actual
+            .as_ref()
+            .expect("terminal actual usage");
+        assert_eq!((actual.prompt_tokens, actual.completion_tokens), (7, 3));
+    }
+
+    #[tokio::test]
+    async fn legacy_terminal_done_stops_before_trailing_data() {
+        let events = legacy_stream_events("{\"done\":true}\n{broken}\n", false).await;
+        assert_eq!(events.len(), 1, "{events:?}");
+        assert!(events[0].as_ref().unwrap().is_final());
+    }
+
+    #[tokio::test]
+    async fn legacy_terminal_raw_reason_is_not_fabricated() {
+        for (body, reason, raw) in [
+            (
+                "{\"done\":true,\"done_reason\":\"length\"}\n",
+                Some(FinishReason::Length),
+                Some("length"),
+            ),
+            (
+                "{\"done\":true,\"done_reason\":\"vendor-new\"}\n",
+                None,
+                Some("vendor-new"),
+            ),
+            ("{\"done\":true,\"done_reason\":null}\n", None, None),
+            ("{\"done\":true}\n", None, None),
+        ] {
+            let events = legacy_stream_events(body, false).await;
+            assert_eq!(events.len(), 1);
+            let chunk = events[0].as_ref().unwrap();
+            assert!(chunk.is_final());
+            assert_eq!(chunk.finish_reason, reason);
+            assert_eq!(chunk.raw_finish_reason.as_deref(), raw);
+        }
+    }
+
+    #[test]
+    fn ndjson_framer_preserves_split_utf8_and_reports_invalid_frames() {
+        let mut buffer = br#"{"message":{"content":""#.to_vec();
+        buffer.push(0xe2);
+        assert!(next_ollama_ndjson_frame(&mut buffer).is_none());
+        buffer.extend_from_slice(&[0x82, 0xac]);
+        buffer.extend_from_slice(b"\"},\"done\":false}\n");
+        let value = next_ollama_ndjson_frame(&mut buffer).unwrap().unwrap();
+        assert_eq!(value["message"]["content"], "€");
+
+        let mut invalid = b"{\xff}\n".to_vec();
+        let error = next_ollama_ndjson_frame(&mut invalid).unwrap().unwrap_err();
+        assert_eq!(
+            error.code,
+            crate::error::ProviderErrorCode::MalformedResponse
+        );
+    }
 
     #[test]
     fn test_builder() {
@@ -1279,11 +1854,15 @@ mod tests {
                 content: "Generate JSON".to_string(),
                 images: None,
                 thinking: None,
+                tool_calls: None,
             }],
             stream: false,
             options: None,
             think: None,
             format: Some(OllamaFormat::Json("json".to_string())),
+            tools: None,
+            logprobs: None,
+            top_logprobs: None,
         };
 
         let json = serde_json::to_string(&request).unwrap();
@@ -1306,11 +1885,15 @@ mod tests {
                 content: "Generate JSON".to_string(),
                 images: None,
                 thinking: None,
+                tool_calls: None,
             }],
             stream: false,
             options: None,
             think: None,
             format: Some(OllamaFormat::JsonSchema(schema)),
+            tools: None,
+            logprobs: None,
+            top_logprobs: None,
         };
 
         let json = serde_json::to_string(&request).unwrap();
@@ -1331,11 +1914,15 @@ mod tests {
                 content: "Hello".to_string(),
                 images: None,
                 thinking: None,
+                tool_calls: None,
             }],
             stream: false,
             options: None,
             think: None,
             format: None,
+            tools: None,
+            logprobs: None,
+            top_logprobs: None,
         };
 
         let json = serde_json::to_string(&request).unwrap();

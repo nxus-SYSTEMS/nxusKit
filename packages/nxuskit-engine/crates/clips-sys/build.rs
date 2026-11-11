@@ -32,10 +32,7 @@ fn main() {
     let clips_source = find_clips_source(&manifest_dir);
 
     let clips_source = match clips_source {
-        Some(path) => {
-            println!("cargo:warning=Using CLIPS source from: {}", path.display());
-            path
-        }
+        Some(path) => path,
         None => {
             println!("cargo:warning=CLIPS source not found!");
             println!("cargo:warning=");
@@ -79,10 +76,6 @@ fn main() {
         return;
     }
 
-    println!(
-        "cargo:warning=Compiling {} CLIPS source files",
-        c_files.len()
-    );
     println!("cargo:rerun-if-changed={}", clips_source.display());
     println!("cargo:rerun-if-env-changed=CLIPS_SOURCE_DIR");
 
@@ -97,6 +90,10 @@ fn main() {
         .files(&c_files)
         .file(&wrapper_file)
         .include(&clips_source)
+        // Keep CLIPS' private scanner symbol distinct from Windows' exported
+        // GetToken (infocardapi). Apply to every C unit, including the wrapper,
+        // so declarations, calls and the definition retain one private name.
+        .define("GetToken", Some("nxuskit_clips_GetToken"))
         // CLIPS compilation flags
         .define("GENERIC", None)
         // Enable all constructs
@@ -1090,7 +1087,7 @@ fn create_stub_library(out_dir: &Path) {
     // User Defined Functions
     // ========================================================================
     writeln!(file, "// User Defined Functions").unwrap();
-    writeln!(file, "bool AddUDF(Environment* env, const char* name, const char* ret_types, int min_args, int max_args, const char* arg_types, void* func, const char* func_name, void* context) {{ return false; }}").unwrap();
+    writeln!(file, "int AddUDF(Environment* env, const char* name, const char* ret_types, unsigned short min_args, unsigned short max_args, const char* arg_types, void* func, const char* func_name, void* context) {{ return 1; }}").unwrap();
     writeln!(file, "bool UDFFirstArgument(UDFContext* ctx, unsigned int types, UDFValue* value) {{ return false; }}").unwrap();
     writeln!(file, "bool UDFNextArgument(UDFContext* ctx, unsigned int types, UDFValue* value) {{ return false; }}").unwrap();
     writeln!(file, "bool UDFNthArgument(UDFContext* ctx, unsigned int n, unsigned int types, UDFValue* value) {{ return false; }}").unwrap();
@@ -1105,6 +1102,26 @@ fn create_stub_library(out_dir: &Path) {
     )
     .unwrap();
     writeln!(file, "void UDFThrowError(UDFContext* ctx) {{}}").unwrap();
+    writeln!(
+        file,
+        "void* clips_udf_context_data(const UDFContext* ctx) {{ return (void*)0; }}"
+    )
+    .unwrap();
+    writeln!(
+        file,
+        "const char* clips_udf_nth_argument_string(UDFContext* ctx, unsigned int n) {{ return \"\"; }}"
+    )
+    .unwrap();
+    writeln!(
+        file,
+        "void clips_udf_set_string(Environment* env, UDFValue* value, const char* string) {{}}"
+    )
+    .unwrap();
+    writeln!(
+        file,
+        "void clips_udf_set_string_multifield(Environment* env, UDFValue* value, const char** items, size_t length) {{}}"
+    )
+    .unwrap();
     writeln!(file).unwrap();
 
     // ========================================================================

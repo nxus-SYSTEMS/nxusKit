@@ -1,0 +1,120 @@
+{
+  "schema_version": "nxus-spec119-rust-provider-fixtures/v1",
+  "definition_revision": "312bb8b089e8429ae0449ba0491ba4ba126a56af",
+  "provider_oracles_sha256": "303d5c8eea2949e2cf209d7f85c951f14079368b5a0530bd8666ad33fcfec60c",
+  "qualification_matrix_sha256": "9532caa146142687ec8399ec5bbbabb227d1016b10da774a5bc98d75f4c5daf8",
+  "records": [
+    {
+      "id": "ERROR-OLLAMA-AUTH-401",
+      "anchor": "ollama_local",
+      "failure": {"status": 401, "retry_after": null, "body": "unauthorized", "transport_kind": "none"},
+      "expected_code": "authentication",
+      "expected_retry_after_ms": null,
+      "provenance": "provider-oracles-v1.json public_contract.errors.authentication: credential rejected or absent; design.md shared HTTP classifier maps 401/403 to authentication."
+    },
+    {
+      "id": "ERROR-OLLAMA-RATE-LIMIT-WITH-RETRY",
+      "anchor": "ollama_local",
+      "failure": {"status": 429, "retry_after": "2", "body": null, "transport_kind": "none"},
+      "expected_code": "rate_limited",
+      "expected_retry_after_ms": 2000,
+      "provenance": "provider-oracles-v1.json ERROR-RATE-LIMIT-WITH-RETRY: simulated HTTP 429 Retry-After: 2 normalizes to 2000 milliseconds; it is not a timeout, latency target, default, or automatic-retry instruction."
+    },
+    {
+      "id": "ERROR-OLLAMA-RATE-LIMIT-NO-RETRY",
+      "anchor": "ollama_local",
+      "failure": {"status": 429, "retry_after": null, "body": null, "transport_kind": "none"},
+      "expected_code": "rate_limited",
+      "expected_retry_after_ms": null,
+      "provenance": "provider-oracles-v1.json ERROR-RATE-LIMIT-NO-RETRY: when a provider supplies no retry metadata, retry_after_ms is omitted and the SDK does not invent a default."
+    },
+    {
+      "id": "ERROR-OLLAMA-PROVIDER-FAILURE-500",
+      "anchor": "ollama_local",
+      "failure": {"status": 500, "retry_after": null, "body": "internal server error", "transport_kind": "none"},
+      "expected_code": "unavailable",
+      "expected_retry_after_ms": null,
+      "provenance": "design.md Step 2 shared HTTP/transport classification: 500..599 maps to unavailable."
+    },
+    {
+      "id": "ERROR-OLLAMA-TIMEOUT",
+      "anchor": "ollama_local",
+      "failure": {"status": null, "retry_after": null, "body": null, "transport_kind": "timeout"},
+      "expected_code": "timeout",
+      "expected_retry_after_ms": null,
+      "provenance": "provider-oracles-v1.json public_contract.errors.timeout: connect, read, or operation deadline exceeded."
+    },
+    {
+      "id": "ERROR-OLLAMA-NETWORK-FAILURE",
+      "anchor": "ollama_local",
+      "failure": {"status": null, "retry_after": null, "body": null, "transport_kind": "network"},
+      "expected_code": "network",
+      "expected_retry_after_ms": null,
+      "provenance": "provider-oracles-v1.json public_contract.errors.network: transport failed without a provider response."
+    },
+    {
+      "id": "ERROR-OLLAMA-MALFORMED-RESPONSE",
+      "anchor": "ollama_local",
+      "failure": {"status": 200, "retry_after": null, "body": "not-json", "transport_kind": "none"},
+      "expected_code": "malformed_response",
+      "expected_retry_after_ms": null,
+      "provenance": "provider-oracles-v1.json public_contract.errors.malformed_response: provider response could not be decoded; design.md Step 2: an undecodable successful body maps to malformed-response."
+    },
+    {
+      "id": "ERROR-OPENAI-AUTH-401",
+      "anchor": "openai",
+      "failure": {"status": 401, "retry_after": null, "body": "unauthorized", "transport_kind": "none"},
+      "expected_code": "authentication",
+      "expected_retry_after_ms": null,
+      "provenance": "provider-oracles-v1.json public_contract.errors.authentication: credential rejected or absent; design.md shared HTTP classifier maps 401/403 to authentication."
+    },
+    {
+      "id": "ERROR-OPENAI-RATE-LIMIT-WITH-RETRY",
+      "anchor": "openai",
+      "failure": {"status": 429, "retry_after": "2", "body": null, "transport_kind": "none"},
+      "expected_code": "rate_limited",
+      "expected_retry_after_ms": 2000,
+      "provenance": "provider-oracles-v1.json ERROR-RATE-LIMIT-WITH-RETRY: simulated HTTP 429 Retry-After: 2 normalizes to 2000 milliseconds; it is not a timeout, latency target, default, or automatic-retry instruction."
+    },
+    {
+      "id": "ERROR-OPENAI-RATE-LIMIT-NO-RETRY",
+      "anchor": "openai",
+      "failure": {"status": 429, "retry_after": null, "body": null, "transport_kind": "none"},
+      "expected_code": "rate_limited",
+      "expected_retry_after_ms": null,
+      "provenance": "provider-oracles-v1.json ERROR-RATE-LIMIT-NO-RETRY: when a provider supplies no retry metadata, retry_after_ms is omitted and the SDK does not invent a default."
+    },
+    {
+      "id": "ERROR-OPENAI-PROVIDER-FAILURE-500",
+      "anchor": "openai",
+      "failure": {"status": 500, "retry_after": null, "body": "internal server error", "transport_kind": "none"},
+      "expected_code": "unavailable",
+      "expected_retry_after_ms": null,
+      "provenance": "design.md Step 2 shared HTTP/transport classification: 500..599 maps to unavailable."
+    },
+    {
+      "id": "ERROR-OPENAI-TIMEOUT",
+      "anchor": "openai",
+      "failure": {"status": null, "retry_after": null, "body": null, "transport_kind": "timeout"},
+      "expected_code": "timeout",
+      "expected_retry_after_ms": null,
+      "provenance": "provider-oracles-v1.json public_contract.errors.timeout: connect, read, or operation deadline exceeded."
+    },
+    {
+      "id": "ERROR-OPENAI-NETWORK-FAILURE",
+      "anchor": "openai",
+      "failure": {"status": null, "retry_after": null, "body": null, "transport_kind": "network"},
+      "expected_code": "network",
+      "expected_retry_after_ms": null,
+      "provenance": "provider-oracles-v1.json public_contract.errors.network: transport failed without a provider response."
+    },
+    {
+      "id": "ERROR-OPENAI-MALFORMED-RESPONSE",
+      "anchor": "openai",
+      "failure": {"status": 200, "retry_after": null, "body": "not-json", "transport_kind": "none"},
+      "expected_code": "malformed_response",
+      "expected_retry_after_ms": null,
+      "provenance": "provider-oracles-v1.json public_contract.errors.malformed_response: provider response could not be decoded; design.md Step 2: an undecodable successful body maps to malformed-response."
+    }
+  ]
+}

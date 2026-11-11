@@ -19,11 +19,17 @@ pub enum PipelineRunAction {
 pub struct PipelineRunArgs {
     /// Input file path or `-` for stdin.
     ///
-    /// YAML/JSON pipeline definition with stages, each having a name,
-    /// type (llm, clips_eval, zen_eval, solver_solve, bn_infer), and config.
+    /// YAML/JSON pipeline definition with stages. When the top-level
+    /// `contract_version` field equals `"1.1"`, the input is routed
+    /// through the v1.1 contract-native runner. Otherwise the legacy
+    /// runner with its `name`/`type`/`config`/`output_key` per-stage
+    /// shape is used (FR-006, FR-007).
     #[arg(short, long)]
     pub input: String,
 
+    /// Output format. `json` (default) emits a `PipelineRunReport`
+    /// projection for v1.1 inputs. `jsonl` streams per-stage and
+    /// per-operation events.
     #[arg(short, long, default_value = "json")]
     pub format: String,
 
@@ -32,6 +38,29 @@ pub struct PipelineRunArgs {
 
     #[arg(short, long)]
     pub output: Option<String>,
+
+    /// Feature 106 / R5: select the `PipelineRunReport` preset.
+    /// One of `summary`, `standard` (default), `provenance`.
+    #[arg(long = "report-preset")]
+    pub report_preset: Option<String>,
+
+    /// Feature 106 / R5: comma-separated list of public-safe report
+    /// sections to include on top of the preset. Vocabulary:
+    /// `readiness_summary`, `stage_details`, `final_outputs`,
+    /// `artifact_history`, `resource_advisory`.
+    #[arg(long = "report-include", value_delimiter = ',')]
+    pub report_include: Vec<String>,
+
+    /// Feature 106 / R5: comma-separated list of public-safe report
+    /// sections to omit. Wins over `--report-include` on conflict.
+    #[arg(long = "report-omit", value_delimiter = ',')]
+    pub report_omit: Vec<String>,
+
+    /// Feature 106 / US5: include a preflight resource advisory in the
+    /// run report. (US5 advisory computation lands in a follow-up; the
+    /// flag is wired now to keep the CLI surface stable.)
+    #[arg(long = "preflight", default_value_t = false)]
+    pub preflight: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -83,9 +112,25 @@ pub async fn run_pipeline_command(action: PipelineRunAction) -> Result<(), CliEr
 }
 
 async fn run_pipeline(args: PipelineRunArgs) -> Result<(), CliError> {
-    let format = OutputFormat::parse(&args.format)?;
     let raw_input = OutputWriter::read_input(&args.input)?;
 
+    // Feature 106 / FR-006: auto-detect v1.1 input by peeking at the
+    // top-level `contract_version`. v1.1 input routes to the new
+    // contract-native runner; everything else routes to the legacy
+    // runner (FR-007).
+    if super::pipeline_run_v11::detect_v1_1(&raw_input) {
+        return super::pipeline_run_v11::run_v1_1(
+            &raw_input,
+            &args.format,
+            args.report_preset.as_deref(),
+            &args.report_include,
+            &args.report_omit,
+            args.preflight,
+        )
+        .await;
+    }
+
+    let format = OutputFormat::parse(&args.format)?;
     // Try YAML first, then JSON
     let pipeline: PipelineDefinition = serde_yaml_ng::from_str(&raw_input)
         .or_else(|_| {

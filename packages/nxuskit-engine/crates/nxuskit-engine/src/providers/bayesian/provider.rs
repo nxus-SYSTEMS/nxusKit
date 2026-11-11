@@ -663,6 +663,9 @@ impl LLMProvider for BayesianProvider {
                     let estimated =
                         TokenCount::new(evidence_count as u32, output.marginals.len() as u32);
                     StreamChunk {
+                        raw_finish_reason: None,
+                        provider_metadata: None,
+                        terminal: false,
                         delta: content,
                         thinking: None,
                         finish_reason: Some(FinishReason::Stop),
@@ -716,6 +719,9 @@ impl LLMProvider for BayesianProvider {
                     let estimated =
                         TokenCount::new(evidence_count as u32, output.marginals.len() as u32);
                     StreamChunk {
+                        raw_finish_reason: None,
+                        provider_metadata: None,
+                        terminal: false,
                         delta: content,
                         thinking: None,
                         finish_reason: Some(FinishReason::Stop),
@@ -775,6 +781,9 @@ impl LLMProvider for BayesianProvider {
                     let estimated =
                         TokenCount::new(evidence_count as u32, output.marginals.len() as u32);
                     StreamChunk {
+                        raw_finish_reason: None,
+                        provider_metadata: None,
+                        terminal: false,
                         delta: content,
                         thinking: None,
                         finish_reason: Some(FinishReason::Stop),
@@ -801,6 +810,9 @@ impl LLMProvider for BayesianProvider {
 
         let estimated = TokenCount::new(input.evidence.len() as u32, output.marginals.len() as u32);
         let chunk = StreamChunk {
+            raw_finish_reason: None,
+            provider_metadata: None,
+            terminal: false,
             delta: content,
             thinking: None,
             finish_reason: Some(FinishReason::Stop),
@@ -822,6 +834,9 @@ impl LLMProvider for BayesianProvider {
         let usage = response.usage.clone();
 
         let chunk = StreamChunk {
+            raw_finish_reason: None,
+            provider_metadata: None,
+            terminal: false,
             delta: response.content,
             thinking: None,
             finish_reason: Some(FinishReason::Stop),
@@ -1043,11 +1058,14 @@ mod tests {
             .build()
             .unwrap();
 
-        let csv_path = fixture_dir().join("cancer_data.csv");
-        let input_json = format!(
-            r#"{{"action":"search","data_file":"{}","scoring":"bic"}}"#,
-            csv_path.display()
-        );
+        let csv_dir = tempfile::tempdir().unwrap();
+        let csv_path = search_fixture_path(csv_dir.path());
+        let input_json = serde_json::json!({
+            "action": "search",
+            "data_file": csv_path,
+            "scoring": "bic"
+        })
+        .to_string();
         let request = ChatRequest::new("cancer.bif").with_message(Message::user(&input_json));
 
         let response = provider.chat(&request).await.unwrap();
@@ -1065,11 +1083,15 @@ mod tests {
             .build()
             .unwrap();
 
-        let csv_path = fixture_dir().join("cancer_data.csv");
-        let input_json = format!(
-            r#"{{"action":"search","data_file":"{}","structure_learner":"k2","ordering":["Pollution","Smoker","Cancer","Xray","Dyspnea"]}}"#,
-            csv_path.display()
-        );
+        let csv_dir = tempfile::tempdir().unwrap();
+        let csv_path = search_fixture_path(csv_dir.path());
+        let input_json = serde_json::json!({
+            "action": "search",
+            "data_file": csv_path,
+            "structure_learner": "k2",
+            "ordering": ["Pollution", "Smoker", "Cancer", "Xray", "Dyspnea"]
+        })
+        .to_string();
         let request = ChatRequest::new("cancer.bif").with_message(Message::user(&input_json));
 
         let response = provider.chat(&request).await.unwrap();
@@ -1077,6 +1099,19 @@ mod tests {
         assert_eq!(output["action"], "search");
         assert_eq!(output["algorithm"], "k2");
         assert!(output["score"].as_f64().unwrap().is_finite());
+    }
+
+    fn search_fixture_path(directory: &std::path::Path) -> std::path::PathBuf {
+        // Windows already supplies backslashes in its absolute path. On Unix,
+        // use legal filename characters that also require JSON escaping.
+        let filename = if cfg!(windows) {
+            "cancer data.csv"
+        } else {
+            "cancer\\data\".csv"
+        };
+        let path = directory.join(filename);
+        std::fs::copy(fixture_dir().join("cancer_data.csv"), &path).unwrap();
+        path
     }
 
     #[tokio::test]

@@ -1,0 +1,60 @@
+{
+  "contract_version": "2.0-alpha",
+  "capability_ref": {
+    "capability_id": "capability.fixture.validate",
+    "capability_version": "2.0-alpha",
+    "classification": "preview"
+  },
+  "title": "Fixture validation",
+  "summary": "Validates v2 fixture conformance without invoking runtime execution.",
+  "vocabulary": "capability_catalog",
+  "input_schema_refs": [
+    {
+      "schema_id": "schema.fixture.input",
+      "schema_kind": "json_schema",
+      "schema_version": "2.0-alpha",
+      "uri": "nxuskit://schemas/v2/operation-envelope.schema.json",
+      "fingerprint": "sha256:fixture-input-schema",
+      "classification": "preview"
+    }
+  ],
+  "output_schema_refs": [
+    {
+      "schema_id": "schema.fixture.output",
+      "schema_kind": "json_schema",
+      "schema_version": "2.0-alpha",
+      "uri": "nxuskit://schemas/v2/operation-result.schema.json",
+      "fingerprint": "sha256:fixture-output-schema",
+      "classification": "preview"
+    }
+  ],
+  "route_refs": [
+    {
+      "route_id": "route.fixture.local",
+      "route_label": "local preview route",
+      "locality": "local",
+      "trust": "trusted",
+      "classification": "internal"
+    }
+  ],
+  "route_kind": "local_adapter",
+  "locality": "local",
+  "determinism": "deterministic",
+  "side_effect": "read_only",
+  "cancellable": true,
+  "cost": "free",
+  "tier": "community",
+  "entitlement": "community_allowed",
+  "actor_scope": "tenant",
+  "tenant_scoped": true,
+  "trust": "public_contract",
+  "readiness": "preview",
+  "health": "healthy",
+  "allowed_input_ref_kinds": ["artifact", "batch", "fact_set", "packet", "schema"],
+  "allowed_output_ref_kinds": ["packet", "artifact"],
+  "projection": {
+    "posture": "projection_ready",
+    "classification": "preview"
+  },
+  "classification": "preview"
+}

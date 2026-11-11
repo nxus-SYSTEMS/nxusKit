@@ -1,9 +1,11 @@
 package httputil
 
 import (
+	"errors"
 	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 )
 
 func TestSSEReader_BasicEvent(t *testing.T) {
@@ -169,5 +171,44 @@ func TestSSEReader_DoneEvent(t *testing.T) {
 
 	if !event.IsDone() {
 		t.Error("expected IsDone() to return true")
+	}
+}
+
+func TestSSEReader_ResourceExactCompleteEventLimit(t *testing.T) {
+	first := MaxStreamRecordEventBytes / 2
+	second := MaxStreamRecordEventBytes - first - 1
+	input := "data: " + strings.Repeat("a", first) + "\n" +
+		"data: " + strings.Repeat("b", second) + "\n\n"
+	reader := NewSSEReader(strings.NewReader(input))
+	event, err := reader.Read()
+	if err != nil {
+		t.Fatalf("exact complete-event limit failed: %v", err)
+	}
+	if len(event.Data) != MaxStreamRecordEventBytes {
+		t.Fatalf("event data length = %d", len(event.Data))
+	}
+}
+
+func TestSSEReader_ResourceCompleteEventOneByteOver(t *testing.T) {
+	first := MaxStreamRecordEventBytes / 2
+	second := MaxStreamRecordEventBytes - first
+	input := "data: " + strings.Repeat("a", first) + "\n" +
+		"data: " + strings.Repeat("b", second) + "\n\n"
+	reader := NewSSEReader(strings.NewReader(input))
+	_, err := reader.Read()
+	if !errors.Is(err, ErrStreamRecordTooLarge) {
+		t.Fatalf("expected ErrStreamRecordTooLarge, got %v", err)
+	}
+}
+
+func TestSSEReader_ResourceFragmentedUTF8(t *testing.T) {
+	input := "data: alpha € omega\n\n"
+	reader := NewSSEReader(iotest.OneByteReader(strings.NewReader(input)))
+	event, err := reader.Read()
+	if err != nil {
+		t.Fatalf("fragmented UTF-8 failed: %v", err)
+	}
+	if event.Data != "alpha € omega" {
+		t.Fatalf("unexpected data %q", event.Data)
 	}
 }

@@ -242,6 +242,90 @@ fn legacy_provider_capabilities_default_unchanged() {
     assert_eq!(caps.penalty_range, None);
     assert_eq!(caps.max_logprobs, None);
 }
+#[test]
+fn anthropic_promotes_only_unary_function_calling() {
+    let rec = registry::find("anthropic").expect("anthropic record");
+    assert_eq!(
+        rec.features.tool_calling.function_calling,
+        CapabilityStatus::Supported
+    );
+    assert_eq!(
+        rec.features.tool_calling.parallel_tool_calls,
+        CapabilityStatus::Recognized
+    );
+    assert_eq!(
+        rec.features.tool_calling.streaming_tool_calls,
+        CapabilityStatus::Recognized
+    );
+    assert_eq!(
+        rec.features.hosted_tools.web_search,
+        CapabilityStatus::Recognized
+    );
+    assert_eq!(
+        rec.features.structured_output.json_mode,
+        CapabilityStatus::Unsupported
+    );
+}
+#[test]
+fn fireworks_promotes_schema_and_unary_function_calling_only() {
+    let rec = registry::find("fireworks").expect("fireworks record");
+    let structured = &rec.features.structured_output;
+    assert_eq!(structured.json_mode, CapabilityStatus::Supported);
+    assert_eq!(structured.json_schema_strict, CapabilityStatus::Supported);
+    assert_eq!(
+        structured.json_schema_best_effort,
+        CapabilityStatus::Supported
+    );
+    assert_eq!(structured.named_schemas, CapabilityStatus::Supported);
+    assert_eq!(
+        structured.additionalprops_false,
+        CapabilityStatus::Supported
+    );
+
+    let tools = &rec.features.tool_calling;
+    assert_eq!(tools.function_calling, CapabilityStatus::Supported);
+    assert_eq!(tools.parallel_tool_calls, CapabilityStatus::Recognized);
+    assert_eq!(tools.streaming_tool_calls, CapabilityStatus::Recognized);
+    assert_eq!(
+        tools.tool_choice_modes,
+        vec!["auto", "none", "required", "named"]
+    );
+}
+
+#[test]
+fn lmstudio_promotes_schema_unary_tools_and_vision_only() {
+    let rec = registry::find("lmstudio").expect("lmstudio record");
+    let structured = &rec.features.structured_output;
+    assert_eq!(structured.json_mode, CapabilityStatus::Supported);
+    assert_eq!(structured.json_schema_strict, CapabilityStatus::Supported);
+    assert_eq!(
+        structured.json_schema_best_effort,
+        CapabilityStatus::Supported
+    );
+    assert_eq!(structured.named_schemas, CapabilityStatus::Supported);
+    assert_eq!(
+        structured.additionalprops_false,
+        CapabilityStatus::Supported
+    );
+
+    let tools = &rec.features.tool_calling;
+    assert_eq!(tools.function_calling, CapabilityStatus::Supported);
+    assert_eq!(tools.parallel_tool_calls, CapabilityStatus::Recognized);
+    assert_eq!(tools.streaming_tool_calls, CapabilityStatus::Recognized);
+    assert_eq!(
+        tools.tool_choice_modes,
+        vec!["auto", "none", "required", "named"]
+    );
+
+    assert_eq!(
+        rec.features.modalities.vision_input,
+        CapabilityStatus::Supported
+    );
+    assert_eq!(
+        rec.features.hosted_tools.mcp_connector,
+        CapabilityStatus::Recognized
+    );
+}
 
 #[test]
 fn legacy_bridge_derives_booleans_from_feature_set() {
@@ -888,14 +972,15 @@ fn phase3_does_not_overclaim_unwired_request_features() {
         "openai: streaming logprobs regression"
     );
 
-    // Anthropic: tool_calling and reasoning.thinking_blocks lack request-side
-    // serialization in ClaudeRequest. Vision input remains Supported.
+    // Anthropic: ordinary unary function calling is now fully request/response
+    // mapped by Claude Slice 2. Parallel/streaming tools and thinking blocks
+    // remain non-Supported; vision input remains Supported.
     let anthropic = rec("anthropic");
     let atc = &anthropic.features.tool_calling;
-    assert_not_supported(
-        "anthropic",
-        "tool_calling.function_calling",
+    assert_eq!(
         atc.function_calling,
+        CapabilityStatus::Supported,
+        "anthropic: function_calling must be Supported after Claude Slice 2 round-trip wiring"
     );
     assert_not_supported(
         "anthropic",

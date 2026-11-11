@@ -3,11 +3,329 @@ package nxuskit
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestCompatibleLogprobControls(t *testing.T) {
+	for _, profile := range []string{"openai", "together", "openrouter"} {
+		for _, streaming := range []bool{false, true} {
+			for _, mode := range []string{"omitted", "disabled", "enabled"} {
+				t.Run(fmt.Sprintf("%s/stream=%v/%s", profile, streaming, mode), func(t *testing.T) {
+					var calls atomic.Int32
+					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						calls.Add(1)
+						var wire map[string]any
+						if err := json.NewDecoder(r.Body).Decode(&wire); err != nil {
+							t.Error(err)
+							return
+						}
+						if mode == "omitted" {
+							if _, ok := wire["logprobs"]; ok {
+								t.Error("omitted logprobs was emitted")
+							}
+						} else if wire["logprobs"] != (mode == "enabled") {
+							t.Errorf("logprobs=%v", wire["logprobs"])
+						}
+						if mode == "enabled" {
+							if wire["top_logprobs"] != float64(5) {
+								t.Errorf("top_logprobs=%v", wire["top_logprobs"])
+							}
+						} else if _, ok := wire["top_logprobs"]; ok {
+							t.Error("omitted top_logprobs was emitted")
+						}
+						if streaming {
+							fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+						} else {
+							fmt.Fprint(w, `{"model":"m","choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}`)
+						}
+					}))
+					defer server.Close()
+					var provider LLMProvider
+					var err error
+					switch profile {
+					case "openai":
+						provider, err = NewOpenAIProvider(WithOpenAIAPIKey("loopback"), WithOpenAIBaseURL(server.URL))
+					case "together":
+						provider, err = NewTogetherProvider(WithTogetherAPIKey("loopback"), WithTogetherBaseURL(server.URL))
+					case "openrouter":
+						provider, err = NewOpenRouterProvider(WithOpenRouterAPIKey("loopback"), WithOpenRouterBaseURL(server.URL))
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+					request := &ChatRequest{Model: "m", Messages: []Message{UserMessage("hi")}}
+					if mode != "omitted" {
+						value := mode == "enabled"
+						request.Logprobs = &value
+					}
+					if mode == "enabled" {
+						value := 5
+						request.TopLogprobs = &value
+					}
+					if streaming {
+						chunks, errs := provider.ChatStream(context.Background(), request)
+						for range chunks {
+						}
+						for err := range errs {
+							t.Error(err)
+						}
+					} else if _, err := provider.Chat(context.Background(), request); err != nil {
+						t.Fatal(err)
+					}
+					if calls.Load() != 1 {
+						t.Fatalf("HTTP calls=%d", calls.Load())
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestLogprobControlsValidation(t *testing.T) {
+	on, off, zero, tooMany, one := true, false, 0, 21, 1
+	for _, request := range []*ChatRequest{{Logprobs: &on, TopLogprobs: &zero}, {Logprobs: &on, TopLogprobs: &tooMany}, {TopLogprobs: &one}, {Logprobs: &off, TopLogprobs: &one}} {
+		var typed *LLMError
+		err := validateGenerationControls(request, "openai")
+		if !errors.As(err, &typed) || typed.Kind != ErrorKindInvalidRequest {
+			t.Errorf("error=%v", err)
+		}
+	}
+	for _, provider := range []string{"ollama", "claude", "lmstudio", "groq", "xai", "fireworks", "mistral", "perplexity"} {
+		for _, value := range []*bool{&on, &off} {
+			if err := validateGenerationControls(&ChatRequest{Logprobs: value}, provider); !errors.Is(err, ErrNotImplemented) {
+				t.Errorf("%s error=%v", provider, err)
+			}
+		}
+	}
+}
+
+func TestSelectedProviderMetadataTransport(t *testing.T) {
+	for _, profile := range []string{"openrouter", "perplexity"} {
+		for _, streaming := range []bool{false, true} {
+			for _, overflow := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/stream=%t/overflow=%t", profile, streaming, overflow), func(t *testing.T) {
+					selected := `"id":"r1","provider":"upstream","citations":["https://example.org"],"usage":{"prompt_tokens":1,"completion_tokens":1,"cost":0.25}`
+					if overflow {
+						selected = `"id":"` + strings.Repeat("x", 65536) + `","citations":["` + strings.Repeat("x", 65536) + `"]`
+					}
+					body := `{` + selected + `,"model":"actual","choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}`
+					if streaming {
+						body = "data: {\"choices\":[{\"delta\":{\"content\":\"text\"}}]}\n\ndata: {" + selected + ",\"choices\":[]}\n\ndata: [DONE]\n\n"
+					}
+					if streaming && overflow {
+						first, second := "id", "provider"
+						if profile == "perplexity" {
+							first, second = "citations", "search_results"
+						}
+						body = "data: {\"choices\":[{\"delta\":{\"content\":\"text\"}}]}\n\ndata: {\"" + first + "\":\"" + strings.Repeat("x", 33000) + "\",\"choices\":[]}\n\ndata: {\"" + second + "\":\"" + strings.Repeat("x", 33000) + "\",\"choices\":[]}\n\ndata: [DONE]\n\n"
+					}
+					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(body)) }))
+					defer server.Close()
+					var p LLMProvider
+					if profile == "openrouter" {
+						p, _ = NewOpenRouterProvider(WithOpenRouterAPIKey("loopback"), WithOpenRouterBaseURL(server.URL))
+					} else {
+						p, _ = NewPerplexityProvider(WithPerplexityAPIKey("loopback"), WithPerplexityBaseURL(server.URL))
+					}
+					var output any
+					var failure error
+					if streaming {
+						chunks, errs := p.ChatStream(context.Background(), &ChatRequest{Model: "fixture", Messages: []Message{UserMessage("hi")}})
+						finals := 0
+						text := ""
+						for c := range chunks {
+							text += c.Delta
+							if c.IsFinal() {
+								finals++
+								output = c
+							} else {
+								encoded, _ := json.Marshal(c)
+								if strings.Contains(string(encoded), "provider_metadata") {
+									t.Fatal("intermediate metadata exposed")
+								}
+							}
+						}
+						for err := range errs {
+							failure = err
+						}
+						if text != "text" {
+							t.Fatalf("text=%q", text)
+						}
+						if overflow && finals != 0 {
+							t.Fatalf("success after metadata overflow: %d", finals)
+						}
+						if !overflow && finals != 1 {
+							t.Fatalf("finals=%d", finals)
+						}
+					} else {
+						output, failure = p.Chat(context.Background(), &ChatRequest{Model: "fixture", Messages: []Message{UserMessage("hi")}})
+					}
+					if overflow {
+						if failure == nil {
+							t.Fatal("metadata overflow accepted")
+						}
+						if !strings.Contains(failure.Error(), "provider_metadata") {
+							t.Fatalf("wrong failure: %v", failure)
+						}
+						if e, ok := failure.(*LLMError); !ok || e.IsRetryable() {
+							t.Fatalf("retryable/untyped: %v", failure)
+						}
+						return
+					}
+					if failure != nil {
+						t.Fatal(failure)
+					}
+					encoded, _ := json.Marshal(output)
+					var actual map[string]json.RawMessage
+					_ = json.Unmarshal(encoded, &actual)
+					expected := `{"id":"r1","provider":"upstream","usage":{"cost":0.25}}`
+					if profile == "perplexity" {
+						expected = `{"citations":["https://example.org"],"usage":{"cost":0.25}}`
+					}
+					var got, want any
+					_ = json.Unmarshal(actual["provider_metadata"], &got)
+					_ = json.Unmarshal([]byte(expected), &want)
+					if !reflect.DeepEqual(got, want) {
+						t.Fatalf("metadata=%s expected=%s", actual["provider_metadata"], expected)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestSelectedProviderMetadataBoundsAndMerge(t *testing.T) {
+	current, err := mergeProviderMetadata(nil, []byte(`{"id":"r1","usage":{"cost":0.25,"cost_details":{"x":null}}}`), "openrouter")
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err = mergeProviderMetadata(current, []byte(`{"provider":null,"usage":{"completion_tokens_details":{"reasoning_tokens":3}}}`), "openrouter")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, _ := json.Marshal(current)
+	if string(encoded) != `{"id":"r1","provider":null,"usage":{"completion_tokens_details":{"reasoning_tokens":3},"cost":0.25,"cost_details":{"x":null}}}` {
+		t.Fatalf("merged=%s", encoded)
+	}
+	current, err = mergeProviderMetadata(current, []byte(`{"usage":null}`), "openrouter")
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err = mergeProviderMetadata(current, []byte(`{"usage":{"cost":null}}`), "openrouter")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, _ = json.Marshal(current)
+	if string(encoded) != `{"id":"r1","provider":null,"usage":{"cost":null}}` {
+		t.Fatalf("null merge=%s", encoded)
+	}
+	for _, size := range []int{65535, 65536, 65537} {
+		overhead := len(`{"citations":[""]}`)
+		n := size - overhead
+		data := []byte(`{"citations":["` + strings.Repeat("é", n/2) + strings.Repeat("x", n%2) + `"]}`)
+		if len(data) != size {
+			t.Fatal("fixture byte size")
+		}
+		_, err := mergeProviderMetadata(nil, data, "perplexity")
+		if (err == nil) != (size <= 65536) {
+			t.Fatalf("size=%d err=%v", size, err)
+		}
+	}
+	for _, depth := range []int{16, 17} {
+		data := []byte(`{"citations":` + strings.Repeat("[", depth-1) + `"leaf"` + strings.Repeat("]", depth-1) + `}`)
+		_, err := mergeProviderMetadata(nil, data, "perplexity")
+		if (err == nil) != (depth == 16) {
+			t.Fatalf("depth=%d err=%v", depth, err)
+		}
+	}
+	if _, err := mergeProviderMetadata(nil, []byte(`{"usage":42}`), "openrouter"); err == nil {
+		t.Fatal("nonobject usage accepted")
+	}
+}
+
+func TestSelectedMetadataDoesNotMaskUnaryError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"id":"r1","error":{"message":"denied"},"choices":[{"message":{"content":"not success"}}]}`))
+	}))
+	defer server.Close()
+	p, _ := NewOpenRouterProvider(WithOpenRouterAPIKey("loopback"), WithOpenRouterBaseURL(server.URL))
+	result, err := p.Chat(context.Background(), &ChatRequest{Model: "fixture", Messages: []Message{UserMessage("hi")}})
+	if err == nil || result != nil {
+		t.Fatalf("error became success: %v %v", result, err)
+	}
+}
+
+func TestOpenAIExplicitTerminalTruth(t *testing.T) {
+	cases := []struct {
+		name, body string
+		wantError  bool
+		raw        *string
+		canonical  *FinishReason
+	}{
+		{"empty", "", true, nil, nil},
+		{"premature", "data: {\"choices\":[{\"delta\":{\"content\":\"partial\"}}]}\n\n", true, nil, nil},
+		{"malformed", "data: {broken}\n\n", true, nil, nil},
+		{"provider_error_before_done", "data: {\"error\":{\"message\":\"denied\"}}\n\ndata: [DONE]\n\n", true, nil, nil},
+		{"unknown", "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"vendor-new\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3}}\n\ndata: [DONE]\n\ndata: {broken}\n\n", false, strPtr("vendor-new"), nil},
+		{"absent", "data: [DONE]\n\n", false, nil, nil},
+		{"known", "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"length\"}]}\n\ndata: [DONE]\n\n", false, strPtr("length"), finishReasonPtr(FinishReasonLength)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(tc.body)) }))
+			defer server.Close()
+			provider, err := NewOpenAIProvider(WithOpenAIAPIKey("loopback-only"), WithOpenAIBaseURL(server.URL))
+			if err != nil {
+				t.Fatal(err)
+			}
+			chunks, errs := provider.ChatStream(context.Background(), &ChatRequest{Model: "gpt-4o", Messages: []Message{UserMessage("hi")}})
+			var all []StreamChunk
+			for chunk := range chunks {
+				all = append(all, chunk)
+			}
+			var failures []error
+			for err := range errs {
+				failures = append(failures, err)
+			}
+			finals := 0
+			for _, chunk := range all {
+				if chunk.IsFinal() {
+					finals++
+				}
+			}
+			if tc.wantError {
+				if len(failures) != 1 || finals != 0 {
+					t.Fatalf("errors=%v finals=%d chunks=%+v", failures, finals, all)
+				}
+				return
+			}
+			if len(failures) != 0 || finals != 1 || len(all) == 0 {
+				t.Fatalf("errors=%v finals=%d chunks=%+v", failures, finals, all)
+			}
+			last := all[len(all)-1]
+			if !last.Terminal {
+				t.Fatal("protocol completion must be explicit")
+			}
+			if (last.RawFinishReason == nil) != (tc.raw == nil) || (tc.raw != nil && *last.RawFinishReason != *tc.raw) {
+				t.Fatalf("raw=%v want=%v", last.RawFinishReason, tc.raw)
+			}
+			if (last.FinishReason == nil) != (tc.canonical == nil) || (tc.canonical != nil && *last.FinishReason != *tc.canonical) {
+				t.Fatalf("reason=%v want=%v", last.FinishReason, tc.canonical)
+			}
+			if tc.name == "unknown" && (last.Usage == nil || last.Usage.Actual == nil || last.Usage.Actual.PromptTokens != 7 || last.Usage.Actual.CompletionTokens != 3) {
+				t.Fatalf("late usage lost: %+v", last)
+			}
+		})
+	}
+}
 
 // TestOpenAIProvider_Constructor tests NewOpenAIProvider and options
 func TestOpenAIProvider_Constructor(t *testing.T) {

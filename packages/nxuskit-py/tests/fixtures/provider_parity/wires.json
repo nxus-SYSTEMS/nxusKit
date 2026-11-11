@@ -1,0 +1,6024 @@
+{
+  "_meta": {
+    "authority": "provider-oracles-v1.json + qualification-matrix-v1.json",
+    "candidate": "a52459aed1995642d50cfb0ccc27e9a1f8ce0759",
+    "definition_revision": "f81fdc9a03012b4c664cfd20f4fa8413d34462c7",
+    "expected_values_source": "hand-authored accepted oracle; never production adapter output",
+    "fixture_kind": "request_wire",
+    "provider_oracles_sha256": "ae3941015b4ae0957e18ce24d8e4388ab5ff12beb6b334a610b628575d60bd06",
+    "qualification_matrix_sha256": "ce1a8cd22dee5d1c507e4711f0974456e3b499a8a9186f3c9410a77b5b46650a",
+    "schema_version": "nxus-spec119-python-provider-fixtures/v1"
+  },
+  "claude": {
+    "cases": [
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": "json"
+        },
+        "id": "OLL-FORMAT-JSON",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts the literal json string; accepted adapter test test_ollama_format_json_serialization.",
+        "request_patch": {
+          "response_format": {
+            "type": "json"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x"
+            ],
+            "type": "object"
+          }
+        },
+        "id": "OLL-FORMAT-SCHEMA",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts a JSON schema object directly; accepted adapter tests test_ollama_format_json_schema_serialization and test_convert_response_format_json_schema.",
+        "request_patch": {
+          "response_format": {
+            "schema": {
+              "properties": {
+                "x": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x"
+              ],
+              "type": "object"
+            },
+            "type": "json_schema"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "OLL-FORMAT-TEXT-OMIT",
+        "polarity": "omit",
+        "provenance": "Accepted adapter test test_convert_response_format_text requires the format member to be absent.",
+        "request_patch": {
+          "response_format": {
+            "type": "text"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "OLL-FORMAT-WRAPPER-REJECT",
+        "polarity": "negative",
+        "provenance": "OpenAI-style type/name/schema/strict wrappers contradict the Ollama primary contract and accepted direct-schema serializer.",
+        "request_patch": {
+          "response_format": {
+            "name": "fact",
+            "schema": {
+              "type": "object"
+            },
+            "strict": true,
+            "type": "object"
+          }
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-AUTO-MODEL",
+        "polarity": "auto",
+        "provenance": "Accepted Ollama get_think_param auto behavior enables thinking for qwen3 models.",
+        "request_patch": {
+          "model": "qwen3:8b",
+          "thinking": "auto"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-ENABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean true and returns separate thinking output.",
+        "request_patch": {
+          "thinking": "enabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": false
+        },
+        "id": "THINK-DISABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean false; false must not be collapsed to omission.",
+        "request_patch": {
+          "thinking": "disabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "THINK-INVALID",
+        "polarity": "negative",
+        "provenance": "The public facade permits only auto, enabled, disabled, or omission.",
+        "request_patch": {
+          "thinking": "sometimes"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "THINK-OMIT",
+        "polarity": "omit",
+        "provenance": "An absent thinking control remains absent for a non-thinking model.",
+        "request_patch": {}
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "top_k": 37
+          }
+        },
+        "id": "TOP-K-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "top_k": 37
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOP-K-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_k must be a positive integer.",
+        "request_patch": {
+          "top_k": 0
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOP-K-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "min_p": 0.15
+          }
+        },
+        "id": "MIN-P-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "min_p": 0.15
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "MIN-P-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "min_p is bounded to the inclusive 0 through 1 interval.",
+        "request_patch": {
+          "min_p": 1.1
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "MIN-P-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "seed": 42
+          }
+        },
+        "id": "SEED-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Integer seed 42 is the cross-surface deterministic literal.",
+        "request_patch": {
+          "seed": 42
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "SEED-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "seed must be an integer, never a coerced string.",
+        "request_patch": {
+          "seed": "42"
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "SEED-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "presence_penalty": 0.4
+        },
+        "id": "PRESENCE-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "presence_penalty": 0.4
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "presence_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "presence_penalty": 2.1
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "frequency_penalty": -0.3
+        },
+        "id": "FREQUENCY-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "frequency_penalty": -0.3
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "frequency_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "frequency_penalty": -2.1
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {
+          "reasoning_effort": "medium"
+        },
+        "id": "REASONING-EFFORT-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The cross-provider literal is medium; provider capability controls admissibility.",
+        "request_patch": {
+          "reasoning_effort": "medium"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Reasoning effort permits only low, medium, high, or max.",
+        "request_patch": {
+          "reasoning_effort": "extreme"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified reasoning effort remains absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {
+          "logprobs": true,
+          "top_logprobs": 5
+        },
+        "id": "LOGPROBS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The literal requests log probabilities and five alternatives where capability permits.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 5
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "LOGPROBS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_logprobs is bounded to 20 by the accepted parameter adapter.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 21
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "LOGPROBS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified log probabilities remain absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {
+          "tools": [
+            {
+              "function": {
+                "description": "Return one integer",
+                "name": "emit_x",
+                "parameters": {
+                  "properties": {
+                    "x": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "x"
+                  ],
+                  "type": "object"
+                }
+              },
+              "type": "function"
+            }
+          ]
+        },
+        "id": "TOOLS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Literal tool definition is independently specified rather than serialized by an adapter-derived oracle.",
+        "request_patch": {
+          "tools": [
+            {
+              "description": "Return one integer",
+              "name": "emit_x",
+              "parameters": {
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOOLS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Tool names must be nonempty and parameters must be a JSON object schema.",
+        "request_patch": {
+          "tools": [
+            {
+              "name": "",
+              "parameters": []
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOOLS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified tools remain absent.",
+        "request_patch": {}
+      }
+    ],
+    "expected": {
+      "model": "claude-fixture-model",
+      "provider_id": "claude",
+      "transport": "remote_https"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/wires.json#/claude",
+    "oracle_case_ids": [
+      "OLL-FORMAT-JSON",
+      "OLL-FORMAT-SCHEMA",
+      "OLL-FORMAT-TEXT-OMIT",
+      "OLL-FORMAT-WRAPPER-REJECT",
+      "THINK-AUTO-MODEL",
+      "THINK-ENABLED",
+      "THINK-DISABLED",
+      "THINK-INVALID",
+      "THINK-OMIT",
+      "TOP-K-POSITIVE",
+      "TOP-K-NEGATIVE",
+      "TOP-K-OMIT",
+      "MIN-P-POSITIVE",
+      "MIN-P-NEGATIVE",
+      "MIN-P-OMIT",
+      "SEED-POSITIVE",
+      "SEED-NEGATIVE",
+      "SEED-OMIT",
+      "PRESENCE-PENALTY-POSITIVE",
+      "PRESENCE-PENALTY-NEGATIVE",
+      "PRESENCE-PENALTY-OMIT",
+      "FREQUENCY-PENALTY-POSITIVE",
+      "FREQUENCY-PENALTY-NEGATIVE",
+      "FREQUENCY-PENALTY-OMIT",
+      "REASONING-EFFORT-POSITIVE",
+      "REASONING-EFFORT-NEGATIVE",
+      "REASONING-EFFORT-OMIT",
+      "LOGPROBS-POSITIVE",
+      "LOGPROBS-NEGATIVE",
+      "LOGPROBS-OMIT",
+      "TOOLS-POSITIVE",
+      "TOOLS-NEGATIVE",
+      "TOOLS-OMIT"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_claude_provider.py plus provider-oracles-v1.json"
+  },
+  "fireworks": {
+    "cases": [
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": "json"
+        },
+        "id": "OLL-FORMAT-JSON",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts the literal json string; accepted adapter test test_ollama_format_json_serialization.",
+        "request_patch": {
+          "response_format": {
+            "type": "json"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x"
+            ],
+            "type": "object"
+          }
+        },
+        "id": "OLL-FORMAT-SCHEMA",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts a JSON schema object directly; accepted adapter tests test_ollama_format_json_schema_serialization and test_convert_response_format_json_schema.",
+        "request_patch": {
+          "response_format": {
+            "schema": {
+              "properties": {
+                "x": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x"
+              ],
+              "type": "object"
+            },
+            "type": "json_schema"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "OLL-FORMAT-TEXT-OMIT",
+        "polarity": "omit",
+        "provenance": "Accepted adapter test test_convert_response_format_text requires the format member to be absent.",
+        "request_patch": {
+          "response_format": {
+            "type": "text"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "OLL-FORMAT-WRAPPER-REJECT",
+        "polarity": "negative",
+        "provenance": "OpenAI-style type/name/schema/strict wrappers contradict the Ollama primary contract and accepted direct-schema serializer.",
+        "request_patch": {
+          "response_format": {
+            "name": "fact",
+            "schema": {
+              "type": "object"
+            },
+            "strict": true,
+            "type": "object"
+          }
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-AUTO-MODEL",
+        "polarity": "auto",
+        "provenance": "Accepted Ollama get_think_param auto behavior enables thinking for qwen3 models.",
+        "request_patch": {
+          "model": "qwen3:8b",
+          "thinking": "auto"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-ENABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean true and returns separate thinking output.",
+        "request_patch": {
+          "thinking": "enabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": false
+        },
+        "id": "THINK-DISABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean false; false must not be collapsed to omission.",
+        "request_patch": {
+          "thinking": "disabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "THINK-INVALID",
+        "polarity": "negative",
+        "provenance": "The public facade permits only auto, enabled, disabled, or omission.",
+        "request_patch": {
+          "thinking": "sometimes"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "THINK-OMIT",
+        "polarity": "omit",
+        "provenance": "An absent thinking control remains absent for a non-thinking model.",
+        "request_patch": {}
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "top_k": 37
+          }
+        },
+        "id": "TOP-K-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "top_k": 37
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOP-K-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_k must be a positive integer.",
+        "request_patch": {
+          "top_k": 0
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOP-K-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "min_p": 0.15
+          }
+        },
+        "id": "MIN-P-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "min_p": 0.15
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "MIN-P-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "min_p is bounded to the inclusive 0 through 1 interval.",
+        "request_patch": {
+          "min_p": 1.1
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "MIN-P-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "seed": 42
+          }
+        },
+        "id": "SEED-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Integer seed 42 is the cross-surface deterministic literal.",
+        "request_patch": {
+          "seed": 42
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "SEED-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "seed must be an integer, never a coerced string.",
+        "request_patch": {
+          "seed": "42"
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "SEED-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "presence_penalty": 0.4
+        },
+        "id": "PRESENCE-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "presence_penalty": 0.4
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "presence_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "presence_penalty": 2.1
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "frequency_penalty": -0.3
+        },
+        "id": "FREQUENCY-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "frequency_penalty": -0.3
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "frequency_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "frequency_penalty": -2.1
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {
+          "reasoning_effort": "medium"
+        },
+        "id": "REASONING-EFFORT-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The cross-provider literal is medium; provider capability controls admissibility.",
+        "request_patch": {
+          "reasoning_effort": "medium"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Reasoning effort permits only low, medium, high, or max.",
+        "request_patch": {
+          "reasoning_effort": "extreme"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified reasoning effort remains absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {
+          "logprobs": true,
+          "top_logprobs": 5
+        },
+        "id": "LOGPROBS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The literal requests log probabilities and five alternatives where capability permits.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 5
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "LOGPROBS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_logprobs is bounded to 20 by the accepted parameter adapter.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 21
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "LOGPROBS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified log probabilities remain absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {
+          "tools": [
+            {
+              "function": {
+                "description": "Return one integer",
+                "name": "emit_x",
+                "parameters": {
+                  "properties": {
+                    "x": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "x"
+                  ],
+                  "type": "object"
+                }
+              },
+              "type": "function"
+            }
+          ]
+        },
+        "id": "TOOLS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Literal tool definition is independently specified rather than serialized by an adapter-derived oracle.",
+        "request_patch": {
+          "tools": [
+            {
+              "description": "Return one integer",
+              "name": "emit_x",
+              "parameters": {
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOOLS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Tool names must be nonempty and parameters must be a JSON object schema.",
+        "request_patch": {
+          "tools": [
+            {
+              "name": "",
+              "parameters": []
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOOLS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified tools remain absent.",
+        "request_patch": {}
+      }
+    ],
+    "expected": {
+      "model": "fireworks-fixture-model",
+      "provider_id": "fireworks",
+      "transport": "openai_compatible"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/wires.json#/fireworks",
+    "oracle_case_ids": [
+      "OLL-FORMAT-JSON",
+      "OLL-FORMAT-SCHEMA",
+      "OLL-FORMAT-TEXT-OMIT",
+      "OLL-FORMAT-WRAPPER-REJECT",
+      "THINK-AUTO-MODEL",
+      "THINK-ENABLED",
+      "THINK-DISABLED",
+      "THINK-INVALID",
+      "THINK-OMIT",
+      "TOP-K-POSITIVE",
+      "TOP-K-NEGATIVE",
+      "TOP-K-OMIT",
+      "MIN-P-POSITIVE",
+      "MIN-P-NEGATIVE",
+      "MIN-P-OMIT",
+      "SEED-POSITIVE",
+      "SEED-NEGATIVE",
+      "SEED-OMIT",
+      "PRESENCE-PENALTY-POSITIVE",
+      "PRESENCE-PENALTY-NEGATIVE",
+      "PRESENCE-PENALTY-OMIT",
+      "FREQUENCY-PENALTY-POSITIVE",
+      "FREQUENCY-PENALTY-NEGATIVE",
+      "FREQUENCY-PENALTY-OMIT",
+      "REASONING-EFFORT-POSITIVE",
+      "REASONING-EFFORT-NEGATIVE",
+      "REASONING-EFFORT-OMIT",
+      "LOGPROBS-POSITIVE",
+      "LOGPROBS-NEGATIVE",
+      "LOGPROBS-OMIT",
+      "TOOLS-POSITIVE",
+      "TOOLS-NEGATIVE",
+      "TOOLS-OMIT"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_fireworks_provider.py plus provider-oracles-v1.json"
+  },
+  "groq": {
+    "cases": [
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": "json"
+        },
+        "id": "OLL-FORMAT-JSON",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts the literal json string; accepted adapter test test_ollama_format_json_serialization.",
+        "request_patch": {
+          "response_format": {
+            "type": "json"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x"
+            ],
+            "type": "object"
+          }
+        },
+        "id": "OLL-FORMAT-SCHEMA",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts a JSON schema object directly; accepted adapter tests test_ollama_format_json_schema_serialization and test_convert_response_format_json_schema.",
+        "request_patch": {
+          "response_format": {
+            "schema": {
+              "properties": {
+                "x": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x"
+              ],
+              "type": "object"
+            },
+            "type": "json_schema"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "OLL-FORMAT-TEXT-OMIT",
+        "polarity": "omit",
+        "provenance": "Accepted adapter test test_convert_response_format_text requires the format member to be absent.",
+        "request_patch": {
+          "response_format": {
+            "type": "text"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "OLL-FORMAT-WRAPPER-REJECT",
+        "polarity": "negative",
+        "provenance": "OpenAI-style type/name/schema/strict wrappers contradict the Ollama primary contract and accepted direct-schema serializer.",
+        "request_patch": {
+          "response_format": {
+            "name": "fact",
+            "schema": {
+              "type": "object"
+            },
+            "strict": true,
+            "type": "object"
+          }
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-AUTO-MODEL",
+        "polarity": "auto",
+        "provenance": "Accepted Ollama get_think_param auto behavior enables thinking for qwen3 models.",
+        "request_patch": {
+          "model": "qwen3:8b",
+          "thinking": "auto"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-ENABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean true and returns separate thinking output.",
+        "request_patch": {
+          "thinking": "enabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": false
+        },
+        "id": "THINK-DISABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean false; false must not be collapsed to omission.",
+        "request_patch": {
+          "thinking": "disabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "THINK-INVALID",
+        "polarity": "negative",
+        "provenance": "The public facade permits only auto, enabled, disabled, or omission.",
+        "request_patch": {
+          "thinking": "sometimes"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "THINK-OMIT",
+        "polarity": "omit",
+        "provenance": "An absent thinking control remains absent for a non-thinking model.",
+        "request_patch": {}
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "top_k": 37
+          }
+        },
+        "id": "TOP-K-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "top_k": 37
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOP-K-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_k must be a positive integer.",
+        "request_patch": {
+          "top_k": 0
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOP-K-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "min_p": 0.15
+          }
+        },
+        "id": "MIN-P-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "min_p": 0.15
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "MIN-P-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "min_p is bounded to the inclusive 0 through 1 interval.",
+        "request_patch": {
+          "min_p": 1.1
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "MIN-P-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "seed": 42
+          }
+        },
+        "id": "SEED-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Integer seed 42 is the cross-surface deterministic literal.",
+        "request_patch": {
+          "seed": 42
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "SEED-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "seed must be an integer, never a coerced string.",
+        "request_patch": {
+          "seed": "42"
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "SEED-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "presence_penalty": 0.4
+        },
+        "id": "PRESENCE-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "presence_penalty": 0.4
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "presence_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "presence_penalty": 2.1
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "frequency_penalty": -0.3
+        },
+        "id": "FREQUENCY-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "frequency_penalty": -0.3
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "frequency_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "frequency_penalty": -2.1
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {
+          "reasoning_effort": "medium"
+        },
+        "id": "REASONING-EFFORT-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The cross-provider literal is medium; provider capability controls admissibility.",
+        "request_patch": {
+          "reasoning_effort": "medium"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Reasoning effort permits only low, medium, high, or max.",
+        "request_patch": {
+          "reasoning_effort": "extreme"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified reasoning effort remains absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {
+          "logprobs": true,
+          "top_logprobs": 5
+        },
+        "id": "LOGPROBS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The literal requests log probabilities and five alternatives where capability permits.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 5
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "LOGPROBS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_logprobs is bounded to 20 by the accepted parameter adapter.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 21
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "LOGPROBS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified log probabilities remain absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {
+          "tools": [
+            {
+              "function": {
+                "description": "Return one integer",
+                "name": "emit_x",
+                "parameters": {
+                  "properties": {
+                    "x": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "x"
+                  ],
+                  "type": "object"
+                }
+              },
+              "type": "function"
+            }
+          ]
+        },
+        "id": "TOOLS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Literal tool definition is independently specified rather than serialized by an adapter-derived oracle.",
+        "request_patch": {
+          "tools": [
+            {
+              "description": "Return one integer",
+              "name": "emit_x",
+              "parameters": {
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOOLS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Tool names must be nonempty and parameters must be a JSON object schema.",
+        "request_patch": {
+          "tools": [
+            {
+              "name": "",
+              "parameters": []
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOOLS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified tools remain absent.",
+        "request_patch": {}
+      }
+    ],
+    "expected": {
+      "model": "groq-fixture-model",
+      "provider_id": "groq",
+      "transport": "openai_compatible"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/wires.json#/groq",
+    "oracle_case_ids": [
+      "OLL-FORMAT-JSON",
+      "OLL-FORMAT-SCHEMA",
+      "OLL-FORMAT-TEXT-OMIT",
+      "OLL-FORMAT-WRAPPER-REJECT",
+      "THINK-AUTO-MODEL",
+      "THINK-ENABLED",
+      "THINK-DISABLED",
+      "THINK-INVALID",
+      "THINK-OMIT",
+      "TOP-K-POSITIVE",
+      "TOP-K-NEGATIVE",
+      "TOP-K-OMIT",
+      "MIN-P-POSITIVE",
+      "MIN-P-NEGATIVE",
+      "MIN-P-OMIT",
+      "SEED-POSITIVE",
+      "SEED-NEGATIVE",
+      "SEED-OMIT",
+      "PRESENCE-PENALTY-POSITIVE",
+      "PRESENCE-PENALTY-NEGATIVE",
+      "PRESENCE-PENALTY-OMIT",
+      "FREQUENCY-PENALTY-POSITIVE",
+      "FREQUENCY-PENALTY-NEGATIVE",
+      "FREQUENCY-PENALTY-OMIT",
+      "REASONING-EFFORT-POSITIVE",
+      "REASONING-EFFORT-NEGATIVE",
+      "REASONING-EFFORT-OMIT",
+      "LOGPROBS-POSITIVE",
+      "LOGPROBS-NEGATIVE",
+      "LOGPROBS-OMIT",
+      "TOOLS-POSITIVE",
+      "TOOLS-NEGATIVE",
+      "TOOLS-OMIT"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_groq_provider.py plus provider-oracles-v1.json"
+  },
+  "lmstudio": {
+    "cases": [
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": "json"
+        },
+        "id": "OLL-FORMAT-JSON",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts the literal json string; accepted adapter test test_ollama_format_json_serialization.",
+        "request_patch": {
+          "response_format": {
+            "type": "json"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x"
+            ],
+            "type": "object"
+          }
+        },
+        "id": "OLL-FORMAT-SCHEMA",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts a JSON schema object directly; accepted adapter tests test_ollama_format_json_schema_serialization and test_convert_response_format_json_schema.",
+        "request_patch": {
+          "response_format": {
+            "schema": {
+              "properties": {
+                "x": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x"
+              ],
+              "type": "object"
+            },
+            "type": "json_schema"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "OLL-FORMAT-TEXT-OMIT",
+        "polarity": "omit",
+        "provenance": "Accepted adapter test test_convert_response_format_text requires the format member to be absent.",
+        "request_patch": {
+          "response_format": {
+            "type": "text"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "OLL-FORMAT-WRAPPER-REJECT",
+        "polarity": "negative",
+        "provenance": "OpenAI-style type/name/schema/strict wrappers contradict the Ollama primary contract and accepted direct-schema serializer.",
+        "request_patch": {
+          "response_format": {
+            "name": "fact",
+            "schema": {
+              "type": "object"
+            },
+            "strict": true,
+            "type": "object"
+          }
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-AUTO-MODEL",
+        "polarity": "auto",
+        "provenance": "Accepted Ollama get_think_param auto behavior enables thinking for qwen3 models.",
+        "request_patch": {
+          "model": "qwen3:8b",
+          "thinking": "auto"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-ENABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean true and returns separate thinking output.",
+        "request_patch": {
+          "thinking": "enabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": false
+        },
+        "id": "THINK-DISABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean false; false must not be collapsed to omission.",
+        "request_patch": {
+          "thinking": "disabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "THINK-INVALID",
+        "polarity": "negative",
+        "provenance": "The public facade permits only auto, enabled, disabled, or omission.",
+        "request_patch": {
+          "thinking": "sometimes"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "THINK-OMIT",
+        "polarity": "omit",
+        "provenance": "An absent thinking control remains absent for a non-thinking model.",
+        "request_patch": {}
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "top_k": 37
+          }
+        },
+        "id": "TOP-K-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "top_k": 37
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOP-K-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_k must be a positive integer.",
+        "request_patch": {
+          "top_k": 0
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOP-K-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "min_p": 0.15
+          }
+        },
+        "id": "MIN-P-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "min_p": 0.15
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "MIN-P-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "min_p is bounded to the inclusive 0 through 1 interval.",
+        "request_patch": {
+          "min_p": 1.1
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "MIN-P-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "seed": 42
+          }
+        },
+        "id": "SEED-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Integer seed 42 is the cross-surface deterministic literal.",
+        "request_patch": {
+          "seed": 42
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "SEED-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "seed must be an integer, never a coerced string.",
+        "request_patch": {
+          "seed": "42"
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "SEED-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "presence_penalty": 0.4
+        },
+        "id": "PRESENCE-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "presence_penalty": 0.4
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "presence_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "presence_penalty": 2.1
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "frequency_penalty": -0.3
+        },
+        "id": "FREQUENCY-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "frequency_penalty": -0.3
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "frequency_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "frequency_penalty": -2.1
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {
+          "reasoning_effort": "medium"
+        },
+        "id": "REASONING-EFFORT-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The cross-provider literal is medium; provider capability controls admissibility.",
+        "request_patch": {
+          "reasoning_effort": "medium"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Reasoning effort permits only low, medium, high, or max.",
+        "request_patch": {
+          "reasoning_effort": "extreme"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified reasoning effort remains absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {
+          "logprobs": true,
+          "top_logprobs": 5
+        },
+        "id": "LOGPROBS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The literal requests log probabilities and five alternatives where capability permits.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 5
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "LOGPROBS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_logprobs is bounded to 20 by the accepted parameter adapter.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 21
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "LOGPROBS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified log probabilities remain absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {
+          "tools": [
+            {
+              "function": {
+                "description": "Return one integer",
+                "name": "emit_x",
+                "parameters": {
+                  "properties": {
+                    "x": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "x"
+                  ],
+                  "type": "object"
+                }
+              },
+              "type": "function"
+            }
+          ]
+        },
+        "id": "TOOLS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Literal tool definition is independently specified rather than serialized by an adapter-derived oracle.",
+        "request_patch": {
+          "tools": [
+            {
+              "description": "Return one integer",
+              "name": "emit_x",
+              "parameters": {
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOOLS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Tool names must be nonempty and parameters must be a JSON object schema.",
+        "request_patch": {
+          "tools": [
+            {
+              "name": "",
+              "parameters": []
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOOLS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified tools remain absent.",
+        "request_patch": {}
+      }
+    ],
+    "expected": {
+      "model": "lmstudio-fixture-model",
+      "provider_id": "lmstudio",
+      "transport": "openai_compatible"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/wires.json#/lmstudio",
+    "oracle_case_ids": [
+      "OLL-FORMAT-JSON",
+      "OLL-FORMAT-SCHEMA",
+      "OLL-FORMAT-TEXT-OMIT",
+      "OLL-FORMAT-WRAPPER-REJECT",
+      "THINK-AUTO-MODEL",
+      "THINK-ENABLED",
+      "THINK-DISABLED",
+      "THINK-INVALID",
+      "THINK-OMIT",
+      "TOP-K-POSITIVE",
+      "TOP-K-NEGATIVE",
+      "TOP-K-OMIT",
+      "MIN-P-POSITIVE",
+      "MIN-P-NEGATIVE",
+      "MIN-P-OMIT",
+      "SEED-POSITIVE",
+      "SEED-NEGATIVE",
+      "SEED-OMIT",
+      "PRESENCE-PENALTY-POSITIVE",
+      "PRESENCE-PENALTY-NEGATIVE",
+      "PRESENCE-PENALTY-OMIT",
+      "FREQUENCY-PENALTY-POSITIVE",
+      "FREQUENCY-PENALTY-NEGATIVE",
+      "FREQUENCY-PENALTY-OMIT",
+      "REASONING-EFFORT-POSITIVE",
+      "REASONING-EFFORT-NEGATIVE",
+      "REASONING-EFFORT-OMIT",
+      "LOGPROBS-POSITIVE",
+      "LOGPROBS-NEGATIVE",
+      "LOGPROBS-OMIT",
+      "TOOLS-POSITIVE",
+      "TOOLS-NEGATIVE",
+      "TOOLS-OMIT"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_lmstudio_provider.py plus provider-oracles-v1.json"
+  },
+  "mistral": {
+    "cases": [
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": "json"
+        },
+        "id": "OLL-FORMAT-JSON",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts the literal json string; accepted adapter test test_ollama_format_json_serialization.",
+        "request_patch": {
+          "response_format": {
+            "type": "json"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x"
+            ],
+            "type": "object"
+          }
+        },
+        "id": "OLL-FORMAT-SCHEMA",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts a JSON schema object directly; accepted adapter tests test_ollama_format_json_schema_serialization and test_convert_response_format_json_schema.",
+        "request_patch": {
+          "response_format": {
+            "schema": {
+              "properties": {
+                "x": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x"
+              ],
+              "type": "object"
+            },
+            "type": "json_schema"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "OLL-FORMAT-TEXT-OMIT",
+        "polarity": "omit",
+        "provenance": "Accepted adapter test test_convert_response_format_text requires the format member to be absent.",
+        "request_patch": {
+          "response_format": {
+            "type": "text"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "OLL-FORMAT-WRAPPER-REJECT",
+        "polarity": "negative",
+        "provenance": "OpenAI-style type/name/schema/strict wrappers contradict the Ollama primary contract and accepted direct-schema serializer.",
+        "request_patch": {
+          "response_format": {
+            "name": "fact",
+            "schema": {
+              "type": "object"
+            },
+            "strict": true,
+            "type": "object"
+          }
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-AUTO-MODEL",
+        "polarity": "auto",
+        "provenance": "Accepted Ollama get_think_param auto behavior enables thinking for qwen3 models.",
+        "request_patch": {
+          "model": "qwen3:8b",
+          "thinking": "auto"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-ENABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean true and returns separate thinking output.",
+        "request_patch": {
+          "thinking": "enabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": false
+        },
+        "id": "THINK-DISABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean false; false must not be collapsed to omission.",
+        "request_patch": {
+          "thinking": "disabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "THINK-INVALID",
+        "polarity": "negative",
+        "provenance": "The public facade permits only auto, enabled, disabled, or omission.",
+        "request_patch": {
+          "thinking": "sometimes"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "THINK-OMIT",
+        "polarity": "omit",
+        "provenance": "An absent thinking control remains absent for a non-thinking model.",
+        "request_patch": {}
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "top_k": 37
+          }
+        },
+        "id": "TOP-K-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "top_k": 37
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOP-K-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_k must be a positive integer.",
+        "request_patch": {
+          "top_k": 0
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOP-K-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "min_p": 0.15
+          }
+        },
+        "id": "MIN-P-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "min_p": 0.15
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "MIN-P-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "min_p is bounded to the inclusive 0 through 1 interval.",
+        "request_patch": {
+          "min_p": 1.1
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "MIN-P-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "seed": 42
+          }
+        },
+        "id": "SEED-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Integer seed 42 is the cross-surface deterministic literal.",
+        "request_patch": {
+          "seed": 42
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "SEED-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "seed must be an integer, never a coerced string.",
+        "request_patch": {
+          "seed": "42"
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "SEED-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "presence_penalty": 0.4
+        },
+        "id": "PRESENCE-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "presence_penalty": 0.4
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "presence_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "presence_penalty": 2.1
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "frequency_penalty": -0.3
+        },
+        "id": "FREQUENCY-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "frequency_penalty": -0.3
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "frequency_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "frequency_penalty": -2.1
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {
+          "reasoning_effort": "medium"
+        },
+        "id": "REASONING-EFFORT-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The cross-provider literal is medium; provider capability controls admissibility.",
+        "request_patch": {
+          "reasoning_effort": "medium"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Reasoning effort permits only low, medium, high, or max.",
+        "request_patch": {
+          "reasoning_effort": "extreme"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified reasoning effort remains absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {
+          "logprobs": true,
+          "top_logprobs": 5
+        },
+        "id": "LOGPROBS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The literal requests log probabilities and five alternatives where capability permits.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 5
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "LOGPROBS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_logprobs is bounded to 20 by the accepted parameter adapter.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 21
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "LOGPROBS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified log probabilities remain absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {
+          "tools": [
+            {
+              "function": {
+                "description": "Return one integer",
+                "name": "emit_x",
+                "parameters": {
+                  "properties": {
+                    "x": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "x"
+                  ],
+                  "type": "object"
+                }
+              },
+              "type": "function"
+            }
+          ]
+        },
+        "id": "TOOLS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Literal tool definition is independently specified rather than serialized by an adapter-derived oracle.",
+        "request_patch": {
+          "tools": [
+            {
+              "description": "Return one integer",
+              "name": "emit_x",
+              "parameters": {
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOOLS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Tool names must be nonempty and parameters must be a JSON object schema.",
+        "request_patch": {
+          "tools": [
+            {
+              "name": "",
+              "parameters": []
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOOLS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified tools remain absent.",
+        "request_patch": {}
+      }
+    ],
+    "expected": {
+      "model": "mistral-fixture-model",
+      "provider_id": "mistral",
+      "transport": "openai_compatible"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/wires.json#/mistral",
+    "oracle_case_ids": [
+      "OLL-FORMAT-JSON",
+      "OLL-FORMAT-SCHEMA",
+      "OLL-FORMAT-TEXT-OMIT",
+      "OLL-FORMAT-WRAPPER-REJECT",
+      "THINK-AUTO-MODEL",
+      "THINK-ENABLED",
+      "THINK-DISABLED",
+      "THINK-INVALID",
+      "THINK-OMIT",
+      "TOP-K-POSITIVE",
+      "TOP-K-NEGATIVE",
+      "TOP-K-OMIT",
+      "MIN-P-POSITIVE",
+      "MIN-P-NEGATIVE",
+      "MIN-P-OMIT",
+      "SEED-POSITIVE",
+      "SEED-NEGATIVE",
+      "SEED-OMIT",
+      "PRESENCE-PENALTY-POSITIVE",
+      "PRESENCE-PENALTY-NEGATIVE",
+      "PRESENCE-PENALTY-OMIT",
+      "FREQUENCY-PENALTY-POSITIVE",
+      "FREQUENCY-PENALTY-NEGATIVE",
+      "FREQUENCY-PENALTY-OMIT",
+      "REASONING-EFFORT-POSITIVE",
+      "REASONING-EFFORT-NEGATIVE",
+      "REASONING-EFFORT-OMIT",
+      "LOGPROBS-POSITIVE",
+      "LOGPROBS-NEGATIVE",
+      "LOGPROBS-OMIT",
+      "TOOLS-POSITIVE",
+      "TOOLS-NEGATIVE",
+      "TOOLS-OMIT"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_mistral_provider.py plus provider-oracles-v1.json"
+  },
+  "ollama_cloud_via_daemon": {
+    "cases": [
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": "json"
+        },
+        "id": "OLL-FORMAT-JSON",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts the literal json string; accepted adapter test test_ollama_format_json_serialization.",
+        "request_patch": {
+          "response_format": {
+            "type": "json"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x"
+            ],
+            "type": "object"
+          }
+        },
+        "id": "OLL-FORMAT-SCHEMA",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts a JSON schema object directly; accepted adapter tests test_ollama_format_json_schema_serialization and test_convert_response_format_json_schema.",
+        "request_patch": {
+          "response_format": {
+            "schema": {
+              "properties": {
+                "x": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x"
+              ],
+              "type": "object"
+            },
+            "type": "json_schema"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "OLL-FORMAT-TEXT-OMIT",
+        "polarity": "omit",
+        "provenance": "Accepted adapter test test_convert_response_format_text requires the format member to be absent.",
+        "request_patch": {
+          "response_format": {
+            "type": "text"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "OLL-FORMAT-WRAPPER-REJECT",
+        "polarity": "negative",
+        "provenance": "OpenAI-style type/name/schema/strict wrappers contradict the Ollama primary contract and accepted direct-schema serializer.",
+        "request_patch": {
+          "response_format": {
+            "name": "fact",
+            "schema": {
+              "type": "object"
+            },
+            "strict": true,
+            "type": "object"
+          }
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-AUTO-MODEL",
+        "polarity": "auto",
+        "provenance": "Accepted Ollama get_think_param auto behavior enables thinking for qwen3 models.",
+        "request_patch": {
+          "model": "qwen3:8b",
+          "thinking": "auto"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-ENABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean true and returns separate thinking output.",
+        "request_patch": {
+          "thinking": "enabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": false
+        },
+        "id": "THINK-DISABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean false; false must not be collapsed to omission.",
+        "request_patch": {
+          "thinking": "disabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "THINK-INVALID",
+        "polarity": "negative",
+        "provenance": "The public facade permits only auto, enabled, disabled, or omission.",
+        "request_patch": {
+          "thinking": "sometimes"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "THINK-OMIT",
+        "polarity": "omit",
+        "provenance": "An absent thinking control remains absent for a non-thinking model.",
+        "request_patch": {}
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "top_k": 37
+          }
+        },
+        "id": "TOP-K-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "top_k": 37
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOP-K-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_k must be a positive integer.",
+        "request_patch": {
+          "top_k": 0
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOP-K-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "min_p": 0.15
+          }
+        },
+        "id": "MIN-P-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "min_p": 0.15
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "MIN-P-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "min_p is bounded to the inclusive 0 through 1 interval.",
+        "request_patch": {
+          "min_p": 1.1
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "MIN-P-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "seed": 42
+          }
+        },
+        "id": "SEED-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Integer seed 42 is the cross-surface deterministic literal.",
+        "request_patch": {
+          "seed": 42
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "SEED-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "seed must be an integer, never a coerced string.",
+        "request_patch": {
+          "seed": "42"
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "SEED-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "presence_penalty": 0.4
+        },
+        "id": "PRESENCE-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "presence_penalty": 0.4
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "presence_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "presence_penalty": 2.1
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "frequency_penalty": -0.3
+        },
+        "id": "FREQUENCY-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "frequency_penalty": -0.3
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "frequency_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "frequency_penalty": -2.1
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {
+          "reasoning_effort": "medium"
+        },
+        "id": "REASONING-EFFORT-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The cross-provider literal is medium; provider capability controls admissibility.",
+        "request_patch": {
+          "reasoning_effort": "medium"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Reasoning effort permits only low, medium, high, or max.",
+        "request_patch": {
+          "reasoning_effort": "extreme"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified reasoning effort remains absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {
+          "logprobs": true,
+          "top_logprobs": 5
+        },
+        "id": "LOGPROBS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The literal requests log probabilities and five alternatives where capability permits.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 5
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "LOGPROBS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_logprobs is bounded to 20 by the accepted parameter adapter.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 21
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "LOGPROBS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified log probabilities remain absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {
+          "tools": [
+            {
+              "function": {
+                "description": "Return one integer",
+                "name": "emit_x",
+                "parameters": {
+                  "properties": {
+                    "x": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "x"
+                  ],
+                  "type": "object"
+                }
+              },
+              "type": "function"
+            }
+          ]
+        },
+        "id": "TOOLS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Literal tool definition is independently specified rather than serialized by an adapter-derived oracle.",
+        "request_patch": {
+          "tools": [
+            {
+              "description": "Return one integer",
+              "name": "emit_x",
+              "parameters": {
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOOLS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Tool names must be nonempty and parameters must be a JSON object schema.",
+        "request_patch": {
+          "tools": [
+            {
+              "name": "",
+              "parameters": []
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOOLS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified tools remain absent.",
+        "request_patch": {}
+      }
+    ],
+    "expected": {
+      "model": "ollama_cloud_via_daemon-fixture-model",
+      "provider_id": "ollama_cloud_via_daemon",
+      "transport": "ollama_native"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/wires.json#/ollama_cloud_via_daemon",
+    "oracle_case_ids": [
+      "OLL-FORMAT-JSON",
+      "OLL-FORMAT-SCHEMA",
+      "OLL-FORMAT-TEXT-OMIT",
+      "OLL-FORMAT-WRAPPER-REJECT",
+      "THINK-AUTO-MODEL",
+      "THINK-ENABLED",
+      "THINK-DISABLED",
+      "THINK-INVALID",
+      "THINK-OMIT",
+      "TOP-K-POSITIVE",
+      "TOP-K-NEGATIVE",
+      "TOP-K-OMIT",
+      "MIN-P-POSITIVE",
+      "MIN-P-NEGATIVE",
+      "MIN-P-OMIT",
+      "SEED-POSITIVE",
+      "SEED-NEGATIVE",
+      "SEED-OMIT",
+      "PRESENCE-PENALTY-POSITIVE",
+      "PRESENCE-PENALTY-NEGATIVE",
+      "PRESENCE-PENALTY-OMIT",
+      "FREQUENCY-PENALTY-POSITIVE",
+      "FREQUENCY-PENALTY-NEGATIVE",
+      "FREQUENCY-PENALTY-OMIT",
+      "REASONING-EFFORT-POSITIVE",
+      "REASONING-EFFORT-NEGATIVE",
+      "REASONING-EFFORT-OMIT",
+      "LOGPROBS-POSITIVE",
+      "LOGPROBS-NEGATIVE",
+      "LOGPROBS-OMIT",
+      "TOOLS-POSITIVE",
+      "TOOLS-NEGATIVE",
+      "TOOLS-OMIT"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_ollama_provider.py plus provider-oracles-v1.json"
+  },
+  "ollama_local": {
+    "cases": [
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": "json"
+        },
+        "id": "OLL-FORMAT-JSON",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts the literal json string; accepted adapter test test_ollama_format_json_serialization.",
+        "request_patch": {
+          "response_format": {
+            "type": "json"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x"
+            ],
+            "type": "object"
+          }
+        },
+        "id": "OLL-FORMAT-SCHEMA",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts a JSON schema object directly; accepted adapter tests test_ollama_format_json_schema_serialization and test_convert_response_format_json_schema.",
+        "request_patch": {
+          "response_format": {
+            "schema": {
+              "properties": {
+                "x": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x"
+              ],
+              "type": "object"
+            },
+            "type": "json_schema"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "OLL-FORMAT-TEXT-OMIT",
+        "polarity": "omit",
+        "provenance": "Accepted adapter test test_convert_response_format_text requires the format member to be absent.",
+        "request_patch": {
+          "response_format": {
+            "type": "text"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "OLL-FORMAT-WRAPPER-REJECT",
+        "polarity": "negative",
+        "provenance": "OpenAI-style type/name/schema/strict wrappers contradict the Ollama primary contract and accepted direct-schema serializer.",
+        "request_patch": {
+          "response_format": {
+            "name": "fact",
+            "schema": {
+              "type": "object"
+            },
+            "strict": true,
+            "type": "object"
+          }
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-AUTO-MODEL",
+        "polarity": "auto",
+        "provenance": "Accepted Ollama get_think_param auto behavior enables thinking for qwen3 models.",
+        "request_patch": {
+          "model": "qwen3:8b",
+          "thinking": "auto"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-ENABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean true and returns separate thinking output.",
+        "request_patch": {
+          "thinking": "enabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": false
+        },
+        "id": "THINK-DISABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean false; false must not be collapsed to omission.",
+        "request_patch": {
+          "thinking": "disabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "THINK-INVALID",
+        "polarity": "negative",
+        "provenance": "The public facade permits only auto, enabled, disabled, or omission.",
+        "request_patch": {
+          "thinking": "sometimes"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "THINK-OMIT",
+        "polarity": "omit",
+        "provenance": "An absent thinking control remains absent for a non-thinking model.",
+        "request_patch": {}
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "top_k": 37
+          }
+        },
+        "id": "TOP-K-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "top_k": 37
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOP-K-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_k must be a positive integer.",
+        "request_patch": {
+          "top_k": 0
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOP-K-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "min_p": 0.15
+          }
+        },
+        "id": "MIN-P-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "min_p": 0.15
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "MIN-P-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "min_p is bounded to the inclusive 0 through 1 interval.",
+        "request_patch": {
+          "min_p": 1.1
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "MIN-P-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "seed": 42
+          }
+        },
+        "id": "SEED-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Integer seed 42 is the cross-surface deterministic literal.",
+        "request_patch": {
+          "seed": 42
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "SEED-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "seed must be an integer, never a coerced string.",
+        "request_patch": {
+          "seed": "42"
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "SEED-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "presence_penalty": 0.4
+        },
+        "id": "PRESENCE-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "presence_penalty": 0.4
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "presence_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "presence_penalty": 2.1
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "frequency_penalty": -0.3
+        },
+        "id": "FREQUENCY-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "frequency_penalty": -0.3
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "frequency_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "frequency_penalty": -2.1
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {
+          "reasoning_effort": "medium"
+        },
+        "id": "REASONING-EFFORT-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The cross-provider literal is medium; provider capability controls admissibility.",
+        "request_patch": {
+          "reasoning_effort": "medium"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Reasoning effort permits only low, medium, high, or max.",
+        "request_patch": {
+          "reasoning_effort": "extreme"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified reasoning effort remains absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {
+          "logprobs": true,
+          "top_logprobs": 5
+        },
+        "id": "LOGPROBS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The literal requests log probabilities and five alternatives where capability permits.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 5
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "LOGPROBS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_logprobs is bounded to 20 by the accepted parameter adapter.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 21
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "LOGPROBS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified log probabilities remain absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {
+          "tools": [
+            {
+              "function": {
+                "description": "Return one integer",
+                "name": "emit_x",
+                "parameters": {
+                  "properties": {
+                    "x": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "x"
+                  ],
+                  "type": "object"
+                }
+              },
+              "type": "function"
+            }
+          ]
+        },
+        "id": "TOOLS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Literal tool definition is independently specified rather than serialized by an adapter-derived oracle.",
+        "request_patch": {
+          "tools": [
+            {
+              "description": "Return one integer",
+              "name": "emit_x",
+              "parameters": {
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOOLS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Tool names must be nonempty and parameters must be a JSON object schema.",
+        "request_patch": {
+          "tools": [
+            {
+              "name": "",
+              "parameters": []
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOOLS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified tools remain absent.",
+        "request_patch": {}
+      }
+    ],
+    "expected": {
+      "model": "ollama_local-fixture-model",
+      "provider_id": "ollama_local",
+      "transport": "ollama_native"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/wires.json#/ollama_local",
+    "oracle_case_ids": [
+      "OLL-FORMAT-JSON",
+      "OLL-FORMAT-SCHEMA",
+      "OLL-FORMAT-TEXT-OMIT",
+      "OLL-FORMAT-WRAPPER-REJECT",
+      "THINK-AUTO-MODEL",
+      "THINK-ENABLED",
+      "THINK-DISABLED",
+      "THINK-INVALID",
+      "THINK-OMIT",
+      "TOP-K-POSITIVE",
+      "TOP-K-NEGATIVE",
+      "TOP-K-OMIT",
+      "MIN-P-POSITIVE",
+      "MIN-P-NEGATIVE",
+      "MIN-P-OMIT",
+      "SEED-POSITIVE",
+      "SEED-NEGATIVE",
+      "SEED-OMIT",
+      "PRESENCE-PENALTY-POSITIVE",
+      "PRESENCE-PENALTY-NEGATIVE",
+      "PRESENCE-PENALTY-OMIT",
+      "FREQUENCY-PENALTY-POSITIVE",
+      "FREQUENCY-PENALTY-NEGATIVE",
+      "FREQUENCY-PENALTY-OMIT",
+      "REASONING-EFFORT-POSITIVE",
+      "REASONING-EFFORT-NEGATIVE",
+      "REASONING-EFFORT-OMIT",
+      "LOGPROBS-POSITIVE",
+      "LOGPROBS-NEGATIVE",
+      "LOGPROBS-OMIT",
+      "TOOLS-POSITIVE",
+      "TOOLS-NEGATIVE",
+      "TOOLS-OMIT"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_ollama_provider.py plus provider-oracles-v1.json"
+  },
+  "openai": {
+    "cases": [
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": "json"
+        },
+        "id": "OLL-FORMAT-JSON",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts the literal json string; accepted adapter test test_ollama_format_json_serialization.",
+        "request_patch": {
+          "response_format": {
+            "type": "json"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x"
+            ],
+            "type": "object"
+          }
+        },
+        "id": "OLL-FORMAT-SCHEMA",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts a JSON schema object directly; accepted adapter tests test_ollama_format_json_schema_serialization and test_convert_response_format_json_schema.",
+        "request_patch": {
+          "response_format": {
+            "schema": {
+              "properties": {
+                "x": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x"
+              ],
+              "type": "object"
+            },
+            "type": "json_schema"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "OLL-FORMAT-TEXT-OMIT",
+        "polarity": "omit",
+        "provenance": "Accepted adapter test test_convert_response_format_text requires the format member to be absent.",
+        "request_patch": {
+          "response_format": {
+            "type": "text"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "OLL-FORMAT-WRAPPER-REJECT",
+        "polarity": "negative",
+        "provenance": "OpenAI-style type/name/schema/strict wrappers contradict the Ollama primary contract and accepted direct-schema serializer.",
+        "request_patch": {
+          "response_format": {
+            "name": "fact",
+            "schema": {
+              "type": "object"
+            },
+            "strict": true,
+            "type": "object"
+          }
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-AUTO-MODEL",
+        "polarity": "auto",
+        "provenance": "Accepted Ollama get_think_param auto behavior enables thinking for qwen3 models.",
+        "request_patch": {
+          "model": "qwen3:8b",
+          "thinking": "auto"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-ENABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean true and returns separate thinking output.",
+        "request_patch": {
+          "thinking": "enabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": false
+        },
+        "id": "THINK-DISABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean false; false must not be collapsed to omission.",
+        "request_patch": {
+          "thinking": "disabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "THINK-INVALID",
+        "polarity": "negative",
+        "provenance": "The public facade permits only auto, enabled, disabled, or omission.",
+        "request_patch": {
+          "thinking": "sometimes"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "THINK-OMIT",
+        "polarity": "omit",
+        "provenance": "An absent thinking control remains absent for a non-thinking model.",
+        "request_patch": {}
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "top_k": 37
+          }
+        },
+        "id": "TOP-K-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "top_k": 37
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOP-K-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_k must be a positive integer.",
+        "request_patch": {
+          "top_k": 0
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOP-K-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "min_p": 0.15
+          }
+        },
+        "id": "MIN-P-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "min_p": 0.15
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "MIN-P-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "min_p is bounded to the inclusive 0 through 1 interval.",
+        "request_patch": {
+          "min_p": 1.1
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "MIN-P-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "seed": 42
+          }
+        },
+        "id": "SEED-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Integer seed 42 is the cross-surface deterministic literal.",
+        "request_patch": {
+          "seed": 42
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "SEED-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "seed must be an integer, never a coerced string.",
+        "request_patch": {
+          "seed": "42"
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "SEED-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "presence_penalty": 0.4
+        },
+        "id": "PRESENCE-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "presence_penalty": 0.4
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "presence_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "presence_penalty": 2.1
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "frequency_penalty": -0.3
+        },
+        "id": "FREQUENCY-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "frequency_penalty": -0.3
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "frequency_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "frequency_penalty": -2.1
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {
+          "reasoning_effort": "medium"
+        },
+        "id": "REASONING-EFFORT-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The cross-provider literal is medium; provider capability controls admissibility.",
+        "request_patch": {
+          "reasoning_effort": "medium"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Reasoning effort permits only low, medium, high, or max.",
+        "request_patch": {
+          "reasoning_effort": "extreme"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified reasoning effort remains absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {
+          "logprobs": true,
+          "top_logprobs": 5
+        },
+        "id": "LOGPROBS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The literal requests log probabilities and five alternatives where capability permits.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 5
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "LOGPROBS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_logprobs is bounded to 20 by the accepted parameter adapter.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 21
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "LOGPROBS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified log probabilities remain absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {
+          "tools": [
+            {
+              "function": {
+                "description": "Return one integer",
+                "name": "emit_x",
+                "parameters": {
+                  "properties": {
+                    "x": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "x"
+                  ],
+                  "type": "object"
+                }
+              },
+              "type": "function"
+            }
+          ]
+        },
+        "id": "TOOLS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Literal tool definition is independently specified rather than serialized by an adapter-derived oracle.",
+        "request_patch": {
+          "tools": [
+            {
+              "description": "Return one integer",
+              "name": "emit_x",
+              "parameters": {
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOOLS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Tool names must be nonempty and parameters must be a JSON object schema.",
+        "request_patch": {
+          "tools": [
+            {
+              "name": "",
+              "parameters": []
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOOLS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified tools remain absent.",
+        "request_patch": {}
+      }
+    ],
+    "expected": {
+      "model": "openai-fixture-model",
+      "provider_id": "openai",
+      "transport": "remote_https"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/wires.json#/openai",
+    "oracle_case_ids": [
+      "OLL-FORMAT-JSON",
+      "OLL-FORMAT-SCHEMA",
+      "OLL-FORMAT-TEXT-OMIT",
+      "OLL-FORMAT-WRAPPER-REJECT",
+      "THINK-AUTO-MODEL",
+      "THINK-ENABLED",
+      "THINK-DISABLED",
+      "THINK-INVALID",
+      "THINK-OMIT",
+      "TOP-K-POSITIVE",
+      "TOP-K-NEGATIVE",
+      "TOP-K-OMIT",
+      "MIN-P-POSITIVE",
+      "MIN-P-NEGATIVE",
+      "MIN-P-OMIT",
+      "SEED-POSITIVE",
+      "SEED-NEGATIVE",
+      "SEED-OMIT",
+      "PRESENCE-PENALTY-POSITIVE",
+      "PRESENCE-PENALTY-NEGATIVE",
+      "PRESENCE-PENALTY-OMIT",
+      "FREQUENCY-PENALTY-POSITIVE",
+      "FREQUENCY-PENALTY-NEGATIVE",
+      "FREQUENCY-PENALTY-OMIT",
+      "REASONING-EFFORT-POSITIVE",
+      "REASONING-EFFORT-NEGATIVE",
+      "REASONING-EFFORT-OMIT",
+      "LOGPROBS-POSITIVE",
+      "LOGPROBS-NEGATIVE",
+      "LOGPROBS-OMIT",
+      "TOOLS-POSITIVE",
+      "TOOLS-NEGATIVE",
+      "TOOLS-OMIT"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_openai_provider.py plus provider-oracles-v1.json"
+  },
+  "openrouter": {
+    "cases": [
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": "json"
+        },
+        "id": "OLL-FORMAT-JSON",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts the literal json string; accepted adapter test test_ollama_format_json_serialization.",
+        "request_patch": {
+          "response_format": {
+            "type": "json"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x"
+            ],
+            "type": "object"
+          }
+        },
+        "id": "OLL-FORMAT-SCHEMA",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts a JSON schema object directly; accepted adapter tests test_ollama_format_json_schema_serialization and test_convert_response_format_json_schema.",
+        "request_patch": {
+          "response_format": {
+            "schema": {
+              "properties": {
+                "x": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x"
+              ],
+              "type": "object"
+            },
+            "type": "json_schema"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "OLL-FORMAT-TEXT-OMIT",
+        "polarity": "omit",
+        "provenance": "Accepted adapter test test_convert_response_format_text requires the format member to be absent.",
+        "request_patch": {
+          "response_format": {
+            "type": "text"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "OLL-FORMAT-WRAPPER-REJECT",
+        "polarity": "negative",
+        "provenance": "OpenAI-style type/name/schema/strict wrappers contradict the Ollama primary contract and accepted direct-schema serializer.",
+        "request_patch": {
+          "response_format": {
+            "name": "fact",
+            "schema": {
+              "type": "object"
+            },
+            "strict": true,
+            "type": "object"
+          }
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-AUTO-MODEL",
+        "polarity": "auto",
+        "provenance": "Accepted Ollama get_think_param auto behavior enables thinking for qwen3 models.",
+        "request_patch": {
+          "model": "qwen3:8b",
+          "thinking": "auto"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-ENABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean true and returns separate thinking output.",
+        "request_patch": {
+          "thinking": "enabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": false
+        },
+        "id": "THINK-DISABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean false; false must not be collapsed to omission.",
+        "request_patch": {
+          "thinking": "disabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "THINK-INVALID",
+        "polarity": "negative",
+        "provenance": "The public facade permits only auto, enabled, disabled, or omission.",
+        "request_patch": {
+          "thinking": "sometimes"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "THINK-OMIT",
+        "polarity": "omit",
+        "provenance": "An absent thinking control remains absent for a non-thinking model.",
+        "request_patch": {}
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "top_k": 37
+          }
+        },
+        "id": "TOP-K-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "top_k": 37
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOP-K-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_k must be a positive integer.",
+        "request_patch": {
+          "top_k": 0
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOP-K-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "min_p": 0.15
+          }
+        },
+        "id": "MIN-P-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "min_p": 0.15
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "MIN-P-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "min_p is bounded to the inclusive 0 through 1 interval.",
+        "request_patch": {
+          "min_p": 1.1
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "MIN-P-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "seed": 42
+          }
+        },
+        "id": "SEED-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Integer seed 42 is the cross-surface deterministic literal.",
+        "request_patch": {
+          "seed": 42
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "SEED-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "seed must be an integer, never a coerced string.",
+        "request_patch": {
+          "seed": "42"
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "SEED-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "presence_penalty": 0.4
+        },
+        "id": "PRESENCE-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "presence_penalty": 0.4
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "presence_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "presence_penalty": 2.1
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "frequency_penalty": -0.3
+        },
+        "id": "FREQUENCY-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "frequency_penalty": -0.3
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "frequency_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "frequency_penalty": -2.1
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {
+          "reasoning_effort": "medium"
+        },
+        "id": "REASONING-EFFORT-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The cross-provider literal is medium; provider capability controls admissibility.",
+        "request_patch": {
+          "reasoning_effort": "medium"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Reasoning effort permits only low, medium, high, or max.",
+        "request_patch": {
+          "reasoning_effort": "extreme"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified reasoning effort remains absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {
+          "logprobs": true,
+          "top_logprobs": 5
+        },
+        "id": "LOGPROBS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The literal requests log probabilities and five alternatives where capability permits.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 5
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "LOGPROBS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_logprobs is bounded to 20 by the accepted parameter adapter.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 21
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "LOGPROBS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified log probabilities remain absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {
+          "tools": [
+            {
+              "function": {
+                "description": "Return one integer",
+                "name": "emit_x",
+                "parameters": {
+                  "properties": {
+                    "x": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "x"
+                  ],
+                  "type": "object"
+                }
+              },
+              "type": "function"
+            }
+          ]
+        },
+        "id": "TOOLS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Literal tool definition is independently specified rather than serialized by an adapter-derived oracle.",
+        "request_patch": {
+          "tools": [
+            {
+              "description": "Return one integer",
+              "name": "emit_x",
+              "parameters": {
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOOLS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Tool names must be nonempty and parameters must be a JSON object schema.",
+        "request_patch": {
+          "tools": [
+            {
+              "name": "",
+              "parameters": []
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOOLS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified tools remain absent.",
+        "request_patch": {}
+      }
+    ],
+    "expected": {
+      "model": "openrouter-fixture-model",
+      "provider_id": "openrouter",
+      "transport": "openai_compatible"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/wires.json#/openrouter",
+    "oracle_case_ids": [
+      "OLL-FORMAT-JSON",
+      "OLL-FORMAT-SCHEMA",
+      "OLL-FORMAT-TEXT-OMIT",
+      "OLL-FORMAT-WRAPPER-REJECT",
+      "THINK-AUTO-MODEL",
+      "THINK-ENABLED",
+      "THINK-DISABLED",
+      "THINK-INVALID",
+      "THINK-OMIT",
+      "TOP-K-POSITIVE",
+      "TOP-K-NEGATIVE",
+      "TOP-K-OMIT",
+      "MIN-P-POSITIVE",
+      "MIN-P-NEGATIVE",
+      "MIN-P-OMIT",
+      "SEED-POSITIVE",
+      "SEED-NEGATIVE",
+      "SEED-OMIT",
+      "PRESENCE-PENALTY-POSITIVE",
+      "PRESENCE-PENALTY-NEGATIVE",
+      "PRESENCE-PENALTY-OMIT",
+      "FREQUENCY-PENALTY-POSITIVE",
+      "FREQUENCY-PENALTY-NEGATIVE",
+      "FREQUENCY-PENALTY-OMIT",
+      "REASONING-EFFORT-POSITIVE",
+      "REASONING-EFFORT-NEGATIVE",
+      "REASONING-EFFORT-OMIT",
+      "LOGPROBS-POSITIVE",
+      "LOGPROBS-NEGATIVE",
+      "LOGPROBS-OMIT",
+      "TOOLS-POSITIVE",
+      "TOOLS-NEGATIVE",
+      "TOOLS-OMIT"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_openrouter_provider.py plus provider-oracles-v1.json"
+  },
+  "perplexity": {
+    "cases": [
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": "json"
+        },
+        "id": "OLL-FORMAT-JSON",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts the literal json string; accepted adapter test test_ollama_format_json_serialization.",
+        "request_patch": {
+          "response_format": {
+            "type": "json"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x"
+            ],
+            "type": "object"
+          }
+        },
+        "id": "OLL-FORMAT-SCHEMA",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts a JSON schema object directly; accepted adapter tests test_ollama_format_json_schema_serialization and test_convert_response_format_json_schema.",
+        "request_patch": {
+          "response_format": {
+            "schema": {
+              "properties": {
+                "x": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x"
+              ],
+              "type": "object"
+            },
+            "type": "json_schema"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "OLL-FORMAT-TEXT-OMIT",
+        "polarity": "omit",
+        "provenance": "Accepted adapter test test_convert_response_format_text requires the format member to be absent.",
+        "request_patch": {
+          "response_format": {
+            "type": "text"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "OLL-FORMAT-WRAPPER-REJECT",
+        "polarity": "negative",
+        "provenance": "OpenAI-style type/name/schema/strict wrappers contradict the Ollama primary contract and accepted direct-schema serializer.",
+        "request_patch": {
+          "response_format": {
+            "name": "fact",
+            "schema": {
+              "type": "object"
+            },
+            "strict": true,
+            "type": "object"
+          }
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-AUTO-MODEL",
+        "polarity": "auto",
+        "provenance": "Accepted Ollama get_think_param auto behavior enables thinking for qwen3 models.",
+        "request_patch": {
+          "model": "qwen3:8b",
+          "thinking": "auto"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-ENABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean true and returns separate thinking output.",
+        "request_patch": {
+          "thinking": "enabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": false
+        },
+        "id": "THINK-DISABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean false; false must not be collapsed to omission.",
+        "request_patch": {
+          "thinking": "disabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "THINK-INVALID",
+        "polarity": "negative",
+        "provenance": "The public facade permits only auto, enabled, disabled, or omission.",
+        "request_patch": {
+          "thinking": "sometimes"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "THINK-OMIT",
+        "polarity": "omit",
+        "provenance": "An absent thinking control remains absent for a non-thinking model.",
+        "request_patch": {}
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "top_k": 37
+          }
+        },
+        "id": "TOP-K-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "top_k": 37
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOP-K-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_k must be a positive integer.",
+        "request_patch": {
+          "top_k": 0
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOP-K-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "min_p": 0.15
+          }
+        },
+        "id": "MIN-P-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "min_p": 0.15
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "MIN-P-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "min_p is bounded to the inclusive 0 through 1 interval.",
+        "request_patch": {
+          "min_p": 1.1
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "MIN-P-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "seed": 42
+          }
+        },
+        "id": "SEED-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Integer seed 42 is the cross-surface deterministic literal.",
+        "request_patch": {
+          "seed": 42
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "SEED-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "seed must be an integer, never a coerced string.",
+        "request_patch": {
+          "seed": "42"
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "SEED-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "presence_penalty": 0.4
+        },
+        "id": "PRESENCE-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "presence_penalty": 0.4
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "presence_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "presence_penalty": 2.1
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "frequency_penalty": -0.3
+        },
+        "id": "FREQUENCY-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "frequency_penalty": -0.3
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "frequency_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "frequency_penalty": -2.1
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {
+          "reasoning_effort": "medium"
+        },
+        "id": "REASONING-EFFORT-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The cross-provider literal is medium; provider capability controls admissibility.",
+        "request_patch": {
+          "reasoning_effort": "medium"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Reasoning effort permits only low, medium, high, or max.",
+        "request_patch": {
+          "reasoning_effort": "extreme"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified reasoning effort remains absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {
+          "logprobs": true,
+          "top_logprobs": 5
+        },
+        "id": "LOGPROBS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The literal requests log probabilities and five alternatives where capability permits.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 5
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "LOGPROBS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_logprobs is bounded to 20 by the accepted parameter adapter.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 21
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "LOGPROBS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified log probabilities remain absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {
+          "tools": [
+            {
+              "function": {
+                "description": "Return one integer",
+                "name": "emit_x",
+                "parameters": {
+                  "properties": {
+                    "x": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "x"
+                  ],
+                  "type": "object"
+                }
+              },
+              "type": "function"
+            }
+          ]
+        },
+        "id": "TOOLS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Literal tool definition is independently specified rather than serialized by an adapter-derived oracle.",
+        "request_patch": {
+          "tools": [
+            {
+              "description": "Return one integer",
+              "name": "emit_x",
+              "parameters": {
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOOLS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Tool names must be nonempty and parameters must be a JSON object schema.",
+        "request_patch": {
+          "tools": [
+            {
+              "name": "",
+              "parameters": []
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOOLS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified tools remain absent.",
+        "request_patch": {}
+      }
+    ],
+    "expected": {
+      "model": "perplexity-fixture-model",
+      "provider_id": "perplexity",
+      "transport": "openai_compatible"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/wires.json#/perplexity",
+    "oracle_case_ids": [
+      "OLL-FORMAT-JSON",
+      "OLL-FORMAT-SCHEMA",
+      "OLL-FORMAT-TEXT-OMIT",
+      "OLL-FORMAT-WRAPPER-REJECT",
+      "THINK-AUTO-MODEL",
+      "THINK-ENABLED",
+      "THINK-DISABLED",
+      "THINK-INVALID",
+      "THINK-OMIT",
+      "TOP-K-POSITIVE",
+      "TOP-K-NEGATIVE",
+      "TOP-K-OMIT",
+      "MIN-P-POSITIVE",
+      "MIN-P-NEGATIVE",
+      "MIN-P-OMIT",
+      "SEED-POSITIVE",
+      "SEED-NEGATIVE",
+      "SEED-OMIT",
+      "PRESENCE-PENALTY-POSITIVE",
+      "PRESENCE-PENALTY-NEGATIVE",
+      "PRESENCE-PENALTY-OMIT",
+      "FREQUENCY-PENALTY-POSITIVE",
+      "FREQUENCY-PENALTY-NEGATIVE",
+      "FREQUENCY-PENALTY-OMIT",
+      "REASONING-EFFORT-POSITIVE",
+      "REASONING-EFFORT-NEGATIVE",
+      "REASONING-EFFORT-OMIT",
+      "LOGPROBS-POSITIVE",
+      "LOGPROBS-NEGATIVE",
+      "LOGPROBS-OMIT",
+      "TOOLS-POSITIVE",
+      "TOOLS-NEGATIVE",
+      "TOOLS-OMIT"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_perplexity_provider.py plus provider-oracles-v1.json"
+  },
+  "together": {
+    "cases": [
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": "json"
+        },
+        "id": "OLL-FORMAT-JSON",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts the literal json string; accepted adapter test test_ollama_format_json_serialization.",
+        "request_patch": {
+          "response_format": {
+            "type": "json"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x"
+            ],
+            "type": "object"
+          }
+        },
+        "id": "OLL-FORMAT-SCHEMA",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts a JSON schema object directly; accepted adapter tests test_ollama_format_json_schema_serialization and test_convert_response_format_json_schema.",
+        "request_patch": {
+          "response_format": {
+            "schema": {
+              "properties": {
+                "x": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x"
+              ],
+              "type": "object"
+            },
+            "type": "json_schema"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "OLL-FORMAT-TEXT-OMIT",
+        "polarity": "omit",
+        "provenance": "Accepted adapter test test_convert_response_format_text requires the format member to be absent.",
+        "request_patch": {
+          "response_format": {
+            "type": "text"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "OLL-FORMAT-WRAPPER-REJECT",
+        "polarity": "negative",
+        "provenance": "OpenAI-style type/name/schema/strict wrappers contradict the Ollama primary contract and accepted direct-schema serializer.",
+        "request_patch": {
+          "response_format": {
+            "name": "fact",
+            "schema": {
+              "type": "object"
+            },
+            "strict": true,
+            "type": "object"
+          }
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-AUTO-MODEL",
+        "polarity": "auto",
+        "provenance": "Accepted Ollama get_think_param auto behavior enables thinking for qwen3 models.",
+        "request_patch": {
+          "model": "qwen3:8b",
+          "thinking": "auto"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-ENABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean true and returns separate thinking output.",
+        "request_patch": {
+          "thinking": "enabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": false
+        },
+        "id": "THINK-DISABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean false; false must not be collapsed to omission.",
+        "request_patch": {
+          "thinking": "disabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "THINK-INVALID",
+        "polarity": "negative",
+        "provenance": "The public facade permits only auto, enabled, disabled, or omission.",
+        "request_patch": {
+          "thinking": "sometimes"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "THINK-OMIT",
+        "polarity": "omit",
+        "provenance": "An absent thinking control remains absent for a non-thinking model.",
+        "request_patch": {}
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "top_k": 37
+          }
+        },
+        "id": "TOP-K-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "top_k": 37
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOP-K-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_k must be a positive integer.",
+        "request_patch": {
+          "top_k": 0
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOP-K-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "min_p": 0.15
+          }
+        },
+        "id": "MIN-P-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "min_p": 0.15
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "MIN-P-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "min_p is bounded to the inclusive 0 through 1 interval.",
+        "request_patch": {
+          "min_p": 1.1
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "MIN-P-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "seed": 42
+          }
+        },
+        "id": "SEED-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Integer seed 42 is the cross-surface deterministic literal.",
+        "request_patch": {
+          "seed": 42
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "SEED-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "seed must be an integer, never a coerced string.",
+        "request_patch": {
+          "seed": "42"
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "SEED-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "presence_penalty": 0.4
+        },
+        "id": "PRESENCE-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "presence_penalty": 0.4
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "presence_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "presence_penalty": 2.1
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "frequency_penalty": -0.3
+        },
+        "id": "FREQUENCY-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "frequency_penalty": -0.3
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "frequency_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "frequency_penalty": -2.1
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {
+          "reasoning_effort": "medium"
+        },
+        "id": "REASONING-EFFORT-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The cross-provider literal is medium; provider capability controls admissibility.",
+        "request_patch": {
+          "reasoning_effort": "medium"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Reasoning effort permits only low, medium, high, or max.",
+        "request_patch": {
+          "reasoning_effort": "extreme"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified reasoning effort remains absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {
+          "logprobs": true,
+          "top_logprobs": 5
+        },
+        "id": "LOGPROBS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The literal requests log probabilities and five alternatives where capability permits.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 5
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "LOGPROBS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_logprobs is bounded to 20 by the accepted parameter adapter.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 21
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "LOGPROBS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified log probabilities remain absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {
+          "tools": [
+            {
+              "function": {
+                "description": "Return one integer",
+                "name": "emit_x",
+                "parameters": {
+                  "properties": {
+                    "x": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "x"
+                  ],
+                  "type": "object"
+                }
+              },
+              "type": "function"
+            }
+          ]
+        },
+        "id": "TOOLS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Literal tool definition is independently specified rather than serialized by an adapter-derived oracle.",
+        "request_patch": {
+          "tools": [
+            {
+              "description": "Return one integer",
+              "name": "emit_x",
+              "parameters": {
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOOLS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Tool names must be nonempty and parameters must be a JSON object schema.",
+        "request_patch": {
+          "tools": [
+            {
+              "name": "",
+              "parameters": []
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOOLS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified tools remain absent.",
+        "request_patch": {}
+      }
+    ],
+    "expected": {
+      "model": "together-fixture-model",
+      "provider_id": "together",
+      "transport": "openai_compatible"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/wires.json#/together",
+    "oracle_case_ids": [
+      "OLL-FORMAT-JSON",
+      "OLL-FORMAT-SCHEMA",
+      "OLL-FORMAT-TEXT-OMIT",
+      "OLL-FORMAT-WRAPPER-REJECT",
+      "THINK-AUTO-MODEL",
+      "THINK-ENABLED",
+      "THINK-DISABLED",
+      "THINK-INVALID",
+      "THINK-OMIT",
+      "TOP-K-POSITIVE",
+      "TOP-K-NEGATIVE",
+      "TOP-K-OMIT",
+      "MIN-P-POSITIVE",
+      "MIN-P-NEGATIVE",
+      "MIN-P-OMIT",
+      "SEED-POSITIVE",
+      "SEED-NEGATIVE",
+      "SEED-OMIT",
+      "PRESENCE-PENALTY-POSITIVE",
+      "PRESENCE-PENALTY-NEGATIVE",
+      "PRESENCE-PENALTY-OMIT",
+      "FREQUENCY-PENALTY-POSITIVE",
+      "FREQUENCY-PENALTY-NEGATIVE",
+      "FREQUENCY-PENALTY-OMIT",
+      "REASONING-EFFORT-POSITIVE",
+      "REASONING-EFFORT-NEGATIVE",
+      "REASONING-EFFORT-OMIT",
+      "LOGPROBS-POSITIVE",
+      "LOGPROBS-NEGATIVE",
+      "LOGPROBS-OMIT",
+      "TOOLS-POSITIVE",
+      "TOOLS-NEGATIVE",
+      "TOOLS-OMIT"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_together_provider.py plus provider-oracles-v1.json"
+  },
+  "xai": {
+    "cases": [
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": "json"
+        },
+        "id": "OLL-FORMAT-JSON",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts the literal json string; accepted adapter test test_ollama_format_json_serialization.",
+        "request_patch": {
+          "response_format": {
+            "type": "json"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {
+          "format": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x"
+            ],
+            "type": "object"
+          }
+        },
+        "id": "OLL-FORMAT-SCHEMA",
+        "polarity": "positive",
+        "provenance": "Ollama POST /api/chat format accepts a JSON schema object directly; accepted adapter tests test_ollama_format_json_schema_serialization and test_convert_response_format_json_schema.",
+        "request_patch": {
+          "response_format": {
+            "schema": {
+              "properties": {
+                "x": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x"
+              ],
+              "type": "object"
+            },
+            "type": "json_schema"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "OLL-FORMAT-TEXT-OMIT",
+        "polarity": "omit",
+        "provenance": "Accepted adapter test test_convert_response_format_text requires the format member to be absent.",
+        "request_patch": {
+          "response_format": {
+            "type": "text"
+          }
+        }
+      },
+      {
+        "control": "response_format",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "OLL-FORMAT-WRAPPER-REJECT",
+        "polarity": "negative",
+        "provenance": "OpenAI-style type/name/schema/strict wrappers contradict the Ollama primary contract and accepted direct-schema serializer.",
+        "request_patch": {
+          "response_format": {
+            "name": "fact",
+            "schema": {
+              "type": "object"
+            },
+            "strict": true,
+            "type": "object"
+          }
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-AUTO-MODEL",
+        "polarity": "auto",
+        "provenance": "Accepted Ollama get_think_param auto behavior enables thinking for qwen3 models.",
+        "request_patch": {
+          "model": "qwen3:8b",
+          "thinking": "auto"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": true
+        },
+        "id": "THINK-ENABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean true and returns separate thinking output.",
+        "request_patch": {
+          "thinking": "enabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {
+          "think": false
+        },
+        "id": "THINK-DISABLED",
+        "polarity": "positive",
+        "provenance": "Ollama think accepts boolean false; false must not be collapsed to omission.",
+        "request_patch": {
+          "thinking": "disabled"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "THINK-INVALID",
+        "polarity": "negative",
+        "provenance": "The public facade permits only auto, enabled, disabled, or omission.",
+        "request_patch": {
+          "thinking": "sometimes"
+        }
+      },
+      {
+        "control": "thinking",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "THINK-OMIT",
+        "polarity": "omit",
+        "provenance": "An absent thinking control remains absent for a non-thinking model.",
+        "request_patch": {}
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "top_k": 37
+          }
+        },
+        "id": "TOP-K-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "top_k": 37
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOP-K-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_k must be a positive integer.",
+        "request_patch": {
+          "top_k": 0
+        }
+      },
+      {
+        "control": "top_k",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOP-K-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "min_p": 0.15
+          }
+        },
+        "id": "MIN-P-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Generation-control literal independently frozen for adapter parity.",
+        "request_patch": {
+          "min_p": 0.15
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "MIN-P-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "min_p is bounded to the inclusive 0 through 1 interval.",
+        "request_patch": {
+          "min_p": 1.1
+        }
+      },
+      {
+        "control": "min_p",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "MIN-P-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {
+          "options": {
+            "seed": 42
+          }
+        },
+        "id": "SEED-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Integer seed 42 is the cross-surface deterministic literal.",
+        "request_patch": {
+          "seed": 42
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "SEED-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "seed must be an integer, never a coerced string.",
+        "request_patch": {
+          "seed": "42"
+        }
+      },
+      {
+        "control": "seed",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "SEED-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "presence_penalty": 0.4
+        },
+        "id": "PRESENCE-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "presence_penalty": 0.4
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "presence_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "presence_penalty": 2.1
+        }
+      },
+      {
+        "control": "presence_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "PRESENCE-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {
+          "frequency_penalty": -0.3
+        },
+        "id": "FREQUENCY-PENALTY-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it.",
+        "request_patch": {
+          "frequency_penalty": -0.3
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "frequency_penalty is bounded to the inclusive -2 through 2 interval.",
+        "request_patch": {
+          "frequency_penalty": -2.1
+        }
+      },
+      {
+        "control": "frequency_penalty",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "FREQUENCY-PENALTY-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified generation controls must not be synthesized.",
+        "request_patch": {}
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {
+          "reasoning_effort": "medium"
+        },
+        "id": "REASONING-EFFORT-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The cross-provider literal is medium; provider capability controls admissibility.",
+        "request_patch": {
+          "reasoning_effort": "medium"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Reasoning effort permits only low, medium, high, or max.",
+        "request_patch": {
+          "reasoning_effort": "extreme"
+        }
+      },
+      {
+        "control": "reasoning_effort",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "REASONING-EFFORT-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified reasoning effort remains absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {
+          "logprobs": true,
+          "top_logprobs": 5
+        },
+        "id": "LOGPROBS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "The literal requests log probabilities and five alternatives where capability permits.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 5
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "LOGPROBS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "top_logprobs is bounded to 20 by the accepted parameter adapter.",
+        "request_patch": {
+          "logprobs": true,
+          "top_logprobs": 21
+        }
+      },
+      {
+        "control": "logprobs",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "LOGPROBS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified log probabilities remain absent.",
+        "request_patch": {}
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {
+          "tools": [
+            {
+              "function": {
+                "description": "Return one integer",
+                "name": "emit_x",
+                "parameters": {
+                  "properties": {
+                    "x": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "x"
+                  ],
+                  "type": "object"
+                }
+              },
+              "type": "function"
+            }
+          ]
+        },
+        "id": "TOOLS-POSITIVE",
+        "polarity": "positive",
+        "provenance": "Literal tool definition is independently specified rather than serialized by an adapter-derived oracle.",
+        "request_patch": {
+          "tools": [
+            {
+              "description": "Return one integer",
+              "name": "emit_x",
+              "parameters": {
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": "invalid_request",
+        "expected_wire": {},
+        "id": "TOOLS-NEGATIVE",
+        "polarity": "negative",
+        "provenance": "Tool names must be nonempty and parameters must be a JSON object schema.",
+        "request_patch": {
+          "tools": [
+            {
+              "name": "",
+              "parameters": []
+            }
+          ]
+        }
+      },
+      {
+        "control": "tools",
+        "expected_error": null,
+        "expected_wire": {},
+        "id": "TOOLS-OMIT",
+        "polarity": "omit",
+        "provenance": "Unspecified tools remain absent.",
+        "request_patch": {}
+      }
+    ],
+    "expected": {
+      "model": "xai-fixture-model",
+      "provider_id": "xai",
+      "transport": "openai_compatible"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/wires.json#/xai",
+    "oracle_case_ids": [
+      "OLL-FORMAT-JSON",
+      "OLL-FORMAT-SCHEMA",
+      "OLL-FORMAT-TEXT-OMIT",
+      "OLL-FORMAT-WRAPPER-REJECT",
+      "THINK-AUTO-MODEL",
+      "THINK-ENABLED",
+      "THINK-DISABLED",
+      "THINK-INVALID",
+      "THINK-OMIT",
+      "TOP-K-POSITIVE",
+      "TOP-K-NEGATIVE",
+      "TOP-K-OMIT",
+      "MIN-P-POSITIVE",
+      "MIN-P-NEGATIVE",
+      "MIN-P-OMIT",
+      "SEED-POSITIVE",
+      "SEED-NEGATIVE",
+      "SEED-OMIT",
+      "PRESENCE-PENALTY-POSITIVE",
+      "PRESENCE-PENALTY-NEGATIVE",
+      "PRESENCE-PENALTY-OMIT",
+      "FREQUENCY-PENALTY-POSITIVE",
+      "FREQUENCY-PENALTY-NEGATIVE",
+      "FREQUENCY-PENALTY-OMIT",
+      "REASONING-EFFORT-POSITIVE",
+      "REASONING-EFFORT-NEGATIVE",
+      "REASONING-EFFORT-OMIT",
+      "LOGPROBS-POSITIVE",
+      "LOGPROBS-NEGATIVE",
+      "LOGPROBS-OMIT",
+      "TOOLS-POSITIVE",
+      "TOOLS-NEGATIVE",
+      "TOOLS-OMIT"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_xai_provider.py plus provider-oracles-v1.json"
+  }
+}

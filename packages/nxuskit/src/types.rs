@@ -6,6 +6,28 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+fn serialize_finite_generation_value<S: serde::Serializer>(
+    value: &Option<f32>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    if value.is_some_and(|value| !value.is_finite()) {
+        return Err(serde::ser::Error::custom(
+            "generation control must be finite",
+        ));
+    }
+    value.serialize(serializer)
+}
+
+fn serialize_finite_min_p<S: serde::Serializer>(
+    value: &Option<f64>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    if value.is_some_and(|value| !value.is_finite()) {
+        return Err(serde::ser::Error::custom("min_p must be finite"));
+    }
+    value.serialize(serializer)
+}
+
 // ---------------------------------------------------------------------------
 // Provider configuration
 // ---------------------------------------------------------------------------
@@ -89,7 +111,7 @@ pub enum ContentPart {
     Text { text: String },
     /// Image content.
     Image {
-        #[serde(flatten)]
+        /// Nested to keep the content and image-data `type` tags distinct.
         source: ImageSource,
     },
 }
@@ -331,7 +353,10 @@ pub struct ChatRequest {
     pub messages: Vec<Message>,
 
     /// Sampling temperature (0.0–2.0).
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_finite_generation_value"
+    )]
     pub temperature: Option<f32>,
 
     /// Maximum tokens to generate.
@@ -339,8 +364,23 @@ pub struct ChatRequest {
     pub max_tokens: Option<u32>,
 
     /// Nucleus sampling parameter.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_finite_generation_value"
+    )]
     pub top_p: Option<f32>,
+
+    /// Optional top-k sampling, from 1 through 2147483647.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<i64>,
+
+    /// Optional minimum probability, finite and from 0 through 1.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_finite_min_p"
+    )]
+    pub min_p: Option<f64>,
 
     /// Stop sequences.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -351,16 +391,22 @@ pub struct ChatRequest {
     pub stream: bool,
 
     /// Presence penalty (-2.0 to 2.0).
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_finite_generation_value"
+    )]
     pub presence_penalty: Option<f32>,
 
     /// Frequency penalty (-2.0 to 2.0).
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_finite_generation_value"
+    )]
     pub frequency_penalty: Option<f32>,
 
     /// Random seed for deterministic output.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub seed: Option<u64>,
+    pub seed: Option<i64>,
 
     /// Whether to return log probabilities for generated tokens.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -769,6 +815,9 @@ pub struct InferenceMetadata {
 /// Response from [`crate::NxuskitProvider::chat`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatResponse {
+    /// Selected bounded upstream fields, preserved across the JSON FFI boundary.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_metadata: Option<serde_json::Map<String, serde_json::Value>>,
     /// Generated text content.
     pub content: String,
 
@@ -787,6 +836,9 @@ pub struct ChatResponse {
     /// Why generation stopped.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finish_reason: Option<FinishReason>,
+    /// Unmodified provider finish value, independent of canonical interpretation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub raw_finish_reason: Option<String>,
 
     /// Additional provider-specific metadata.
     #[serde(default)]
@@ -822,6 +874,9 @@ pub struct ChatResponse {
 /// binaries that omit new fields will deserialize correctly.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StreamChunk {
+    /// Selected upstream metadata on final successful results only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_metadata: Option<serde_json::Map<String, serde_json::Value>>,
     /// Incremental text content.
     #[serde(default, alias = "content")]
     pub delta: String,
@@ -837,6 +892,12 @@ pub struct StreamChunk {
     /// Why generation stopped (set on final chunk).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub finish_reason: Option<FinishReason>,
+    /// Unmodified provider finish value, including unknown values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub raw_finish_reason: Option<String>,
+    /// Protocol terminality independent of a known finish reason.
+    #[serde(default)]
+    pub terminal: bool,
 
     /// Token usage statistics (typically only on final chunk).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -861,7 +922,7 @@ pub struct StreamChunk {
 impl StreamChunk {
     /// Check if this is the final chunk (has a finish reason).
     pub fn is_final(&self) -> bool {
-        self.finish_reason.is_some()
+        self.terminal || self.finish_reason.is_some()
     }
 
     /// Check if this chunk contains thinking content.
@@ -1136,4 +1197,90 @@ pub struct PublicCapabilityManifest {
     pub posture: ManifestPublicationPosture,
     /// Provider capability rows.
     pub providers: Vec<PublicProviderCapability>,
+}
+
+#[cfg(test)]
+mod signed_seed_tests {
+    use super::ChatRequest;
+
+    #[test]
+    fn wrapper_generation_nonfinite_never_becomes_null() {
+        for field in [
+            "temperature",
+            "top_p",
+            "presence_penalty",
+            "frequency_penalty",
+        ] {
+            for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+                let mut request = ChatRequest::default();
+                match field {
+                    "temperature" => request.temperature = Some(value),
+                    "top_p" => request.top_p = Some(value),
+                    "presence_penalty" => request.presence_penalty = Some(value),
+                    _ => request.frequency_penalty = Some(value),
+                }
+                assert!(
+                    serde_json::to_string(&request).is_err(),
+                    "{field} became JSON null"
+                );
+            }
+        }
+        let request = ChatRequest {
+            temperature: Some(2.0),
+            top_p: Some(0.0),
+            presence_penalty: Some(-2.0),
+            frequency_penalty: Some(2.0),
+            ..Default::default()
+        };
+        let encoded = serde_json::to_value(request).unwrap();
+        assert_eq!(encoded["temperature"], 2.0);
+        assert_eq!(encoded["top_p"], 0.0);
+        assert_eq!(encoded["presence_penalty"], -2.0);
+        assert_eq!(encoded["frequency_penalty"], 2.0);
+    }
+
+    #[test]
+    fn wrapper_sampling_json_preserves_or_rejects() {
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let request = ChatRequest {
+                min_p: Some(value),
+                ..Default::default()
+            };
+            assert!(
+                serde_json::to_string(&request).is_err(),
+                "nonfinite min_p became JSON null"
+            );
+        }
+        for (top_k, min_p) in [(1, 0.0), (2147483647, 1.0), (40, 0.1)] {
+            let request = ChatRequest {
+                top_k: Some(top_k),
+                min_p: Some(min_p),
+                ..Default::default()
+            };
+            let json = serde_json::to_value(request).unwrap();
+            assert_eq!(json["top_k"], top_k);
+            assert_eq!(json["min_p"], min_p);
+        }
+        let omitted = serde_json::to_value(ChatRequest::default()).unwrap();
+        assert!(omitted.get("top_k").is_none());
+        assert!(omitted.get("min_p").is_none());
+    }
+
+    #[test]
+    fn wrapper_signed_seed_json_boundaries() {
+        for literal in ["-1", "-9223372036854775808", "9223372036854775807"] {
+            let json = format!(r#"{{"model":"m","messages":[],"seed":{literal}}}"#);
+            let request: ChatRequest = serde_json::from_str(&json).unwrap();
+            assert_eq!(
+                serde_json::to_value(request).unwrap()["seed"].to_string(),
+                literal
+            );
+        }
+        for literal in ["9223372036854775808", "-9223372036854775809"] {
+            let json = format!(r#"{{"model":"m","messages":[],"seed":{literal}}}"#);
+            assert!(serde_json::from_str::<ChatRequest>(&json).is_err());
+        }
+        let omitted: ChatRequest = serde_json::from_str(r#"{"model":"m","messages":[]}"#).unwrap();
+        assert!(serde_json::to_value(omitted).unwrap().get("seed").is_none());
+    }
 }

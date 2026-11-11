@@ -98,10 +98,13 @@ fn stream_drop_without_consuming() {
 #[test]
 fn stream_chunk_serde_roundtrip() {
     let chunk = StreamChunk {
+        provider_metadata: None,
         delta: "Hello ".into(),
         index: 0,
         thinking: None,
         finish_reason: None,
+        raw_finish_reason: None,
+        terminal: false,
         usage: None,
         tool_calls: None,
         logprobs: None,

@@ -5,31 +5,15 @@ All notable changes to nxuskit-go will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-07-15
+
+### Changed
+
+- Prepared Go package and FFI compatibility metadata for the lockstep v2.0.0
+  SDK package candidate. This entry does not claim publication, availability,
+  or a public release.
+
 ## [Unreleased]
-
-## [1.0.5] - 2026-06-16
-
-### Changed
-
-- Updated Go SDK version constants to the SDK lockstep `1.0.5` release.
-- Kept the Go native FFI expected-version guard aligned with the v1.0.5 C ABI
-  version string.
-
-### Compatibility
-
-- No Go API changes are introduced in this patch.
-
-## [1.0.4] - 2026-06-15
-
-### Changed
-
-- Updated Go SDK version constants to the SDK lockstep `1.0.4` release.
-- Kept the Go native FFI expected-version guard aligned with the v1.0.4 C ABI
-  version string.
-
-### Compatibility
-
-- No Go API changes are introduced in this patch.
 
 ## [0.9.3] - 2026-04-29
 

@@ -1,4 +1,5 @@
 _nxuskit_abi_version
+_nxuskit_action_gate_preview_evaluate_json
 _nxuskit_auth_providers
 _nxuskit_auth_remove_credential
 _nxuskit_auth_resolve
@@ -39,6 +40,15 @@ _nxuskit_bn_search_structure
 _nxuskit_cancel_stream
 _nxuskit_capabilities
 _nxuskit_chat
+_nxuskit_chat_async
+_nxuskit_chat_operation_start
+_nxuskit_chat_operation_cancel
+_nxuskit_chat_operation_wait
+_nxuskit_chat_operation_free
+_nxuskit_stream_operation_start
+_nxuskit_stream_operation_cancel
+_nxuskit_stream_operation_wait
+_nxuskit_stream_operation_free
 _nxuskit_chat_stream
 _nxuskit_completion
 _nxuskit_completion_stream
@@ -130,6 +140,7 @@ _nxuskit_license_trial_activate
 _nxuskit_license_trial_issue
 _nxuskit_license_validate
 _nxuskit_list_models
+_nxuskit_list_models_async
 _nxuskit_oauth_revoke
 _nxuskit_oauth_start
 _nxuskit_oauth_status
@@ -166,5 +177,13 @@ _nxuskit_solver_solve_stream
 _nxuskit_solver_status
 _nxuskit_solver_variables
 _nxuskit_version
+_nxuskit_discovery_create
+_nxuskit_discovery_close
+_nxuskit_discovery_free
+_nxuskit_discovery_operation_start
+_nxuskit_discovery_operation_cancel
+_nxuskit_discovery_operation_wait
+_nxuskit_discovery_operation_result
+_nxuskit_discovery_operation_free
 _nxuskit_zen_evaluate
 _nxuskit_zen_free_result

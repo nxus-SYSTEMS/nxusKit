@@ -1,0 +1,28 @@
+{
+  "contract_version": "1.1",
+  "pipeline_id": "pl_llm_only_floor",
+  "version": "0.1.0",
+  "metadata": {},
+  "stages": [
+    {
+      "name": "draft",
+      "stage_type": "llm",
+      "provider_ref": "loopback",
+      "model_ref": "loopback:v1",
+      "capability_ref": "llm.text_completion",
+      "inputs": [
+        {
+          "name": "source",
+          "from_pipeline_input": "source"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "draft_text",
+          "streaming": false
+        }
+      ],
+      "metadata": {}
+    }
+  ]
+}

@@ -187,7 +187,9 @@ pub trait LLMProvider: Send + Sync {
         let (tx, rx) = oneshot::channel();
         let stream = self.chat_stream(request).await?;
 
-        // Create a wrapping stream that captures final usage
+        // Create a wrapping stream that captures final usage. The first
+        // streaming error is terminal: publish the usage observed up to that
+        // point, yield exactly that error, and never consume a later event.
         let output_stream = stream! {
             let mut stream = stream;
             let mut final_usage: Option<TokenUsage> = None;
@@ -195,22 +197,34 @@ pub trait LLMProvider: Send + Sync {
             while let Some(result) = stream.next().await {
                 match result {
                     Ok(chunk) => {
-                        // Capture usage from this chunk for later
+                        // Capture usage from this chunk for later.
                         if let Some(usage) = &chunk.usage {
                             final_usage = Some(usage.clone());
                         }
                         yield Ok(chunk);
                     }
                     Err(e) => {
+                        let usage = match final_usage.take() {
+                            Some(mut usage) => {
+                                usage.is_complete = false;
+                                usage
+                            }
+                            None => TokenUsage::partial(
+                                None,
+                                crate::types::TokenCount::new(0, 0),
+                            ),
+                        };
+                        let _ = tx.send(usage);
                         yield Err(e);
+                        return;
                     }
                 }
             }
 
-            // Send final usage through channel
-            if let Some(usage) = final_usage {
-                let _ = tx.send(usage);
-            }
+            let usage = final_usage.unwrap_or_else(|| {
+                TokenUsage::estimated_only(crate::types::TokenCount::new(0, 0))
+            });
+            let _ = tx.send(usage);
         };
 
         Ok((Box::new(Box::pin(output_stream)), rx))
@@ -300,5 +314,147 @@ pub trait LLMProvider: Send + Sync {
     /// override this to return `Some(self)`.
     fn as_capability_detector(&self) -> Option<&dyn crate::capability::CapabilityDetector> {
         None
+    }
+}
+
+#[path = "provider_facade.rs"]
+mod facade;
+
+pub(crate) use facade::{
+    ProviderBackendOutcome, ProviderBackendStream, ProviderExecutionBackend, ProviderStreamMapper,
+    ProviderStreamingBackend,
+};
+pub use facade::{ProviderContractMapper, ProviderFacade, ProviderStream};
+
+#[path = "provider_http.rs"]
+pub(crate) mod http;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::NxuskitError;
+    use crate::types::TokenCount;
+    use async_trait::async_trait;
+
+    #[derive(Debug)]
+    struct ErrorStreamProvider {
+        emit_usage: bool,
+    }
+
+    #[async_trait]
+    impl LLMProvider for ErrorStreamProvider {
+        async fn chat(&self, _request: &ChatRequest) -> Result<ChatResponse> {
+            Err(NxuskitError::Stream("not used".into()))
+        }
+
+        async fn chat_stream(
+            &self,
+            _request: &ChatRequest,
+        ) -> Result<Box<dyn Stream<Item = Result<StreamChunk>> + Send + Unpin>> {
+            let error = Err(NxuskitError::Stream("stream failed".into()));
+            if self.emit_usage {
+                let mut chunk = StreamChunk::new("partial".to_string());
+                chunk.usage = Some(TokenUsage::estimated_only(TokenCount::new(2, 1)));
+                Ok(Box::new(futures::stream::iter(vec![Ok(chunk), error])))
+            } else {
+                Ok(Box::new(futures::stream::iter(vec![error])))
+            }
+        }
+
+        fn provider_name(&self) -> &str {
+            "error-stream"
+        }
+    }
+
+    #[derive(Debug)]
+    struct ErrorThenSuccessProvider;
+
+    #[async_trait]
+    impl LLMProvider for ErrorThenSuccessProvider {
+        async fn chat(&self, _request: &ChatRequest) -> Result<ChatResponse> {
+            Err(NxuskitError::Stream("not used".into()))
+        }
+
+        async fn chat_stream(
+            &self,
+            _request: &ChatRequest,
+        ) -> Result<Box<dyn Stream<Item = Result<StreamChunk>> + Send + Unpin>> {
+            let mut partial = StreamChunk::new("partial".to_string());
+            partial.usage = Some(TokenUsage::estimated_only(TokenCount::new(2, 1)));
+
+            let error = Err(NxuskitError::Stream("first failure".into()));
+
+            let mut late = StreamChunk::new("late-success".to_string());
+            late.terminal = true;
+            late.usage = Some(TokenUsage::estimated_only(TokenCount::new(9, 9)));
+
+            Ok(Box::new(futures::stream::iter(vec![
+                Ok(partial),
+                error,
+                Ok(late),
+            ])))
+        }
+
+        fn provider_name(&self) -> &str {
+            "error-then-success"
+        }
+    }
+
+    #[tokio::test]
+    async fn stream_with_usage_first_error_is_terminal_and_preserves_partial_usage() {
+        let provider = ErrorThenSuccessProvider;
+        let request = ChatRequest::new("test-model");
+        let (stream, usage_rx) = provider.stream_with_usage(&request).await.unwrap();
+
+        let items: Vec<_> = stream.collect().await;
+        assert_eq!(
+            items.len(),
+            2,
+            "first error must terminate wrapper stream; later success must not leak"
+        );
+        assert!(items[0].is_ok());
+        assert!(items[1].is_err());
+
+        let usage = usage_rx
+            .await
+            .expect("usage receiver must be signaled at error");
+        assert!(!usage.is_complete);
+        assert_eq!(
+            usage.estimated,
+            TokenCount::new(2, 1),
+            "usage must be frozen at first error, not overwritten by later events"
+        );
+    }
+
+    #[tokio::test]
+    async fn stream_with_usage_marks_captured_usage_partial_after_error() {
+        let provider = ErrorStreamProvider { emit_usage: true };
+        let request = ChatRequest::new("test-model");
+        let (stream, usage_rx) = provider.stream_with_usage(&request).await.unwrap();
+
+        let items: Vec<_> = stream.collect().await;
+        assert_eq!(items.len(), 2);
+        assert!(items[0].is_ok());
+        assert!(items[1].is_err());
+
+        let usage = usage_rx.await.expect("usage receiver must be signaled");
+        assert!(!usage.is_complete);
+        assert_eq!(usage.estimated, TokenCount::new(2, 1));
+    }
+
+    #[tokio::test]
+    async fn stream_with_usage_signals_partial_zero_usage_after_early_error() {
+        let provider = ErrorStreamProvider { emit_usage: false };
+        let request = ChatRequest::new("test-model");
+        let (stream, usage_rx) = provider.stream_with_usage(&request).await.unwrap();
+
+        let items: Vec<_> = stream.collect().await;
+        assert_eq!(items.len(), 1);
+        assert!(items[0].is_err());
+
+        let usage = usage_rx.await.expect("usage receiver must be signaled");
+        assert!(!usage.is_complete);
+        assert_eq!(usage.estimated, TokenCount::new(0, 0));
+        assert!(usage.actual.is_none());
     }
 }

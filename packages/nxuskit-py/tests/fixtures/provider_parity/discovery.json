@@ -1,0 +1,2004 @@
+{
+  "_meta": {
+    "authority": "provider-oracles-v1.json + qualification-matrix-v1.json",
+    "candidate": "a52459aed1995642d50cfb0ccc27e9a1f8ce0759",
+    "definition_revision": "f81fdc9a03012b4c664cfd20f4fa8413d34462c7",
+    "expected_values_source": "hand-authored accepted oracle; never production adapter output",
+    "fixture_kind": "discovery_semantics",
+    "provider_oracles_sha256": "ae3941015b4ae0957e18ce24d8e4388ab5ff12beb6b334a610b628575d60bd06",
+    "qualification_matrix_sha256": "ce1a8cd22dee5d1c507e4711f0974456e3b499a8a9186f3c9410a77b5b46650a",
+    "schema_version": "nxus-spec119-python-provider-fixtures/v1"
+  },
+  "claude": {
+    "cases": [
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "result": "ok"
+        },
+        "id": "DISCOVERY-HEALTH",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery health oracle: a valid empty data collection is healthy.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": [
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "2",
+                "owned_by": "openai"
+              },
+              "name": "gpt-b",
+              "size_bytes": null
+            },
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "1",
+                "owned_by": "fixture"
+              },
+              "name": "gpt-a",
+              "size_bytes": null
+            }
+          ]
+        },
+        "id": "DISCOVERY-MODELS",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery mapping oracle: exact order and complete ModelInfo fields.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": [
+                {
+                  "created": 2,
+                  "id": "gpt-b",
+                  "owned_by": "openai"
+                },
+                {
+                  "created": 1,
+                  "id": "gpt-a",
+                  "owned_by": "fixture"
+                }
+              ]
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": []
+        },
+        "id": "DISCOVERY-EMPTY",
+        "polarity": "positive",
+        "provenance": "Hand-authored Ollama discovery oracle: a valid empty models collection maps to an empty vector.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body": {
+              "models": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "unavailable",
+        "expected_wire": {
+          "code": "unavailable",
+          "message": "Discovery endpoint unavailable"
+        },
+        "id": "DISCOVERY-UNAVAILABLE",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 503 maps to the canonical unavailable code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body_utf8": "unavailable",
+            "status": 503
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "authentication",
+        "expected_wire": {
+          "code": "authentication",
+          "message": "Discovery authentication failed"
+        },
+        "id": "DISCOVERY-UNAUTHORIZED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 401 maps to the canonical authentication code/message without raw body detail.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "unauthorized",
+            "status": 401
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "malformed_response",
+        "expected_wire": {
+          "code": "malformed_response",
+          "message": "Discovery response malformed"
+        },
+        "id": "DISCOVERY-MALFORMED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: invalid JSON in an HTTP 200 response maps to the canonical malformed_response code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "{\"data\":[",
+            "status": 200
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "claude"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/discovery.json#/claude",
+    "oracle_case_ids": [
+      "DISCOVERY-HEALTH",
+      "DISCOVERY-MODELS",
+      "DISCOVERY-EMPTY",
+      "DISCOVERY-UNAVAILABLE",
+      "DISCOVERY-UNAUTHORIZED",
+      "DISCOVERY-MALFORMED"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_claude_provider.py plus provider-oracles-v1.json"
+  },
+  "fireworks": {
+    "cases": [
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "result": "ok"
+        },
+        "id": "DISCOVERY-HEALTH",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery health oracle: a valid empty data collection is healthy.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": [
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "2",
+                "owned_by": "openai"
+              },
+              "name": "gpt-b",
+              "size_bytes": null
+            },
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "1",
+                "owned_by": "fixture"
+              },
+              "name": "gpt-a",
+              "size_bytes": null
+            }
+          ]
+        },
+        "id": "DISCOVERY-MODELS",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery mapping oracle: exact order and complete ModelInfo fields.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": [
+                {
+                  "created": 2,
+                  "id": "gpt-b",
+                  "owned_by": "openai"
+                },
+                {
+                  "created": 1,
+                  "id": "gpt-a",
+                  "owned_by": "fixture"
+                }
+              ]
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": []
+        },
+        "id": "DISCOVERY-EMPTY",
+        "polarity": "positive",
+        "provenance": "Hand-authored Ollama discovery oracle: a valid empty models collection maps to an empty vector.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body": {
+              "models": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "unavailable",
+        "expected_wire": {
+          "code": "unavailable",
+          "message": "Discovery endpoint unavailable"
+        },
+        "id": "DISCOVERY-UNAVAILABLE",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 503 maps to the canonical unavailable code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body_utf8": "unavailable",
+            "status": 503
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "authentication",
+        "expected_wire": {
+          "code": "authentication",
+          "message": "Discovery authentication failed"
+        },
+        "id": "DISCOVERY-UNAUTHORIZED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 401 maps to the canonical authentication code/message without raw body detail.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "unauthorized",
+            "status": 401
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "malformed_response",
+        "expected_wire": {
+          "code": "malformed_response",
+          "message": "Discovery response malformed"
+        },
+        "id": "DISCOVERY-MALFORMED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: invalid JSON in an HTTP 200 response maps to the canonical malformed_response code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "{\"data\":[",
+            "status": 200
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "fireworks"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/discovery.json#/fireworks",
+    "oracle_case_ids": [
+      "DISCOVERY-HEALTH",
+      "DISCOVERY-MODELS",
+      "DISCOVERY-EMPTY",
+      "DISCOVERY-UNAVAILABLE",
+      "DISCOVERY-UNAUTHORIZED",
+      "DISCOVERY-MALFORMED"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_fireworks_provider.py plus provider-oracles-v1.json"
+  },
+  "groq": {
+    "cases": [
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "result": "ok"
+        },
+        "id": "DISCOVERY-HEALTH",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery health oracle: a valid empty data collection is healthy.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": [
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "2",
+                "owned_by": "openai"
+              },
+              "name": "gpt-b",
+              "size_bytes": null
+            },
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "1",
+                "owned_by": "fixture"
+              },
+              "name": "gpt-a",
+              "size_bytes": null
+            }
+          ]
+        },
+        "id": "DISCOVERY-MODELS",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery mapping oracle: exact order and complete ModelInfo fields.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": [
+                {
+                  "created": 2,
+                  "id": "gpt-b",
+                  "owned_by": "openai"
+                },
+                {
+                  "created": 1,
+                  "id": "gpt-a",
+                  "owned_by": "fixture"
+                }
+              ]
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": []
+        },
+        "id": "DISCOVERY-EMPTY",
+        "polarity": "positive",
+        "provenance": "Hand-authored Ollama discovery oracle: a valid empty models collection maps to an empty vector.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body": {
+              "models": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "unavailable",
+        "expected_wire": {
+          "code": "unavailable",
+          "message": "Discovery endpoint unavailable"
+        },
+        "id": "DISCOVERY-UNAVAILABLE",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 503 maps to the canonical unavailable code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body_utf8": "unavailable",
+            "status": 503
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "authentication",
+        "expected_wire": {
+          "code": "authentication",
+          "message": "Discovery authentication failed"
+        },
+        "id": "DISCOVERY-UNAUTHORIZED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 401 maps to the canonical authentication code/message without raw body detail.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "unauthorized",
+            "status": 401
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "malformed_response",
+        "expected_wire": {
+          "code": "malformed_response",
+          "message": "Discovery response malformed"
+        },
+        "id": "DISCOVERY-MALFORMED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: invalid JSON in an HTTP 200 response maps to the canonical malformed_response code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "{\"data\":[",
+            "status": 200
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "groq"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/discovery.json#/groq",
+    "oracle_case_ids": [
+      "DISCOVERY-HEALTH",
+      "DISCOVERY-MODELS",
+      "DISCOVERY-EMPTY",
+      "DISCOVERY-UNAVAILABLE",
+      "DISCOVERY-UNAUTHORIZED",
+      "DISCOVERY-MALFORMED"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_groq_provider.py plus provider-oracles-v1.json"
+  },
+  "lmstudio": {
+    "cases": [
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "result": "ok"
+        },
+        "id": "DISCOVERY-HEALTH",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery health oracle: a valid empty data collection is healthy.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": [
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "2",
+                "owned_by": "openai"
+              },
+              "name": "gpt-b",
+              "size_bytes": null
+            },
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "1",
+                "owned_by": "fixture"
+              },
+              "name": "gpt-a",
+              "size_bytes": null
+            }
+          ]
+        },
+        "id": "DISCOVERY-MODELS",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery mapping oracle: exact order and complete ModelInfo fields.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": [
+                {
+                  "created": 2,
+                  "id": "gpt-b",
+                  "owned_by": "openai"
+                },
+                {
+                  "created": 1,
+                  "id": "gpt-a",
+                  "owned_by": "fixture"
+                }
+              ]
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": []
+        },
+        "id": "DISCOVERY-EMPTY",
+        "polarity": "positive",
+        "provenance": "Hand-authored Ollama discovery oracle: a valid empty models collection maps to an empty vector.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body": {
+              "models": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "unavailable",
+        "expected_wire": {
+          "code": "unavailable",
+          "message": "Discovery endpoint unavailable"
+        },
+        "id": "DISCOVERY-UNAVAILABLE",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 503 maps to the canonical unavailable code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body_utf8": "unavailable",
+            "status": 503
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "authentication",
+        "expected_wire": {
+          "code": "authentication",
+          "message": "Discovery authentication failed"
+        },
+        "id": "DISCOVERY-UNAUTHORIZED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 401 maps to the canonical authentication code/message without raw body detail.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "unauthorized",
+            "status": 401
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "malformed_response",
+        "expected_wire": {
+          "code": "malformed_response",
+          "message": "Discovery response malformed"
+        },
+        "id": "DISCOVERY-MALFORMED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: invalid JSON in an HTTP 200 response maps to the canonical malformed_response code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "{\"data\":[",
+            "status": 200
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "lmstudio"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/discovery.json#/lmstudio",
+    "oracle_case_ids": [
+      "DISCOVERY-HEALTH",
+      "DISCOVERY-MODELS",
+      "DISCOVERY-EMPTY",
+      "DISCOVERY-UNAVAILABLE",
+      "DISCOVERY-UNAUTHORIZED",
+      "DISCOVERY-MALFORMED"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_lmstudio_provider.py plus provider-oracles-v1.json"
+  },
+  "mistral": {
+    "cases": [
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "result": "ok"
+        },
+        "id": "DISCOVERY-HEALTH",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery health oracle: a valid empty data collection is healthy.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": [
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "2",
+                "owned_by": "openai"
+              },
+              "name": "gpt-b",
+              "size_bytes": null
+            },
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "1",
+                "owned_by": "fixture"
+              },
+              "name": "gpt-a",
+              "size_bytes": null
+            }
+          ]
+        },
+        "id": "DISCOVERY-MODELS",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery mapping oracle: exact order and complete ModelInfo fields.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": [
+                {
+                  "created": 2,
+                  "id": "gpt-b",
+                  "owned_by": "openai"
+                },
+                {
+                  "created": 1,
+                  "id": "gpt-a",
+                  "owned_by": "fixture"
+                }
+              ]
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": []
+        },
+        "id": "DISCOVERY-EMPTY",
+        "polarity": "positive",
+        "provenance": "Hand-authored Ollama discovery oracle: a valid empty models collection maps to an empty vector.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body": {
+              "models": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "unavailable",
+        "expected_wire": {
+          "code": "unavailable",
+          "message": "Discovery endpoint unavailable"
+        },
+        "id": "DISCOVERY-UNAVAILABLE",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 503 maps to the canonical unavailable code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body_utf8": "unavailable",
+            "status": 503
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "authentication",
+        "expected_wire": {
+          "code": "authentication",
+          "message": "Discovery authentication failed"
+        },
+        "id": "DISCOVERY-UNAUTHORIZED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 401 maps to the canonical authentication code/message without raw body detail.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "unauthorized",
+            "status": 401
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "malformed_response",
+        "expected_wire": {
+          "code": "malformed_response",
+          "message": "Discovery response malformed"
+        },
+        "id": "DISCOVERY-MALFORMED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: invalid JSON in an HTTP 200 response maps to the canonical malformed_response code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "{\"data\":[",
+            "status": 200
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "mistral"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/discovery.json#/mistral",
+    "oracle_case_ids": [
+      "DISCOVERY-HEALTH",
+      "DISCOVERY-MODELS",
+      "DISCOVERY-EMPTY",
+      "DISCOVERY-UNAVAILABLE",
+      "DISCOVERY-UNAUTHORIZED",
+      "DISCOVERY-MALFORMED"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_mistral_provider.py plus provider-oracles-v1.json"
+  },
+  "ollama_cloud_via_daemon": {
+    "cases": [
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "result": "ok"
+        },
+        "id": "DISCOVERY-HEALTH",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery health oracle: a valid empty data collection is healthy.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": [
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "2",
+                "owned_by": "openai"
+              },
+              "name": "gpt-b",
+              "size_bytes": null
+            },
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "1",
+                "owned_by": "fixture"
+              },
+              "name": "gpt-a",
+              "size_bytes": null
+            }
+          ]
+        },
+        "id": "DISCOVERY-MODELS",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery mapping oracle: exact order and complete ModelInfo fields.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": [
+                {
+                  "created": 2,
+                  "id": "gpt-b",
+                  "owned_by": "openai"
+                },
+                {
+                  "created": 1,
+                  "id": "gpt-a",
+                  "owned_by": "fixture"
+                }
+              ]
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": []
+        },
+        "id": "DISCOVERY-EMPTY",
+        "polarity": "positive",
+        "provenance": "Hand-authored Ollama discovery oracle: a valid empty models collection maps to an empty vector.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body": {
+              "models": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "unavailable",
+        "expected_wire": {
+          "code": "unavailable",
+          "message": "Discovery endpoint unavailable"
+        },
+        "id": "DISCOVERY-UNAVAILABLE",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 503 maps to the canonical unavailable code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body_utf8": "unavailable",
+            "status": 503
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "authentication",
+        "expected_wire": {
+          "code": "authentication",
+          "message": "Discovery authentication failed"
+        },
+        "id": "DISCOVERY-UNAUTHORIZED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 401 maps to the canonical authentication code/message without raw body detail.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "unauthorized",
+            "status": 401
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "malformed_response",
+        "expected_wire": {
+          "code": "malformed_response",
+          "message": "Discovery response malformed"
+        },
+        "id": "DISCOVERY-MALFORMED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: invalid JSON in an HTTP 200 response maps to the canonical malformed_response code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "{\"data\":[",
+            "status": 200
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "ollama_cloud_via_daemon"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/discovery.json#/ollama_cloud_via_daemon",
+    "oracle_case_ids": [
+      "DISCOVERY-HEALTH",
+      "DISCOVERY-MODELS",
+      "DISCOVERY-EMPTY",
+      "DISCOVERY-UNAVAILABLE",
+      "DISCOVERY-UNAUTHORIZED",
+      "DISCOVERY-MALFORMED"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_ollama_provider.py plus provider-oracles-v1.json"
+  },
+  "ollama_local": {
+    "cases": [
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "result": "ok"
+        },
+        "id": "DISCOVERY-HEALTH",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery health oracle: a valid empty data collection is healthy.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": [
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "2",
+                "owned_by": "openai"
+              },
+              "name": "gpt-b",
+              "size_bytes": null
+            },
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "1",
+                "owned_by": "fixture"
+              },
+              "name": "gpt-a",
+              "size_bytes": null
+            }
+          ]
+        },
+        "id": "DISCOVERY-MODELS",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery mapping oracle: exact order and complete ModelInfo fields.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": [
+                {
+                  "created": 2,
+                  "id": "gpt-b",
+                  "owned_by": "openai"
+                },
+                {
+                  "created": 1,
+                  "id": "gpt-a",
+                  "owned_by": "fixture"
+                }
+              ]
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": []
+        },
+        "id": "DISCOVERY-EMPTY",
+        "polarity": "positive",
+        "provenance": "Hand-authored Ollama discovery oracle: a valid empty models collection maps to an empty vector.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body": {
+              "models": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "unavailable",
+        "expected_wire": {
+          "code": "unavailable",
+          "message": "Discovery endpoint unavailable"
+        },
+        "id": "DISCOVERY-UNAVAILABLE",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 503 maps to the canonical unavailable code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body_utf8": "unavailable",
+            "status": 503
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "authentication",
+        "expected_wire": {
+          "code": "authentication",
+          "message": "Discovery authentication failed"
+        },
+        "id": "DISCOVERY-UNAUTHORIZED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 401 maps to the canonical authentication code/message without raw body detail.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "unauthorized",
+            "status": 401
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "malformed_response",
+        "expected_wire": {
+          "code": "malformed_response",
+          "message": "Discovery response malformed"
+        },
+        "id": "DISCOVERY-MALFORMED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: invalid JSON in an HTTP 200 response maps to the canonical malformed_response code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "{\"data\":[",
+            "status": 200
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "ollama_local"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/discovery.json#/ollama_local",
+    "oracle_case_ids": [
+      "DISCOVERY-HEALTH",
+      "DISCOVERY-MODELS",
+      "DISCOVERY-EMPTY",
+      "DISCOVERY-UNAVAILABLE",
+      "DISCOVERY-UNAUTHORIZED",
+      "DISCOVERY-MALFORMED"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_ollama_provider.py plus provider-oracles-v1.json"
+  },
+  "openai": {
+    "cases": [
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "result": "ok"
+        },
+        "id": "DISCOVERY-HEALTH",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery health oracle: a valid empty data collection is healthy.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": [
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "2",
+                "owned_by": "openai"
+              },
+              "name": "gpt-b",
+              "size_bytes": null
+            },
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "1",
+                "owned_by": "fixture"
+              },
+              "name": "gpt-a",
+              "size_bytes": null
+            }
+          ]
+        },
+        "id": "DISCOVERY-MODELS",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery mapping oracle: exact order and complete ModelInfo fields.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": [
+                {
+                  "created": 2,
+                  "id": "gpt-b",
+                  "owned_by": "openai"
+                },
+                {
+                  "created": 1,
+                  "id": "gpt-a",
+                  "owned_by": "fixture"
+                }
+              ]
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": []
+        },
+        "id": "DISCOVERY-EMPTY",
+        "polarity": "positive",
+        "provenance": "Hand-authored Ollama discovery oracle: a valid empty models collection maps to an empty vector.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body": {
+              "models": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "unavailable",
+        "expected_wire": {
+          "code": "unavailable",
+          "message": "Discovery endpoint unavailable"
+        },
+        "id": "DISCOVERY-UNAVAILABLE",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 503 maps to the canonical unavailable code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body_utf8": "unavailable",
+            "status": 503
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "authentication",
+        "expected_wire": {
+          "code": "authentication",
+          "message": "Discovery authentication failed"
+        },
+        "id": "DISCOVERY-UNAUTHORIZED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 401 maps to the canonical authentication code/message without raw body detail.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "unauthorized",
+            "status": 401
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "malformed_response",
+        "expected_wire": {
+          "code": "malformed_response",
+          "message": "Discovery response malformed"
+        },
+        "id": "DISCOVERY-MALFORMED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: invalid JSON in an HTTP 200 response maps to the canonical malformed_response code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "{\"data\":[",
+            "status": 200
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "openai"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/discovery.json#/openai",
+    "oracle_case_ids": [
+      "DISCOVERY-HEALTH",
+      "DISCOVERY-MODELS",
+      "DISCOVERY-EMPTY",
+      "DISCOVERY-UNAVAILABLE",
+      "DISCOVERY-UNAUTHORIZED",
+      "DISCOVERY-MALFORMED"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_openai_provider.py plus provider-oracles-v1.json"
+  },
+  "openrouter": {
+    "cases": [
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "result": "ok"
+        },
+        "id": "DISCOVERY-HEALTH",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery health oracle: a valid empty data collection is healthy.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": [
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "2",
+                "owned_by": "openai"
+              },
+              "name": "gpt-b",
+              "size_bytes": null
+            },
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "1",
+                "owned_by": "fixture"
+              },
+              "name": "gpt-a",
+              "size_bytes": null
+            }
+          ]
+        },
+        "id": "DISCOVERY-MODELS",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery mapping oracle: exact order and complete ModelInfo fields.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": [
+                {
+                  "created": 2,
+                  "id": "gpt-b",
+                  "owned_by": "openai"
+                },
+                {
+                  "created": 1,
+                  "id": "gpt-a",
+                  "owned_by": "fixture"
+                }
+              ]
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": []
+        },
+        "id": "DISCOVERY-EMPTY",
+        "polarity": "positive",
+        "provenance": "Hand-authored Ollama discovery oracle: a valid empty models collection maps to an empty vector.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body": {
+              "models": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "unavailable",
+        "expected_wire": {
+          "code": "unavailable",
+          "message": "Discovery endpoint unavailable"
+        },
+        "id": "DISCOVERY-UNAVAILABLE",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 503 maps to the canonical unavailable code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body_utf8": "unavailable",
+            "status": 503
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "authentication",
+        "expected_wire": {
+          "code": "authentication",
+          "message": "Discovery authentication failed"
+        },
+        "id": "DISCOVERY-UNAUTHORIZED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 401 maps to the canonical authentication code/message without raw body detail.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "unauthorized",
+            "status": 401
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "malformed_response",
+        "expected_wire": {
+          "code": "malformed_response",
+          "message": "Discovery response malformed"
+        },
+        "id": "DISCOVERY-MALFORMED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: invalid JSON in an HTTP 200 response maps to the canonical malformed_response code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "{\"data\":[",
+            "status": 200
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "openrouter"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/discovery.json#/openrouter",
+    "oracle_case_ids": [
+      "DISCOVERY-HEALTH",
+      "DISCOVERY-MODELS",
+      "DISCOVERY-EMPTY",
+      "DISCOVERY-UNAVAILABLE",
+      "DISCOVERY-UNAUTHORIZED",
+      "DISCOVERY-MALFORMED"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_openrouter_provider.py plus provider-oracles-v1.json"
+  },
+  "perplexity": {
+    "cases": [
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "result": "ok"
+        },
+        "id": "DISCOVERY-HEALTH",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery health oracle: a valid empty data collection is healthy.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": [
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "2",
+                "owned_by": "openai"
+              },
+              "name": "gpt-b",
+              "size_bytes": null
+            },
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "1",
+                "owned_by": "fixture"
+              },
+              "name": "gpt-a",
+              "size_bytes": null
+            }
+          ]
+        },
+        "id": "DISCOVERY-MODELS",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery mapping oracle: exact order and complete ModelInfo fields.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": [
+                {
+                  "created": 2,
+                  "id": "gpt-b",
+                  "owned_by": "openai"
+                },
+                {
+                  "created": 1,
+                  "id": "gpt-a",
+                  "owned_by": "fixture"
+                }
+              ]
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": []
+        },
+        "id": "DISCOVERY-EMPTY",
+        "polarity": "positive",
+        "provenance": "Hand-authored Ollama discovery oracle: a valid empty models collection maps to an empty vector.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body": {
+              "models": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "unavailable",
+        "expected_wire": {
+          "code": "unavailable",
+          "message": "Discovery endpoint unavailable"
+        },
+        "id": "DISCOVERY-UNAVAILABLE",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 503 maps to the canonical unavailable code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body_utf8": "unavailable",
+            "status": 503
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "authentication",
+        "expected_wire": {
+          "code": "authentication",
+          "message": "Discovery authentication failed"
+        },
+        "id": "DISCOVERY-UNAUTHORIZED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 401 maps to the canonical authentication code/message without raw body detail.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "unauthorized",
+            "status": 401
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "malformed_response",
+        "expected_wire": {
+          "code": "malformed_response",
+          "message": "Discovery response malformed"
+        },
+        "id": "DISCOVERY-MALFORMED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: invalid JSON in an HTTP 200 response maps to the canonical malformed_response code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "{\"data\":[",
+            "status": 200
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "perplexity"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/discovery.json#/perplexity",
+    "oracle_case_ids": [
+      "DISCOVERY-HEALTH",
+      "DISCOVERY-MODELS",
+      "DISCOVERY-EMPTY",
+      "DISCOVERY-UNAVAILABLE",
+      "DISCOVERY-UNAUTHORIZED",
+      "DISCOVERY-MALFORMED"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_perplexity_provider.py plus provider-oracles-v1.json"
+  },
+  "together": {
+    "cases": [
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "result": "ok"
+        },
+        "id": "DISCOVERY-HEALTH",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery health oracle: a valid empty data collection is healthy.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": [
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "2",
+                "owned_by": "openai"
+              },
+              "name": "gpt-b",
+              "size_bytes": null
+            },
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "1",
+                "owned_by": "fixture"
+              },
+              "name": "gpt-a",
+              "size_bytes": null
+            }
+          ]
+        },
+        "id": "DISCOVERY-MODELS",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery mapping oracle: exact order and complete ModelInfo fields.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": [
+                {
+                  "created": 2,
+                  "id": "gpt-b",
+                  "owned_by": "openai"
+                },
+                {
+                  "created": 1,
+                  "id": "gpt-a",
+                  "owned_by": "fixture"
+                }
+              ]
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": []
+        },
+        "id": "DISCOVERY-EMPTY",
+        "polarity": "positive",
+        "provenance": "Hand-authored Ollama discovery oracle: a valid empty models collection maps to an empty vector.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body": {
+              "models": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "unavailable",
+        "expected_wire": {
+          "code": "unavailable",
+          "message": "Discovery endpoint unavailable"
+        },
+        "id": "DISCOVERY-UNAVAILABLE",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 503 maps to the canonical unavailable code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body_utf8": "unavailable",
+            "status": 503
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "authentication",
+        "expected_wire": {
+          "code": "authentication",
+          "message": "Discovery authentication failed"
+        },
+        "id": "DISCOVERY-UNAUTHORIZED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 401 maps to the canonical authentication code/message without raw body detail.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "unauthorized",
+            "status": 401
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "malformed_response",
+        "expected_wire": {
+          "code": "malformed_response",
+          "message": "Discovery response malformed"
+        },
+        "id": "DISCOVERY-MALFORMED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: invalid JSON in an HTTP 200 response maps to the canonical malformed_response code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "{\"data\":[",
+            "status": 200
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "together"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/discovery.json#/together",
+    "oracle_case_ids": [
+      "DISCOVERY-HEALTH",
+      "DISCOVERY-MODELS",
+      "DISCOVERY-EMPTY",
+      "DISCOVERY-UNAVAILABLE",
+      "DISCOVERY-UNAUTHORIZED",
+      "DISCOVERY-MALFORMED"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_together_provider.py plus provider-oracles-v1.json"
+  },
+  "xai": {
+    "cases": [
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "result": "ok"
+        },
+        "id": "DISCOVERY-HEALTH",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery health oracle: a valid empty data collection is healthy.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": [
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "2",
+                "owned_by": "openai"
+              },
+              "name": "gpt-b",
+              "size_bytes": null
+            },
+            {
+              "context_window": null,
+              "description": null,
+              "metadata": {
+                "created": "1",
+                "owned_by": "fixture"
+              },
+              "name": "gpt-a",
+              "size_bytes": null
+            }
+          ]
+        },
+        "id": "DISCOVERY-MODELS",
+        "polarity": "positive",
+        "provenance": "Hand-authored OpenAI discovery mapping oracle: exact order and complete ModelInfo fields.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body": {
+              "data": [
+                {
+                  "created": 2,
+                  "id": "gpt-b",
+                  "owned_by": "openai"
+                },
+                {
+                  "created": 1,
+                  "id": "gpt-a",
+                  "owned_by": "fixture"
+                }
+              ]
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": null,
+        "expected_wire": {
+          "models": []
+        },
+        "id": "DISCOVERY-EMPTY",
+        "polarity": "positive",
+        "provenance": "Hand-authored Ollama discovery oracle: a valid empty models collection maps to an empty vector.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body": {
+              "models": []
+            },
+            "status": 200
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "unavailable",
+        "expected_wire": {
+          "code": "unavailable",
+          "message": "Discovery endpoint unavailable"
+        },
+        "id": "DISCOVERY-UNAVAILABLE",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 503 maps to the canonical unavailable code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "ollama_local",
+          "provider_response": {
+            "body_utf8": "unavailable",
+            "status": 503
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "authentication",
+        "expected_wire": {
+          "code": "authentication",
+          "message": "Discovery authentication failed"
+        },
+        "id": "DISCOVERY-UNAUTHORIZED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: HTTP 401 maps to the canonical authentication code/message without raw body detail.",
+        "request_patch": {
+          "operation": "health",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "unauthorized",
+            "status": 401
+          }
+        }
+      },
+      {
+        "control": "discovery",
+        "expected_error": "malformed_response",
+        "expected_wire": {
+          "code": "malformed_response",
+          "message": "Discovery response malformed"
+        },
+        "id": "DISCOVERY-MALFORMED",
+        "polarity": "negative",
+        "provenance": "Hand-authored discovery error oracle: invalid JSON in an HTTP 200 response maps to the canonical malformed_response code/message without raw body detail.",
+        "request_patch": {
+          "operation": "list_models",
+          "provider_id": "openai",
+          "provider_response": {
+            "body_utf8": "{\"data\":[",
+            "status": 200
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "xai"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/discovery.json#/xai",
+    "oracle_case_ids": [
+      "DISCOVERY-HEALTH",
+      "DISCOVERY-MODELS",
+      "DISCOVERY-EMPTY",
+      "DISCOVERY-UNAVAILABLE",
+      "DISCOVERY-UNAUTHORIZED",
+      "DISCOVERY-MALFORMED"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_xai_provider.py plus provider-oracles-v1.json"
+  }
+}

@@ -9,6 +9,94 @@ import (
 	"time"
 )
 
+func TestClaudeExplicitTerminalTruth(t *testing.T) {
+	cases := []struct {
+		name, body string
+		wantError  bool
+		raw        *string
+		reason     *FinishReason
+	}{
+		{"empty", "", true, nil, nil},
+		{"premature", "data: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"partial\"}}\n\n", true, nil, nil},
+		{"malformed", "data: {broken}\n\n", true, nil, nil},
+		{"malformed_delta", "data: {\"type\":\"message_delta\",\"delta\":5}\n\ndata: {\"type\":\"message_stop\"}\n\n", true, nil, nil},
+		{"provider_error", "data: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"busy\"}}\n\ndata: {\"type\":\"message_stop\"}\n\n", true, nil, nil},
+		{"unknown", "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":7,\"output_tokens\":0}}}\n\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"vendor-new\"},\"usage\":{\"output_tokens\":3}}\n\ndata: {\"type\":\"message_stop\"}\n\ndata: {broken}\n\n", false, strPtr("vendor-new"), nil},
+		{"absent", "data: {\"type\":\"message_stop\"}\n\n", false, nil, nil},
+		{"known", "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"max_tokens\"}}\n\ndata: {\"type\":\"message_stop\"}\n\n", false, strPtr("max_tokens"), finishReasonPtr(FinishReasonLength)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(tc.body)) }))
+			defer server.Close()
+			p, err := NewClaudeProvider(WithClaudeAPIKey("loopback"), WithClaudeBaseURL(server.URL))
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			chunks, errs := p.ChatStream(ctx, &ChatRequest{Model: "claude-sonnet-4-20250514", Messages: []Message{UserMessage("hi")}})
+			var all []StreamChunk
+			for chunk := range chunks {
+				all = append(all, chunk)
+			}
+			var failures []error
+			for err := range errs {
+				failures = append(failures, err)
+			}
+			finals := 0
+			for _, chunk := range all {
+				if chunk.IsFinal() {
+					finals++
+				}
+			}
+			if tc.wantError {
+				if len(failures) != 1 || finals != 0 {
+					t.Fatalf("errors=%v finals=%d chunks=%+v", failures, finals, all)
+				}
+				return
+			}
+			if len(failures) != 0 || finals != 1 || len(all) == 0 {
+				t.Fatalf("errors=%v finals=%d chunks=%+v", failures, finals, all)
+			}
+			last := all[len(all)-1]
+			if !last.Terminal {
+				t.Fatal("message_stop must be explicit terminal")
+			}
+			if (last.RawFinishReason == nil) != (tc.raw == nil) || (tc.raw != nil && *last.RawFinishReason != *tc.raw) {
+				t.Fatalf("raw=%v want=%v", last.RawFinishReason, tc.raw)
+			}
+			if (last.FinishReason == nil) != (tc.reason == nil) || (tc.reason != nil && *last.FinishReason != *tc.reason) {
+				t.Fatalf("reason=%v want=%v", last.FinishReason, tc.reason)
+			}
+			if tc.name == "unknown" && (last.Usage == nil || last.Usage.Actual == nil || last.Usage.Actual.PromptTokens != 7 || last.Usage.Actual.CompletionTokens != 3) {
+				t.Fatalf("usage=%+v", last.Usage)
+			}
+		})
+	}
+}
+
+func TestClaudeUnaryRawFinishTruth(t *testing.T) {
+	for _, raw := range []string{"vendor-new", "max_tokens", ""} {
+		response := convertFromClaudeResponse(&claudeMessagesResponse{Model: "actual", StopReason: raw})
+		if raw == "" {
+			if response.RawFinishReason != nil || response.FinishReason != nil {
+				t.Fatal("absent reason fabricated")
+			}
+			continue
+		}
+		if response.RawFinishReason == nil || *response.RawFinishReason != raw {
+			t.Fatalf("raw=%v want=%q", response.RawFinishReason, raw)
+		}
+		if raw == "vendor-new" && response.FinishReason != nil {
+			t.Fatalf("unknown canonical=%v", response.FinishReason)
+		}
+		if raw == "max_tokens" && (response.FinishReason == nil || *response.FinishReason != FinishReasonLength) {
+			t.Fatal("known reason lost")
+		}
+	}
+}
+
 // TestClaudeProvider_Constructor tests NewClaudeProvider and options
 func TestClaudeProvider_Constructor(t *testing.T) {
 	t.Run("requires API key", func(t *testing.T) {

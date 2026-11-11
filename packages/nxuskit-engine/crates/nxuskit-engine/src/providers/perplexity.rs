@@ -2,7 +2,6 @@
 //!
 //! Perplexity AI provides search-augmented language models through an OpenAI-compatible API.
 
-use async_stream::stream;
 use async_trait::async_trait;
 use futures::Stream;
 use reqwest::Client;
@@ -14,8 +13,7 @@ use crate::{
     TokenUsage,
     error::{NxuskitError, Result},
     parameter_adapter::ParameterAdapter,
-    token_estimator::{StreamingTokenAccumulator, TokenEstimator},
-    types::{ContentPart, FinishReason, InferenceMetadata, MessageContent, ProviderCapabilities},
+    types::{ContentPart, InferenceMetadata, MessageContent, ProviderCapabilities},
 };
 
 /// Perplexity AI provider
@@ -38,6 +36,31 @@ pub struct PerplexityProvider {
     stream_read_timeout: Duration,
     #[allow(dead_code)]
     total_timeout: Duration,
+}
+
+impl PerplexityProvider {
+    /// Static adapter declarations, not model or endpoint-effective support.
+    pub fn adapter_capabilities() -> ProviderCapabilities {
+        ProviderCapabilities {
+            supports_system_messages: true,
+            supports_streaming: true,
+            supports_vision: false,   // Perplexity doesn't support vision
+            max_stop_sequences: None, // Perplexity doesn't support stop sequences
+            supports_presence_penalty: true,
+            supports_frequency_penalty: true,
+            supports_seed: false, // Perplexity doesn't support seed
+            supports_logprobs: false,
+
+            // T058: Perplexity does not expose a streaming logprob field.
+            // Non-supporting; stream chunks use StreamChunk::new() which
+            // defaults logprobs to None — no phantom data is possible.
+            supports_streaming_logprobs: false,
+            supports_json_mode: false, // Perplexity doesn't support JSON mode
+            supports_json_schema: false,
+            penalty_range: Some((0.0, 2.0)), // Perplexity uses 0-2 range
+            max_logprobs: None,
+        }
+    }
 }
 
 impl PerplexityProvider {
@@ -95,6 +118,136 @@ impl PerplexityProvider {
     /// Get the configured total timeout
     pub fn total_timeout(&self) -> Duration {
         self.total_timeout
+    }
+
+    fn validate_request_surface(&self, request: &ChatRequest) -> Result<()> {
+        request.validate_legacy_sampling(self.provider_name())?;
+
+        for (name, value) in [
+            ("presence_penalty", request.presence_penalty),
+            ("frequency_penalty", request.frequency_penalty),
+        ] {
+            if value.is_some_and(|value| !(0.0..=2.0).contains(&value)) {
+                return Err(NxuskitError::InvalidRequest(format!("invalid {name}")));
+            }
+        }
+
+        if let Some(stops) = request.stop.as_ref() {
+            if stops.len() > 16 || stops.iter().any(String::is_empty) {
+                return Err(NxuskitError::InvalidRequest("invalid stop".into()));
+            }
+            return Err(NxuskitError::unsupported_capability("perplexity", "stop"));
+        }
+        if request.seed.is_some() {
+            return Err(NxuskitError::unsupported_capability("perplexity", "seed"));
+        }
+        if request.logprobs.is_some() || request.top_logprobs.is_some() {
+            return Err(NxuskitError::unsupported_capability(
+                "perplexity",
+                "logprobs",
+            ));
+        }
+        if request.reasoning_effort.is_some() {
+            return Err(NxuskitError::unsupported_capability(
+                "perplexity",
+                "reasoning_effort",
+            ));
+        }
+
+        match request.response_format.as_ref() {
+            None | Some(crate::types::ResponseFormat::Text) => {}
+            Some(crate::types::ResponseFormat::Json) => {
+                return Err(NxuskitError::unsupported_capability(
+                    "perplexity",
+                    "response_format",
+                ));
+            }
+            Some(crate::types::ResponseFormat::JsonSchema { schema }) => {
+                if !schema.is_object() {
+                    return Err(NxuskitError::InvalidRequest(
+                        "invalid response_format".into(),
+                    ));
+                }
+                return Err(NxuskitError::unsupported_capability(
+                    "perplexity",
+                    "response_format",
+                ));
+            }
+        }
+
+        if !matches!(
+            request.thinking_mode,
+            crate::types::ThinkingMode::Auto | crate::types::ThinkingMode::Omit
+        ) {
+            return Err(NxuskitError::unsupported_capability(
+                "perplexity",
+                "thinking",
+            ));
+        }
+
+        if let Some(tools) = request.tools.as_ref() {
+            request.validate_legacy_tools()?;
+            if !tools.is_empty() {
+                return Err(NxuskitError::unsupported_capability("perplexity", "tools"));
+            }
+        }
+        if request.tool_choice.is_some() {
+            return Err(NxuskitError::unsupported_capability(
+                "perplexity",
+                "tool_choice",
+            ));
+        }
+
+        if let Some(config) = request.structured_output.as_ref() {
+            if config.validate_shape().is_err() {
+                return Err(NxuskitError::InvalidRequest(
+                    "invalid structured_output".into(),
+                ));
+            }
+            if !matches!(config.mode, crate::capabilities::StructuredOutputMode::Text) {
+                return Err(NxuskitError::unsupported_capability(
+                    "perplexity",
+                    "structured_output",
+                ));
+            }
+        }
+
+        if let Some(config) = request.tool_call_config.as_ref() {
+            if config.validate_shape().is_err() {
+                return Err(NxuskitError::InvalidRequest(
+                    "invalid tool_call_config".into(),
+                ));
+            }
+            return Err(NxuskitError::unsupported_capability(
+                "perplexity",
+                "tool_calling",
+            ));
+        }
+
+        if request.openai_responses.is_some() {
+            return Err(NxuskitError::unsupported_capability(
+                "perplexity",
+                "openai_responses",
+            ));
+        }
+        if request.provider_options.is_some() {
+            return Err(NxuskitError::unsupported_capability(
+                "perplexity",
+                "provider_options",
+            ));
+        }
+
+        if request.messages.iter().any(|message| {
+            matches!(
+                &message.content,
+                MessageContent::Parts(parts)
+                    if parts.iter().any(|part| matches!(part, ContentPart::Image { .. }))
+            )
+        }) {
+            return Err(NxuskitError::unsupported_capability("perplexity", "images"));
+        }
+
+        Ok(())
     }
 
     /// Convert nxusKit messages to Perplexity API format
@@ -273,6 +426,7 @@ impl PerplexityProviderBuilder {
 #[async_trait]
 impl LLMProvider for PerplexityProvider {
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse> {
+        self.validate_request_surface(request)?;
         // Adapt request to provider capabilities
         let capabilities = self.get_capabilities();
         let adapted = ParameterAdapter::adapt(request, &capabilities);
@@ -293,8 +447,7 @@ impl LLMProvider for PerplexityProvider {
         if !response.status().is_success() {
             let status = response.status();
             let retry_after = super::parse_retry_after(response.headers());
-            let error_text = response
-                .text()
+            let error_text = crate::provider::http::read_response_text_bounded(response)
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(match status.as_u16() {
@@ -303,7 +456,11 @@ impl LLMProvider for PerplexityProvider {
             });
         }
 
-        let perplexity_response: PerplexityResponse = response.json().await?;
+        let data: serde_json::Value =
+            crate::provider::http::read_response_json_bounded(response).await?;
+        let mut provider_metadata = None;
+        super::openai::merge_provider_metadata(&mut provider_metadata, &data, "perplexity")?;
+        let perplexity_response: PerplexityResponse = serde_json::from_value(data)?;
 
         // Extract content from first choice
         let content = perplexity_response
@@ -314,6 +471,10 @@ impl LLMProvider for PerplexityProvider {
             .to_string();
 
         // Convert finish reason
+        let raw_finish_reason = perplexity_response
+            .choices
+            .first()
+            .and_then(|choice| choice.finish_reason.clone());
         let finish_reason = perplexity_response
             .choices
             .first()
@@ -324,26 +485,34 @@ impl LLMProvider for PerplexityProvider {
                 _ => None,
             });
 
-        let mut response = ChatResponse::new(
-            content,
-            perplexity_response.model,
-            TokenUsage::estimated_only(TokenCount::new(
-                perplexity_response.usage.prompt_tokens,
-                perplexity_response.usage.completion_tokens,
-            )),
+        let estimator =
+            crate::token_estimator::TokenEstimator::for_model(&perplexity_response.model);
+        let estimated = TokenCount::new(
+            estimator.count_messages(&adapted_request.messages),
+            estimator.count(&content),
         );
+        let usage = match perplexity_response.usage.and_then(|usage| usage.actual()) {
+            Some(actual) => TokenUsage::with_actual(actual, estimated),
+            None => TokenUsage::estimated_only(estimated),
+        };
+        let mut response = ChatResponse::new(content, perplexity_response.model, usage);
         response.provider = self.provider_name().to_string();
 
         response.finish_reason = finish_reason;
+        response.raw_finish_reason = raw_finish_reason;
+        response.provider_metadata = provider_metadata;
         response.warnings = adapted.warnings;
 
         // Populate inference metadata
-        response.inference_metadata =
-            InferenceMetadata::completed(response.finish_reason.unwrap_or(FinishReason::Stop))
-                .with_token_usage(response.usage.clone())
-                .with_provider_metadata(serde_json::json!({
-                    "provider": "perplexity"
-                }));
+        response.inference_metadata = InferenceMetadata {
+            is_complete: true,
+            finish_reason: response.finish_reason,
+            ..InferenceMetadata::default()
+        }
+        .with_token_usage(response.usage.clone())
+        .with_provider_metadata(serde_json::json!({
+            "provider": "perplexity"
+        }));
 
         Ok(response)
     }
@@ -352,6 +521,7 @@ impl LLMProvider for PerplexityProvider {
         &self,
         request: &ChatRequest,
     ) -> Result<Box<dyn Stream<Item = Result<StreamChunk>> + Send + Unpin>> {
+        self.validate_request_surface(request)?;
         // Adapt request to provider capabilities
         let capabilities = self.get_capabilities();
         let adapted = ParameterAdapter::adapt(request, &capabilities);
@@ -373,8 +543,7 @@ impl LLMProvider for PerplexityProvider {
         if !response.status().is_success() {
             let status = response.status();
             let retry_after = super::parse_retry_after(response.headers());
-            let error_text = response
-                .text()
+            let error_text = crate::provider::http::read_response_text_bounded(response)
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(match status.as_u16() {
@@ -383,78 +552,11 @@ impl LLMProvider for PerplexityProvider {
             });
         }
 
-        let bytes_stream = response.bytes_stream();
-
-        // Initialize token tracking outside stream! macro to avoid lifetime issues
-        let model = request.model.clone();
-        let estimator = TokenEstimator::for_model(&model);
-        let prompt_tokens = estimator.count_messages(&request.messages);
-
-        let output_stream = stream! {
-            use futures::StreamExt;
-
-            let mut buffer = String::new();
-            let mut stream = bytes_stream;
-            let mut accumulator = StreamingTokenAccumulator::new(estimator, prompt_tokens);
-
-            'stream_loop: while let Some(chunk) = stream.next().await {
-                match chunk {
-                    Ok(bytes) => {
-                        buffer.push_str(&String::from_utf8_lossy(&bytes));
-
-                        // Process complete lines
-                        while let Some(newline_pos) = buffer.find('\n') {
-                            let line = buffer[..newline_pos].trim().to_string();
-                            buffer = buffer[newline_pos + 1..].to_string();
-
-                            if line.is_empty() || line == "data: [DONE]" {
-                                continue;
-                            }
-
-                            if let Some(data) = line.strip_prefix("data: ") {
-                                match serde_json::from_str::<PerplexityStreamResponse>(data) {
-                                    Ok(stream_response) => {
-                                        if let Some(choice) = stream_response.choices.first() {
-                                            if let Some(content) = &choice.delta.content {
-                                                accumulator.add_chunk(content);
-                                                let usage = accumulator.running_total();
-                                                let mut stream_chunk = StreamChunk::new(content.clone());
-                                                stream_chunk.usage = Some(usage);
-                                                yield Ok(stream_chunk);
-                                            }
-
-                                            // Check for finish reason
-                                            if let Some(reason) = &choice.finish_reason {
-                                                let finish_reason = match reason.as_str() {
-                                                    "stop" => crate::types::FinishReason::Stop,
-                                                    "length" => crate::types::FinishReason::Length,
-                                                    _ => crate::types::FinishReason::Stop,
-                                                };
-                                                let final_usage = accumulator.finalize();
-                                                yield Ok(StreamChunk::final_chunk(finish_reason, Some(final_usage)));
-                                                break 'stream_loop;
-                                            }
-                                        }
-                                    }
-                                    Err(e) => {
-                                        accumulator.mark_interrupted();
-                                        yield Err(NxuskitError::Stream(format!("Failed to parse stream chunk: {}", e)));
-                                        break 'stream_loop;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        accumulator.mark_interrupted();
-                        yield Err(NxuskitError::Stream(e.to_string()));
-                        break 'stream_loop;
-                    }
-                }
-            }
-        };
-
-        Ok(Box::new(Box::pin(output_stream)))
+        Ok(super::openai::openai_compatible_stream_with_metadata(
+            response,
+            adapted_request,
+            "perplexity",
+        ))
     }
 
     fn provider_name(&self) -> &str {
@@ -510,25 +612,7 @@ impl LLMProvider for PerplexityProvider {
     }
 
     fn get_capabilities(&self) -> ProviderCapabilities {
-        ProviderCapabilities {
-            supports_system_messages: true,
-            supports_streaming: true,
-            supports_vision: false,   // Perplexity doesn't support vision
-            max_stop_sequences: None, // Perplexity doesn't support stop sequences
-            supports_presence_penalty: true,
-            supports_frequency_penalty: true,
-            supports_seed: false, // Perplexity doesn't support seed
-            supports_logprobs: false,
-
-            // T058: Perplexity does not expose a streaming logprob field.
-            // Non-supporting; stream chunks use StreamChunk::new() which
-            // defaults logprobs to None — no phantom data is possible.
-            supports_streaming_logprobs: false,
-            supports_json_mode: false, // Perplexity doesn't support JSON mode
-            supports_json_schema: false,
-            penalty_range: Some((0.0, 2.0)), // Perplexity uses 0-2 range
-            max_logprobs: None,
-        }
+        Self::adapter_capabilities()
     }
 }
 
@@ -564,11 +648,9 @@ enum PerplexityMessageContent {
 
 #[derive(Debug, Deserialize)]
 struct PerplexityResponse {
-    #[allow(dead_code)]
-    id: String,
     model: String,
     choices: Vec<PerplexityChoice>,
-    usage: PerplexityUsage,
+    usage: Option<super::openai::SelectedProviderUsage>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -581,30 +663,6 @@ struct PerplexityChoice {
 struct PerplexityResponseMessage {
     #[allow(dead_code)]
     role: String,
-    content: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PerplexityUsage {
-    prompt_tokens: u32,
-    completion_tokens: u32,
-    #[allow(dead_code)]
-    total_tokens: u32,
-}
-
-#[derive(Debug, Deserialize)]
-struct PerplexityStreamResponse {
-    choices: Vec<PerplexityStreamChoice>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PerplexityStreamChoice {
-    delta: PerplexityDelta,
-    finish_reason: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PerplexityDelta {
     content: Option<String>,
 }
 
@@ -630,6 +688,214 @@ mod tests {
         assert!(!caps.supports_json_mode); // Perplexity doesn't support JSON mode
         assert!(!caps.supports_json_schema);
         assert_eq!(caps.penalty_range, Some((0.0, 2.0)));
+    }
+
+    fn assert_unsupported(request: &ChatRequest, capability: &str) {
+        let provider = PerplexityProvider::new("test-key");
+        match provider.validate_request_surface(request) {
+            Err(NxuskitError::UnsupportedCapability {
+                provider,
+                capability: actual,
+            }) => {
+                assert_eq!(provider, "perplexity");
+                assert_eq!(actual, capability);
+            }
+            other => panic!("expected unsupported {capability}, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_perplexity_request_surface_rejects_explicit_unsupported_controls() {
+        let base = ChatRequest::new("sonar").with_message(Message::user("hi"));
+
+        let mut request = base.clone();
+        request.stop = Some(vec!["END".into()]);
+        assert_unsupported(&request, "stop");
+
+        let mut request = base.clone();
+        request.seed = Some(42);
+        assert_unsupported(&request, "seed");
+
+        let mut request = base.clone();
+        request.logprobs = Some(true);
+        assert_unsupported(&request, "logprobs");
+
+        let mut request = base.clone();
+        request.reasoning_effort = Some("low".into());
+        assert_unsupported(&request, "reasoning_effort");
+
+        let mut request = base.clone();
+        request.response_format = Some(crate::types::ResponseFormat::Json);
+        assert_unsupported(&request, "response_format");
+
+        let mut request = base.clone();
+        request.thinking_mode = crate::types::ThinkingMode::Enabled;
+        assert_unsupported(&request, "thinking");
+
+        let mut request = base.clone();
+        request.tools = Some(vec![serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "emit_x",
+                "parameters": {"type": "object"}
+            }
+        })]);
+        assert_unsupported(&request, "tools");
+
+        let mut request = base.clone();
+        request.tool_choice = Some(serde_json::json!("required"));
+        assert_unsupported(&request, "tool_choice");
+
+        let mut request = base.clone();
+        request.structured_output = Some(crate::capabilities::StructuredOutputConfig {
+            mode: crate::capabilities::StructuredOutputMode::JsonObject,
+            schema: None,
+            schema_name: None,
+            strict: None,
+            schema_subset: None,
+        });
+        assert_unsupported(&request, "structured_output");
+
+        let mut request = base.clone();
+        request.tool_call_config = Some(crate::capabilities::ToolCallConfig {
+            tools: vec![crate::capabilities::ToolDefinition {
+                name: "emit_x".into(),
+                description: None,
+                parameters: serde_json::json!({"type": "object"}),
+                strict: None,
+            }],
+            tool_choice: crate::capabilities::ToolChoice::Auto,
+            parallel_tool_calls: None,
+            streaming_tool_calls: None,
+        });
+        assert_unsupported(&request, "tool_calling");
+
+        let mut request = base.clone();
+        request.openai_responses = Some(crate::capabilities::OpenAIResponsesOptions::default());
+        assert_unsupported(&request, "openai_responses");
+
+        let request = ChatRequest::new("sonar")
+            .with_message(Message::user("hi").with_image_url("https://image.invalid/p.png"));
+        assert_unsupported(&request, "images");
+    }
+
+    #[test]
+    fn test_perplexity_request_surface_preserves_invalid_request_precedence() {
+        let provider = PerplexityProvider::new("test-key");
+        let base = ChatRequest::new("sonar").with_message(Message::user("hi"));
+
+        let mut request = base.clone();
+        request.presence_penalty = Some(-0.1);
+        assert!(matches!(
+            provider.validate_request_surface(&request),
+            Err(NxuskitError::InvalidRequest(_))
+        ));
+
+        let mut request = base.clone();
+        request.stop = Some(vec!["".into()]);
+        assert!(matches!(
+            provider.validate_request_surface(&request),
+            Err(NxuskitError::InvalidRequest(_))
+        ));
+
+        let mut request = base.clone();
+        request.response_format = Some(crate::types::ResponseFormat::JsonSchema {
+            schema: serde_json::json!([]),
+        });
+        assert!(matches!(
+            provider.validate_request_surface(&request),
+            Err(NxuskitError::InvalidRequest(_))
+        ));
+
+        let mut request = base.clone();
+        request.tools = Some(vec![serde_json::json!({
+            "type": "function",
+            "function": {"name": "", "parameters": {}}
+        })]);
+        assert!(matches!(
+            provider.validate_request_surface(&request),
+            Err(NxuskitError::InvalidRequest(_))
+        ));
+
+        let mut request = base.clone();
+        request.structured_output = Some(crate::capabilities::StructuredOutputConfig {
+            mode: crate::capabilities::StructuredOutputMode::JsonSchema,
+            schema: None,
+            schema_name: None,
+            strict: None,
+            schema_subset: None,
+        });
+        assert!(matches!(
+            provider.validate_request_surface(&request),
+            Err(NxuskitError::InvalidRequest(_))
+        ));
+
+        let mut request = base;
+        request.tool_call_config = Some(crate::capabilities::ToolCallConfig {
+            tools: vec![crate::capabilities::ToolDefinition {
+                name: "".into(),
+                description: None,
+                parameters: serde_json::json!({"type": "object"}),
+                strict: None,
+            }],
+            tool_choice: crate::capabilities::ToolChoice::Auto,
+            parallel_tool_calls: None,
+            streaming_tool_calls: None,
+        });
+        assert!(matches!(
+            provider.validate_request_surface(&request),
+            Err(NxuskitError::InvalidRequest(_))
+        ));
+    }
+
+    #[test]
+    fn test_perplexity_supported_request_surface_still_builds() {
+        let provider = PerplexityProvider::new("test-key");
+        let mut request = ChatRequest::new("sonar")
+            .with_message(Message::user("hi"))
+            .with_temperature(0.7)
+            .with_max_tokens(100)
+            .with_top_p(0.9);
+        request.presence_penalty = Some(0.0);
+        request.frequency_penalty = Some(2.0);
+        request.response_format = Some(crate::types::ResponseFormat::Text);
+        request.thinking_mode = crate::types::ThinkingMode::Omit;
+        request.tools = Some(vec![]);
+
+        provider.validate_request_surface(&request).unwrap();
+        let wire = provider.build_request(&request).unwrap();
+        assert_eq!(wire.model, "sonar");
+        assert_eq!(wire.temperature, Some(0.7));
+        assert_eq!(wire.max_tokens, Some(100));
+        assert_eq!(wire.top_p, Some(0.9));
+        assert_eq!(wire.presence_penalty, Some(0.0));
+        assert_eq!(wire.frequency_penalty, Some(2.0));
+    }
+
+    #[tokio::test]
+    async fn test_perplexity_unsupported_stop_rejects_before_http() {
+        let provider = PerplexityProvider::builder()
+            .api_key("test-key")
+            .base_url("http://127.0.0.1:1")
+            .build()
+            .unwrap();
+        let mut request = ChatRequest::new("sonar").with_message(Message::user("hi"));
+        request.stop = Some(vec!["END".into()]);
+
+        assert!(matches!(
+            provider.chat(&request).await,
+            Err(NxuskitError::UnsupportedCapability {
+                ref provider,
+                ref capability,
+            }) if provider == "perplexity" && capability == "stop"
+        ));
+        assert!(matches!(
+            provider.chat_stream(&request).await,
+            Err(NxuskitError::UnsupportedCapability {
+                ref provider,
+                ref capability,
+            }) if provider == "perplexity" && capability == "stop"
+        ));
     }
 
     mod pro_tests {

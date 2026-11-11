@@ -83,14 +83,21 @@ fn test_chat_with_loopback_returns_synthetic_logprobs_when_requested() {
 
     assert_eq!(parsed["content"], "Paris.");
     assert_eq!(parsed["logprobs"]["content"][0]["token"], "Paris");
-    assert_eq!(parsed["logprobs"]["content"][0]["logprob"], -0.01);
+    assert_eq!(
+        parsed["logprobs"]["content"][0]["logprob"]
+            .as_f64()
+            .unwrap() as f32,
+        -0.01_f32
+    );
     assert_eq!(
         parsed["logprobs"]["content"][0]["top_logprobs"][0]["token"],
         "Lyon"
     );
     assert_eq!(
-        parsed["logprobs"]["content"][0]["top_logprobs"][0]["logprob"],
-        -3.2
+        parsed["logprobs"]["content"][0]["top_logprobs"][0]["logprob"]
+            .as_f64()
+            .unwrap() as f32,
+        -3.2_f32
     );
 
     unsafe {

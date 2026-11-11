@@ -14,6 +14,25 @@ class Role(str, Enum):
     SYSTEM = "system"
 
 
+@dataclass(frozen=True)
+class AdapterCapabilities:
+    """Static shipped adapter declarations, NOT model/endpoint-effective support."""
+
+    supports_system_messages: bool
+    supports_streaming: bool
+    supports_vision: bool
+    max_stop_sequences: Optional[int]
+    supports_presence_penalty: bool
+    supports_frequency_penalty: bool
+    supports_seed: bool
+    supports_logprobs: bool
+    supports_streaming_logprobs: bool
+    supports_json_mode: bool
+    supports_json_schema: bool
+    penalty_range: Optional[tuple[float, float]]
+    max_logprobs: Optional[int]
+
+
 class ImageSourceType(str, Enum):
     """Supported image source types."""
 
@@ -220,6 +239,114 @@ class ChatRequest:
         return out
 
 
+def _validate_request_controls(provider, **controls):
+    """Validate supplied facade controls before serialization or transport."""
+    import math
+
+    from nxuskit.errors import ProviderError
+
+    numeric = {
+        "temperature": (0, 2),
+        "top_p": (0, 1),
+        "min_p": (0, 1),
+        "presence_penalty": (-2, 2),
+        "frequency_penalty": (-2, 2),
+    }
+    integers = {
+        "max_tokens": (1, 1048576),
+        "seed": (-(2**63), 2**63 - 1),
+        "top_k": (1, 2147483647),
+        "top_logprobs": (0, 20),
+    }
+    for name, value in controls.items():
+        if value is None:
+            continue
+        valid = True
+        if name in numeric:
+            low, high = numeric[name]
+            valid = type(value) in (int, float) and low <= value <= high and math.isfinite(value)
+        elif name in integers:
+            low, high = integers[name]
+            valid = type(value) is int and low <= value <= high
+        elif name == "logprobs":
+            valid = type(value) is bool
+        elif name == "reasoning_effort":
+            valid = isinstance(value, str) and value in ("low", "medium", "high", "max")
+        elif name == "thinking":
+            valid = isinstance(value, str) and value in ("auto", "enabled", "disabled", "omit")
+        elif name == "stop":
+            values = [value] if isinstance(value, str) else value
+            valid = (
+                isinstance(values, list)
+                and len(values) <= 16
+                and all(isinstance(item, str) and bool(item) for item in values)
+            )
+        if not valid:
+            error = ProviderError(f"invalid request control: {name}", provider=provider)
+            error.code = "invalid_request"
+            raise error
+
+    if provider in ("claude", "fireworks", "lmstudio", "groq", "mistral", "together", "openrouter") and controls.get("stop") is not None:
+        stop = controls["stop"]
+        values = [stop] if isinstance(stop, str) else stop
+        if len(values) > 4:
+            error = ProviderError("invalid request control: stop", provider=provider)
+            error.code = "invalid_request"
+            raise error
+
+    if provider == "perplexity":
+        for name in ("presence_penalty", "frequency_penalty"):
+            value = controls.get(name)
+            if value is not None and value < 0:
+                error = ProviderError(f"invalid request control: {name}", provider=provider)
+                error.code = "invalid_request"
+                raise error
+
+    if provider != "ollama" and any(controls.get(name) is not None for name in ("top_k", "min_p")):
+        error = ProviderError("unsupported top_k/min_p sampling controls", provider=provider)
+        error.code = "unsupported_capability"
+        raise error
+
+    unsupported = {
+        "perplexity": ("seed", "stop"),
+        "xai": ("presence_penalty", "frequency_penalty", "seed"),
+    }.get(provider, ())
+    for name in unsupported:
+        if controls.get(name) is not None:
+            error = ProviderError(f"unsupported request control: {name}", provider=provider)
+            error.code = "unsupported_capability"
+            raise error
+
+
+def _validate_logprob_reasoning_controls(
+    provider, model, temperature, top_p, logprobs, top_logprobs, reasoning_effort
+):
+    """Strict facade boundary; legacy warn-and-drop helper remains separate."""
+    from nxuskit.errors import ProviderError
+
+    if provider not in ("openai", "ollama") and any(
+        value is not None for value in (logprobs, top_logprobs)
+    ):
+        error = ProviderError("unsupported logprob controls", provider=provider)
+        error.code = "unsupported_capability"
+        raise error
+    if provider != "openai" and reasoning_effort is not None:
+        error = ProviderError("unsupported reasoning control", provider=provider)
+        error.code = "unsupported_capability"
+        raise error
+    if (
+        model.lower().startswith("gpt-5.4")
+        and reasoning_effort
+        and reasoning_effort.lower() != "none"
+        and any(value is not None for value in (temperature, top_p, logprobs, top_logprobs))
+    ):
+        error = ProviderError(
+            "unsupported sampling/logprob controls with GPT-5.4 reasoning", provider=provider
+        )
+        error.code = "unsupported_capability"
+        raise error
+
+
 def adapt_gpt54_reasoning_compat(
     request: "ChatRequest",
     reasoning_effort: Optional[str],
@@ -397,6 +524,12 @@ class ChatResponse:
     provider: Optional[str] = None
     warnings: List[str] = field(default_factory=list)
     logprobs: Optional[LogprobsData] = None
+    thinking: Optional[str] = None
+    raw_finish_reason: Optional[str] = None
+    # Caller declaration, not observed execution locality or verified support.
+    declared_profile: Optional[str] = None
+    endpoint_origin: Optional[str] = None
+    provider_metadata: Optional[Dict[str, Any]] = field(default=None, kw_only=True)
 
     @property
     def stop_reason(self) -> Optional[str]:
@@ -437,10 +570,17 @@ class StreamChunk:
     usage: Optional[TokenUsage] = None
     tool_calls: Optional[list] = None
     logprobs: Optional[StreamLogprobsDelta] = None
+    raw_finish_reason: Optional[str] = None
+    declared_profile: Optional[str] = None
+    endpoint_origin: Optional[str] = None
+
+    # Keyword-only preserves every existing positional constructor argument.
+    terminal: bool = field(default=False, kw_only=True)
+    provider_metadata: Optional[Dict[str, Any]] = field(default=None, kw_only=True)
 
     def is_final(self) -> bool:
-        """Check if this is the final chunk (has a finish reason)."""
-        return self.finish_reason is not None
+        """Recognize explicit terminality and older reason-bearing chunks."""
+        return self.terminal or self.finish_reason is not None
 
     def has_thinking(self) -> bool:
         """Check if this chunk contains thinking content."""

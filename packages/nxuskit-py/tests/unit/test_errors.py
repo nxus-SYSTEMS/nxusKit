@@ -73,10 +73,18 @@ class TestRateLimitError:
         assert str(error) == "Rate limit exceeded"
 
     def test_rate_limit_error_with_retry_after(self):
-        """RateLimitError should support retry_after."""
+        """RateLimitError should preserve seconds and expose canonical milliseconds."""
         error = RateLimitError("Rate limited", status_code=429, retry_after=60)
         assert error.status_code == 429
+        assert error.code == "rate_limited"
         assert error.retry_after == 60
+        assert error.retry_after_ms == 60000
+
+    def test_rate_limit_error_from_canonical_milliseconds(self):
+        error = RateLimitError("Rate limited", retry_after_ms=2000)
+        assert error.code == "rate_limited"
+        assert error.retry_after_ms == 2000
+        assert error.retry_after == 2
 
     def test_rate_limit_error_retry_after_optional(self):
         """RateLimitError retry_after should be optional."""

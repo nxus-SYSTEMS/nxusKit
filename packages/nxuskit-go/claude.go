@@ -123,6 +123,9 @@ func (p *ClaudeProvider) ProviderName() string {
 
 // Chat sends a chat completion request to Claude.
 func (p *ClaudeProvider) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
+	if err := validateGenerationControls(req, claudeProviderName); err != nil {
+		return nil, err
+	}
 	claudeReq := buildClaudeRequest(req)
 
 	resp, err := p.client.PostJSON(ctx, "/messages", claudeReq)
@@ -136,8 +139,8 @@ func (p *ClaudeProvider) Chat(ctx context.Context, req *ChatRequest) (*ChatRespo
 	}
 
 	var claudeResp claudeMessagesResponse
-	if err := json.NewDecoder(resp.Body).Decode(&claudeResp); err != nil {
-		return nil, NewProviderError(claudeProviderName, "failed to decode response", 0, err)
+	if err := decodeBoundedProviderResponse(resp, claudeProviderName, "failed to decode response", &claudeResp); err != nil {
+		return nil, err
 	}
 
 	return convertFromClaudeResponse(&claudeResp), nil
@@ -152,6 +155,10 @@ func (p *ClaudeProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 		defer close(chunks)
 		defer close(errs)
 
+		if err := validateGenerationControls(req, claudeProviderName); err != nil {
+			errs <- err
+			return
+		}
 		streamReq := *req
 		streamReq.Stream = true
 		claudeReq := buildClaudeRequest(&streamReq)
@@ -171,6 +178,8 @@ func (p *ClaudeProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 		// Parse Claude SSE stream
 		reader := httputil.NewSSEReader(resp.Body)
 		var currentBlockType string
+		var rawReason *string
+		var usage *TokenUsage
 
 		for {
 			select {
@@ -182,6 +191,7 @@ func (p *ClaudeProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 
 			event, err := reader.Read()
 			if err == io.EOF {
+				errs <- NewStreamError(claudeProviderName, "stream ended before message_stop", io.ErrUnexpectedEOF)
 				return
 			}
 			if err != nil {
@@ -193,9 +203,51 @@ func (p *ClaudeProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 			}
 
 			// Handle Claude-specific events
-			chunk := p.processClaudeStreamEvent(event, &currentBlockType)
+			var envelope claudeStreamEvent
+			if err := json.Unmarshal([]byte(event.Data), &envelope); err != nil || envelope.Type == "" {
+				errs <- NewStreamError(claudeProviderName, "invalid stream envelope", err)
+				return
+			}
+			chunk, err := p.processClaudeStreamEvent(event, envelope.Type, &currentBlockType)
+			if err != nil {
+				errs <- NewStreamError(claudeProviderName, "invalid stream event", err)
+				return
+			}
 			if chunk != nil {
-				chunks <- *chunk
+				if chunk.RawFinishReason != nil {
+					rawReason = chunk.RawFinishReason
+				}
+				if chunk.Usage != nil && chunk.Usage.Actual != nil {
+					if usage == nil {
+						usage = &TokenUsage{Actual: &TokenCount{}}
+					}
+					if envelope.Type == "message_start" {
+						usage.Actual.PromptTokens = chunk.Usage.Actual.PromptTokens
+					}
+					usage.Actual.CompletionTokens = chunk.Usage.Actual.CompletionTokens
+				}
+				if chunk.Terminal {
+					chunk.RawFinishReason = rawReason
+					if rawReason != nil {
+						chunk.FinishReason = convertClaudeStopReason(*rawReason)
+					}
+					if usage != nil {
+						usage.IsComplete = true
+					}
+					chunk.Usage = usage
+				} else {
+					chunk.FinishReason = nil
+					chunk.RawFinishReason = nil
+				}
+				select {
+				case chunks <- *chunk:
+				case <-ctx.Done():
+					errs <- ctx.Err()
+					return
+				}
+				if chunk.Terminal {
+					return
+				}
 			}
 		}
 	}()
@@ -204,26 +256,32 @@ func (p *ClaudeProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 }
 
 // processClaudeStreamEvent processes a single Claude SSE event and returns a StreamChunk if applicable.
-func (p *ClaudeProvider) processClaudeStreamEvent(event *httputil.SSEEvent, currentBlockType *string) *StreamChunk {
-	// Parse the base event type
-	var baseEvent claudeStreamEvent
-	if err := json.Unmarshal([]byte(event.Data), &baseEvent); err != nil {
-		return nil
-	}
-
-	switch baseEvent.Type {
+func (p *ClaudeProvider) processClaudeStreamEvent(event *httputil.SSEEvent, eventType string, currentBlockType *string) (*StreamChunk, error) {
+	switch eventType {
+	case "error":
+		var failure claudeErrorResponse
+		if err := json.Unmarshal([]byte(event.Data), &failure); err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("%s: %s", failure.Error.Type, failure.Error.Message)
+	case "message_start":
+		var start claudeMessageStart
+		if err := json.Unmarshal([]byte(event.Data), &start); err != nil {
+			return nil, err
+		}
+		return &StreamChunk{Usage: &TokenUsage{Actual: &TokenCount{PromptTokens: start.Message.Usage.InputTokens, CompletionTokens: start.Message.Usage.OutputTokens}}}, nil
 	case "content_block_start":
 		var blockStart claudeContentBlockStart
 		if err := json.Unmarshal([]byte(event.Data), &blockStart); err != nil {
-			return nil
+			return nil, err
 		}
 		*currentBlockType = blockStart.ContentBlock.Type
-		return nil
+		return nil, nil
 
 	case "content_block_delta":
 		var delta claudeContentBlockDelta
 		if err := json.Unmarshal([]byte(event.Data), &delta); err != nil {
-			return nil
+			return nil, err
 		}
 
 		chunk := &StreamChunk{}
@@ -233,18 +291,18 @@ func (p *ClaudeProvider) processClaudeStreamEvent(event *httputil.SSEEvent, curr
 		case "thinking_delta":
 			chunk.Thinking = &delta.Delta.Thinking
 		}
-		return chunk
+		return chunk, nil
 
 	case "message_delta":
 		var msgDelta claudeMessageDelta
 		if err := json.Unmarshal([]byte(event.Data), &msgDelta); err != nil {
-			return nil
+			return nil, err
 		}
 
 		chunk := &StreamChunk{}
 		if msgDelta.Delta.StopReason != "" {
-			fr := convertClaudeStopReason(msgDelta.Delta.StopReason)
-			chunk.FinishReason = &fr
+			chunk.RawFinishReason = &msgDelta.Delta.StopReason
+			chunk.FinishReason = convertClaudeStopReason(msgDelta.Delta.StopReason)
 		}
 		if msgDelta.Usage != nil {
 			chunk.Usage = &TokenUsage{
@@ -254,13 +312,13 @@ func (p *ClaudeProvider) processClaudeStreamEvent(event *httputil.SSEEvent, curr
 				IsComplete: true,
 			}
 		}
-		return chunk
+		return chunk, nil
 
 	case "message_stop":
-		return nil
+		return &StreamChunk{Terminal: true}, nil
 	}
 
-	return nil
+	return nil, nil
 }
 
 // ListModels returns available Claude models.
@@ -324,7 +382,10 @@ func (p *ClaudeProvider) wrapError(err error) error {
 
 // handleErrorResponse parses an error response from Claude.
 func (p *ClaudeProvider) handleErrorResponse(resp *http.Response) error {
-	body, _ := io.ReadAll(resp.Body)
+	body, err := httputil.ReadBoundedBody(resp.Body)
+	if err != nil {
+		return claudeHTTPErrorForStatus(resp.StatusCode, err.Error(), claudeProviderName, err)
+	}
 	return parseClaudeErrorResponse(resp.StatusCode, body, claudeProviderName)
 }
 

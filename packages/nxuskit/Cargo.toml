@@ -1,8 +1,8 @@
 [package]
 name = "nxuskit"
-version = "1.0.5"
+version = "2.0.0"
 edition = "2024"
-rust-version = "1.93"
+rust-version = "1.94"
 authors = ["nxusKit Contributors"]
 license = "MIT OR Apache-2.0"
 description = "Ergonomic Rust wrapper over the pre-built nxusKit C ABI SDK"
@@ -15,8 +15,12 @@ serde_json = "1.0"
 thiserror = "2.0"
 tokio = { version = "1.49", features = ["sync", "rt"] }
 futures-core = "0.3"
-async-trait = "0.1"
+async-trait = "=0.1.92"
 semver = "1.0"
+# v1.1.0 contract canonical hashing (research.md §4). Already a workspace
+# dependency across nxuskit-engine / nxuskit-core / nxuskit-cli; pinned here
+# because `packages/nxuskit` is workspace-excluded.
+sha2 = "0.10"
 
 # Optional: runtime dynamic library loading (default)
 libloading = { version = "0.9", optional = true }
@@ -32,6 +36,10 @@ tokio-test = "0.4"
 
 [[bench]]
 name = "logprobs_serialization"
+harness = false
+
+[[bench]]
+name = "ce_tool_facade"
 harness = false
 
 [lints.rust]

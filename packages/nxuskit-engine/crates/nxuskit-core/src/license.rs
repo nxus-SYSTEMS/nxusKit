@@ -4,12 +4,14 @@
 //! token resolution from multiple sources, and structured logging.
 
 use crate::license_types::{
-    TokenClaims, TokenResolution, TokenSourceKind, TokenType, ValidatedClaims, VersionCeiling,
-    current_unix_timestamp,
+    DeploymentV2Metadata, TokenClaims, TokenResolution, TokenSourceKind, TokenType,
+    ValidatedClaims, VersionCeiling, current_unix_timestamp,
 };
 use crate::license_types::{TokenVerifier, VerifyError};
 use crate::machine_id;
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 
@@ -36,6 +38,21 @@ const LICENSE_ENVIRONMENT: &str = env!("NXUSKIT_LICENSE_ENVIRONMENT_DEFAULT");
 /// Current SDK version (from workspace Cargo.toml).
 const SDK_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// PII-free facts derived from a validated v2 deployment token.
+///
+/// This deliberately contains no compact JWT, subject identifier, key material,
+/// or mutable entitlement input. The Licensing client remains the owner of the
+/// serialized `DeploymentClaimsV2` shape and signature verification.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct DeploymentTokenInspection {
+    pub sdk_release_line: u32,
+    pub edition: String,
+    pub grant_revision: u32,
+    pub authorization_scope: String,
+    pub signing_key_id: String,
+    pub token_fingerprint: String,
+}
+
 /// RSA-3072 public key for license token verification (RS384).
 /// Kept for reference during the RS384 -> ES256 migration. Will be removed
 /// once all token issuance has been migrated to ES256.
@@ -58,19 +75,11 @@ mod embedded_license_key {
     include!(concat!(env!("OUT_DIR"), "/license_key_generated.rs"));
 }
 
-/// Embedded ES256 (EC P-256) public key for license token verification.
-///
-/// Release builds require the production key from the release-managed key
-/// artifact. Debug/test builds use the same key when that artifact is present
-/// and fall back to a deterministic dev/test key only when the production
-/// artifact is unavailable.
-const ES256_PUBLIC_KEY_PEM: &str = embedded_license_key::ES256_PUBLIC_KEY_PEM;
+/// Embedded exact-`kid` production verifier bundle.
+const ES256_PUBLIC_KEY_BUNDLE: &[(&str, &str)] = embedded_license_key::ES256_PUBLIC_KEY_BUNDLE;
 
-/// Source path or fallback label for the embedded ES256 public key.
+/// Source path of the immutable embedded verifier-bundle manifest.
 pub const ES256_PUBLIC_KEY_SOURCE: &str = embedded_license_key::ES256_PUBLIC_KEY_SOURCE;
-
-/// Expected key id for the production ES256 key.
-pub const ES256_PUBLIC_KEY_KID: &str = embedded_license_key::ES256_PUBLIC_KEY_KID;
 
 // ── Global Verifier ─────────────────────────────────────────────────
 
@@ -79,13 +88,11 @@ static TOKEN_VERIFIER: OnceLock<Arc<dyn TokenVerifier>> = OnceLock::new();
 
 /// Get the active token verifier.
 ///
-/// When the external licensing feature is enabled, uses `ExternalClientVerifier`
-/// (wrapping `external licensing client::TokenValidator`). Otherwise falls back
-/// to `StubTokenVerifier` (local ES256 verification).
+/// All native paths use the same immutable additive exact-`kid` bundle
+/// through `StubTokenVerifier`; no native path selects a first key.
 pub fn get_verifier() -> Arc<dyn TokenVerifier> {
     // In test builds, ensure NXUS_SIGNING_KEY_PATH is set to the test key
-    // BEFORE the OnceLock initializes the verifier. This is critical when
-    // the external licensing feature is enabled.
+    // before the OnceLock initializes the verifier.
     #[cfg(test)]
     {
         use std::sync::Once;
@@ -107,20 +114,57 @@ pub fn get_verifier() -> Arc<dyn TokenVerifier> {
     }
 
     TOKEN_VERIFIER
-        .get_or_init(|| Arc::new(StubTokenVerifier::new()))
+        .get_or_init(|| {
+            bundle_or_fail_closed_verifier()
+        })
         .clone()
+}
+
+fn bundle_or_fail_closed_verifier() -> Arc<dyn TokenVerifier> {
+    match StubTokenVerifier::try_new() {
+        Ok(verifier) => Arc::new(verifier),
+        Err(error) => {
+            log::error!("immutable exact-kid verifier bundle could not initialize: {error}");
+            Arc::new(FailClosedVerifier {
+                message: error.to_string(),
+            })
+        }
+    }
 }
 
 // ── StubTokenVerifier ───────────────────────────────────────────────
 
-/// ES256 token verifier using jsonwebtoken crate directly.
+/// A named in-memory ES256 public key used by the native bundle verifier.
 ///
-/// This is the stub implementation used during development.
-/// Will be replaced by `ExternalClientVerifier` wrapping `external licensing client`
-/// when that crate is available.
+/// The production runtime receives these only from the immutable generated
+/// verifier-bundle. The type is public so debug/test consumers can exercise
+/// additive rotation without filesystem key discovery.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NamedPemKey {
+    pub kid: String,
+    pub pem: Vec<u8>,
+}
+
+struct NamedDecodingKey {
+    kid: String,
+    decoding_key: DecodingKey,
+}
+
+/// ES256 token verifier using the immutable additive exact-`kid` bundle.
+///
+/// It remains available in no-default-features configurations and as the
+/// compatibility fallback for legacy token kinds the Licensing client does
+/// not yet model. It never chooses a first bundle entry or a release fallback
+/// key: a nonblank `kid` selects one exact named key. Legacy tokens without a
+/// key id may be verified against the full immutable bundle; deployment tokens
+/// then fail the strict DeploymentClaimsV2 key-id check before entitlement.
 pub struct StubTokenVerifier {
     #[allow(missing_debug_implementations)]
-    decoding_key: DecodingKey,
+    decoding_keys: Vec<NamedDecodingKey>,
+    /// Deliberate deterministic injection for existing debug/test callers.
+    /// This field and its constructor are absent from release builds.
+    #[cfg(debug_assertions)]
+    debug_test_override_key: Option<DecodingKey>,
 }
 
 impl std::fmt::Debug for StubTokenVerifier {
@@ -138,52 +182,117 @@ impl Default for StubTokenVerifier {
 }
 
 impl StubTokenVerifier {
-    /// Create a new StubTokenVerifier.
-    ///
-    /// Key resolution order:
-    /// 1. `NXUS_SIGNING_KEY_PATH` env var — reads PEM file from that path
-    /// 2. Embedded ES256 public key constant
+    /// Create the default native verifier from the immutable exact-`kid`
+    /// bundle. Invalid built-in bundle material is a build/input defect and
+    /// therefore panics only for this explicit direct-construction API; the
+    /// process-global runtime uses `try_new` and fails closed instead.
     pub fn new() -> Self {
-        let key_pem = Self::load_key_pem();
-        let decoding_key = DecodingKey::from_ec_pem(key_pem.as_bytes())
-            .expect("ES256 public key PEM must be valid");
-        Self { decoding_key }
+        Self::try_new().expect("immutable ES256 verifier bundle must be valid")
     }
 
-    /// Create a StubTokenVerifier with an explicit PEM public key.
-    pub fn with_public_key(pem: &str) -> Self {
-        let decoding_key =
-            DecodingKey::from_ec_pem(pem.as_bytes()).expect("ES256 public key PEM must be valid");
-        Self { decoding_key }
-    }
-
-    /// Load the public key PEM string from env override or embedded constant.
+    /// Construct a native verifier from an additive exact-`kid` PEM bundle.
     ///
-    /// Security hardening: `NXUS_SIGNING_KEY_PATH` override is only available
-    /// in debug builds. Release builds always use the embedded production key.
-    fn load_key_pem() -> String {
-        // Check env var override — debug/test builds only
+    /// Empty, blank, duplicate, and malformed entries fail before any token is
+    /// processed. This makes incorrect key rotation inputs fail closed rather
+    /// than selecting a default key.
+    pub fn from_named_pem_bundle(entries: Vec<NamedPemKey>) -> Result<Self, VerifyError> {
+        if entries.is_empty() {
+            return Err(VerifyError::KeyError(
+                "exact-kid verifier bundle must contain at least one key".to_string(),
+            ));
+        }
+
+        let mut kids = HashSet::with_capacity(entries.len());
+        let mut decoding_keys = Vec::with_capacity(entries.len());
+        for entry in entries {
+            let kid = entry.kid.trim();
+            if kid.is_empty() {
+                return Err(VerifyError::KeyError(
+                    "exact-kid verifier bundle contains a blank key id".to_string(),
+                ));
+            }
+            if !kids.insert(kid.to_string()) {
+                return Err(VerifyError::KeyError(format!(
+                    "exact-kid verifier bundle contains duplicate key id '{kid}'"
+                )));
+            }
+            let decoding_key = DecodingKey::from_ec_pem(&entry.pem).map_err(|error| {
+                VerifyError::KeyError(format!(
+                    "exact-kid verifier bundle contains malformed PEM for '{kid}': {error}"
+                ))
+            })?;
+            decoding_keys.push(NamedDecodingKey {
+                kid: kid.to_string(),
+                decoding_key,
+            });
+        }
+
+        Ok(Self {
+            decoding_keys,
+            #[cfg(debug_assertions)]
+            debug_test_override_key: None,
+        })
+    }
+
+    /// Build the native verifier from the immutable bundle or the narrowly
+    /// compiled debug-only deterministic injection. Release builds have no
+    /// runtime override and always consume every generated bundle entry.
+    pub fn try_new() -> Result<Self, VerifyError> {
+        Self::from_named_pem_bundle(Self::runtime_named_pem_bundle()?)
+    }
+
+    /// Create a debug/test verifier with an explicit PEM public key.
+    ///
+    /// This exists only in debug builds for legacy test fixtures that predate
+    /// exact `kid` claims. It is not a production construction route and is
+    /// intentionally unavailable in release artifacts.
+    #[cfg(debug_assertions)]
+    pub fn with_public_key(pem: &str) -> Self {
+        let decoding_key = DecodingKey::from_ec_pem(pem.as_bytes())
+            .expect("debug/test ES256 public key PEM must be valid");
+        Self {
+            decoding_keys: Vec::new(),
+            debug_test_override_key: Some(decoding_key),
+        }
+    }
+
+    fn runtime_named_pem_bundle() -> Result<Vec<NamedPemKey>, VerifyError> {
         #[cfg(debug_assertions)]
         if let Ok(key_path) = std::env::var("NXUS_SIGNING_KEY_PATH") {
             let key_path = key_path.trim();
             if !key_path.is_empty() {
-                match std::fs::read_to_string(key_path) {
-                    Ok(pem) => {
-                        log::info!("Using signing key from NXUS_SIGNING_KEY_PATH: {key_path}");
-                        return pem;
-                    }
-                    Err(e) => {
-                        log::warn!(
-                            "Failed to read NXUS_SIGNING_KEY_PATH={key_path}: {e}. \
-                             Falling back to embedded key."
-                        );
-                    }
+                let pem = std::fs::read(key_path).map_err(|error| {
+                    VerifyError::KeyError(format!(
+                        "debug verifier key override could not be read: {error}"
+                    ))
+                })?;
+                let mut entries = ES256_PUBLIC_KEY_BUNDLE
+                    .iter()
+                    .map(|(kid, _)| NamedPemKey {
+                        kid: (*kid).to_string(),
+                        pem: pem.clone(),
+                    })
+                    .collect::<Vec<_>>();
+                // Debug fixtures signed before opaque full KMS kids used this
+                // deterministic alias. It is never compiled into a release
+                // override and remains additive to every production bundle kid.
+                if !entries.iter().any(|entry| entry.kid == "es256-v1") {
+                    entries.push(NamedPemKey {
+                        kid: "es256-v1".to_string(),
+                        pem,
+                    });
                 }
+                return Ok(entries);
             }
         }
 
-        // Fall back to embedded key
-        ES256_PUBLIC_KEY_PEM.to_string()
+        Ok(ES256_PUBLIC_KEY_BUNDLE
+            .iter()
+            .map(|(kid, pem)| NamedPemKey {
+                kid: (*kid).to_string(),
+                pem: pem.as_bytes().to_vec(),
+            })
+            .collect())
     }
 }
 
@@ -208,33 +317,100 @@ impl TokenVerifier for StubTokenVerifier {
 
         let mut validation = Validation::new(Algorithm::ES256);
         validation.set_issuer(&[EXPECTED_ISSUER]);
+        // DeploymentClaimsV2 owns its exact string audience contract. Disable
+        // jsonwebtoken's generic audience handling here so the signed payload
+        // can be checked against that exact schema below in both native and
+        // client-free configurations.
+        validation.validate_aud = false;
         // We handle expiry ourselves for more specific error messages
         validation.validate_exp = false;
         validation.validate_nbf = false;
         // Require these claims to be present
         validation.set_required_spec_claims(&["iss", "iat"]);
 
-        let token_data =
-            jsonwebtoken::decode::<ValidatedClaims>(jwt_str, &self.decoding_key, &validation)
-                .map_err(|e| match e.kind() {
+        #[cfg(debug_assertions)]
+        if let Some(decoding_key) = self.debug_test_override_key.as_ref() {
+            return self.decode_with_keys(jwt_str, &validation, std::iter::once(decoding_key));
+        }
+
+        let selected_keys: Vec<&DecodingKey> = match header.kid.as_deref().map(str::trim) {
+            Some(kid) if !kid.is_empty() => {
+                let key = self
+                    .decoding_keys
+                    .iter()
+                    .find(|entry| entry.kid == kid)
+                    .ok_or_else(|| {
+                        VerifyError::KeyError(format!(
+                            "No immutable verifier key found for kid '{kid}'"
+                        ))
+                    })?;
+                vec![&key.decoding_key]
+            }
+            // Preserve validation of legacy non-deployment families that were
+            // issued without a key id, while restricting them to immutable
+            // bundle keys. A strict v2 deployment token still fails later on
+            // the missing/blank key-id contract check.
+            _ => self
+                .decoding_keys
+                .iter()
+                .map(|entry| &entry.decoding_key)
+                .collect(),
+        };
+
+        self.decode_with_keys(jwt_str, &validation, selected_keys.into_iter())
+    }
+
+    fn name(&self) -> &str {
+        "StubTokenVerifier"
+    }
+}
+
+impl StubTokenVerifier {
+    fn decode_with_keys<'a>(
+        &self,
+        jwt_str: &str,
+        validation: &Validation,
+        decoding_keys: impl Iterator<Item = &'a DecodingKey>,
+    ) -> Result<ValidatedClaims, VerifyError> {
+        let mut saw_invalid_signature = false;
+        for decoding_key in decoding_keys {
+            match jsonwebtoken::decode::<ValidatedClaims>(jwt_str, decoding_key, validation) {
+                Ok(token_data) => return self.validate_product_id(jwt_str, token_data.claims),
+                Err(error) => match error.kind() {
                     jsonwebtoken::errors::ErrorKind::InvalidSignature => {
-                        VerifyError::InvalidSignature {
-                            details: "ES256 signature verification failed".to_string(),
-                        }
+                        saw_invalid_signature = true;
                     }
                     jsonwebtoken::errors::ErrorKind::InvalidAlgorithm => {
-                        VerifyError::InvalidSignature {
+                        return Err(VerifyError::InvalidSignature {
                             details: "Expected ES256 algorithm. Token uses a different algorithm. \
                                  Please upgrade your license token."
                                 .to_string(),
-                        }
+                        });
                     }
-                    jsonwebtoken::errors::ErrorKind::InvalidIssuer => VerifyError::InvalidIssuer,
-                    _ => VerifyError::ValidationFailed(e.to_string()),
-                })?;
+                    jsonwebtoken::errors::ErrorKind::InvalidIssuer => {
+                        return Err(VerifyError::InvalidIssuer);
+                    }
+                    _ => return Err(VerifyError::ValidationFailed(error.to_string())),
+                },
+            }
+        }
 
-        let claims = token_data.claims;
+        if saw_invalid_signature {
+            Err(VerifyError::InvalidSignature {
+                details: "ES256 signature verification failed".to_string(),
+            })
+        } else {
+            Err(VerifyError::KeyError(
+                "immutable exact-kid verifier bundle contained no usable key".to_string(),
+            ))
+        }
+    }
 
+    fn validate_product_id(
+        &self,
+        jwt_str: &str,
+        mut claims: ValidatedClaims,
+    ) -> Result<ValidatedClaims, VerifyError> {
         // Validate product_id if present
         if claims.product_id != "nxuskit" {
             return Err(VerifyError::InvalidProductId {
@@ -243,11 +419,137 @@ impl TokenVerifier for StubTokenVerifier {
             });
         }
 
+        if claims.token_type == TokenType::Deployment {
+            claims.deployment_v2 = Some(native_deployment_v2_metadata(jwt_str)?);
+        }
+
         Ok(claims)
+    }
+}
+
+/// Strict local projection of Licensing-owned DeploymentClaimsV2.
+///
+/// The payload is decoded only after ES256 signature verification has
+/// succeeded. Keeping this native projection separate from `ValidatedClaims`
+/// lets no-default-features artifacts consume the frozen flat schema without
+/// inventing a legacy deployment fallback.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NativeDeploymentClaimsV2 {
+    iss: String,
+    aud: String,
+    sub: String,
+    jti: String,
+    #[allow(dead_code)] // required by the frozen schema; JWT decoding checks its integer shape.
+    iat: i64,
+    #[serde(rename = "type")]
+    token_type: TokenType,
+    product_id: String,
+    edition: String,
+    grant_id: String,
+    grant_revision: u32,
+    purpose: String,
+    target_id: String,
+    policy_hash: String,
+    sdk_release_line: u32,
+    authorization_scope: String,
+    #[serde(default)]
+    production_rider_id: Option<String>,
+    #[serde(default)]
+    capability_grants: Vec<String>,
+    #[serde(default)]
+    capability_denials: Vec<String>,
+    #[serde(default)]
+    limits_override: std::collections::HashMap<String, serde_json::Value>,
+}
+
+fn native_deployment_v2_metadata(jwt_str: &str) -> Result<DeploymentV2Metadata, VerifyError> {
+    let payload = jwt_str
+        .split('.')
+        .nth(1)
+        .ok_or_else(|| VerifyError::MalformedToken {
+            details: "JWT must contain a payload segment".to_string(),
+        })?;
+    let payload = URL_SAFE_NO_PAD
+        .decode(payload)
+        .map_err(|error| VerifyError::MalformedToken {
+            details: error.to_string(),
+        })?;
+    let claims: NativeDeploymentClaimsV2 = serde_json::from_slice(&payload).map_err(|_| {
+        VerifyError::ValidationFailed(
+            "deployment tokens require strict DeploymentClaimsV2".to_string(),
+        )
+    })?;
+
+    let is_nonempty =
+        |value: &str, max_len: usize| !value.trim().is_empty() && value.len() <= max_len;
+    let valid_scope = match claims.authorization_scope.as_str() {
+        "nfr" | "client_entitlement" => claims.production_rider_id.is_none(),
+        "named_production_rider" => claims
+            .production_rider_id
+            .as_deref()
+            .is_some_and(|rider| is_nonempty(rider, 128)),
+        _ => false,
+    };
+    let valid_policy_hash = claims.policy_hash.len() == 71
+        && claims.policy_hash.starts_with("sha256:")
+        && claims.policy_hash[7..]
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase());
+    let valid_capabilities = |capabilities: &[String]| {
+        capabilities
+            .iter()
+            .all(|capability| !capability.trim().is_empty())
+            && capabilities.iter().collect::<HashSet<_>>().len() == capabilities.len()
+    };
+    if claims.iss != EXPECTED_ISSUER
+        || claims.aud != "nxuskit-deployment-runtime"
+        || claims.token_type != TokenType::Deployment
+        || claims.product_id != "nxuskit"
+        || !is_nonempty(&claims.sub, 128)
+        || claims.sub.contains('@')
+        || uuid::Uuid::parse_str(&claims.jti).is_err()
+        || !is_nonempty(&claims.edition, 64)
+        || !is_nonempty(&claims.grant_id, 128)
+        || claims.grant_id.contains('@')
+        || claims.grant_revision < 1
+        || !is_nonempty(&claims.purpose, 64)
+        || !is_nonempty(&claims.target_id, 128)
+        || !valid_policy_hash
+        || claims.sdk_release_line < 2
+        || !valid_scope
+        || !valid_capabilities(&claims.capability_grants)
+        || !valid_capabilities(&claims.capability_denials)
+    {
+        return Err(VerifyError::ValidationFailed(
+            "deployment tokens require strict DeploymentClaimsV2".to_string(),
+        ));
+    }
+
+    Ok(DeploymentV2Metadata {
+        sdk_release_line: claims.sdk_release_line,
+        grant_revision: claims.grant_revision,
+        authorization_scope: claims.authorization_scope,
+        capability_grants: claims.capability_grants,
+        capability_denials: claims.capability_denials,
+        limits_override: claims.limits_override,
+    })
+}
+
+/// Verifier used only when the immutable bundle cannot be constructed. It
+/// preserves a process-wide fail-closed result without selecting a fallback
+/// PEM or silently accepting a token.
+struct FailClosedVerifier {
+    message: String,
+}
+
+impl TokenVerifier for FailClosedVerifier {
+    fn verify(&self, _: &str) -> Result<ValidatedClaims, VerifyError> {
+        Err(VerifyError::KeyError(self.message.clone()))
     }
 
     fn name(&self) -> &str {
-        "StubTokenVerifier"
+        "FailClosedVerifier"
     }
 }
 
@@ -273,12 +575,32 @@ pub fn reset_expiry_warning() {
 /// 4. Product ID validation ("nxuskit")
 /// 5. Claim parsing into `TokenClaims`
 ///
-/// Does NOT perform business-rule checks (expiry, machine binding, version ceiling).
-/// Use `validate_token_full` for complete validation.
+/// Does NOT perform business-rule checks for non-deployment token families
+/// (expiry, machine binding, trial activation). Deployment tokens always take
+/// the strict v2 full-validation path so legacy claims cannot bypass it.
+/// Use `validate_token_full` for complete validation of every token family.
 pub fn validate_token(jwt_str: &str) -> Result<TokenClaims, LicenseError> {
     let verifier = get_verifier();
     let validated = verify_validated_claims(jwt_str, verifier.as_ref())?;
+    if validated.token_type == TokenType::Deployment {
+        let deployment_v2 = deployment_inspection_from_validated_claims(jwt_str, &validated)?;
+        return validate_validated_claims_full(validated, Some(deployment_v2))
+            .map(|full| full.claims);
+    }
     Ok(validated.to_token_claims())
+}
+
+/// Return whether `sdk_version` belongs to the token's numeric SDK release line.
+///
+/// Only a well-formed `major.minor.patch` version is accepted. A malformed
+/// version is never treated as compatible.
+pub fn allows_sdk_version(sdk_version: &str, release_line: u32) -> bool {
+    let mut components = sdk_version.split('.');
+    let major = components.next().and_then(|part| part.parse::<u32>().ok());
+    let minor = components.next().and_then(|part| part.parse::<u32>().ok());
+    let patch = components.next().and_then(|part| part.parse::<u32>().ok());
+
+    major == Some(release_line) && minor.is_some() && patch.is_some() && components.next().is_none()
 }
 
 fn verify_validated_claims(
@@ -334,9 +656,91 @@ pub fn validate_token_full_with_verifier_and_environment(
     verifier: &dyn TokenVerifier,
     expected_environment: &str,
 ) -> Result<ValidatedToken, LicenseError> {
+    validate_token_full_with_verifier_environment_and_fingerprint(
+        jwt_str,
+        verifier,
+        expected_environment,
+        machine_id::get_machine_fingerprint,
+    )
+}
+
+fn validate_token_full_with_verifier_environment_and_fingerprint<F>(
+    jwt_str: &str,
+    verifier: &dyn TokenVerifier,
+    expected_environment: &str,
+    get_machine_fingerprint: F,
+) -> Result<ValidatedToken, LicenseError>
+where
+    F: FnOnce() -> Result<String, machine_id::MachineIdError>,
+{
     let validated = verify_validated_claims(jwt_str, verifier)?;
+    let deployment_v2 = if validated.token_type == TokenType::Deployment {
+        Some(deployment_inspection_from_validated_claims(
+            jwt_str, &validated,
+        )?)
+    } else {
+        None
+    };
     validate_claim_environment(&validated, expected_environment)?;
-    validate_token_claims_full(validated.to_token_claims())
+    validate_validated_claims_full_with_fingerprint(
+        validated,
+        deployment_v2,
+        get_machine_fingerprint,
+    )
+}
+
+/// Derive display-safe v2 facts only after the configured verifier has
+/// returned the Licensing-owned metadata. The unverified JWT marker selects
+/// this stricter path; it never contributes entitlement data.
+fn deployment_inspection_from_validated_claims(
+    jwt_str: &str,
+    validated: &ValidatedClaims,
+) -> Result<DeploymentTokenInspection, LicenseError> {
+    if validated.token_type != TokenType::Deployment
+        || validated.exp.is_some()
+        || validated.nbf.is_some()
+        || validated.machine_id.is_some()
+        || validated.customer_email.is_some()
+        || validated.sdk_version_ceiling.is_some()
+    {
+        return Err(LicenseError::InvalidDeploymentClaims);
+    }
+    let metadata = validated
+        .deployment_v2
+        .as_ref()
+        .ok_or(LicenseError::InvalidDeploymentClaims)?;
+    if metadata.sdk_release_line < 2
+        || metadata.grant_revision < 1
+        || !matches!(
+            metadata.authorization_scope.as_str(),
+            "nfr" | "client_entitlement" | "named_production_rider"
+        )
+    {
+        return Err(LicenseError::InvalidDeploymentClaims);
+    }
+    let header =
+        jsonwebtoken::decode_header(jwt_str).map_err(|error| LicenseError::MalformedToken {
+            details: error.to_string(),
+        })?;
+    if header.alg != Algorithm::ES256 {
+        return Err(LicenseError::InvalidAlgorithm(
+            "v2 deployment tokens require ES256".to_string(),
+        ));
+    }
+    let signing_key_id = header
+        .kid
+        .filter(|kid| !kid.trim().is_empty())
+        .ok_or(LicenseError::MissingDeploymentKeyId)?;
+
+    use sha2::Digest;
+    Ok(DeploymentTokenInspection {
+        sdk_release_line: metadata.sdk_release_line,
+        edition: validated.edition.clone(),
+        grant_revision: metadata.grant_revision,
+        authorization_scope: metadata.authorization_scope.clone(),
+        signing_key_id,
+        token_fingerprint: format!("sha256:{:x}", sha2::Sha256::digest(jwt_str.as_bytes())),
+    })
 }
 
 fn validate_claim_environment(
@@ -366,7 +770,36 @@ fn environments_match(expected: &str, actual: &str) -> bool {
         || (expected == "test" && matches!(actual.as_str(), "development" | "dev"))
 }
 
-fn validate_token_claims_full(claims: TokenClaims) -> Result<ValidatedToken, LicenseError> {
+fn validate_validated_claims_full(
+    validated: ValidatedClaims,
+    deployment_v2: Option<DeploymentTokenInspection>,
+) -> Result<ValidatedToken, LicenseError> {
+    validate_validated_claims_full_with_fingerprint(
+        validated,
+        deployment_v2,
+        machine_id::get_machine_fingerprint,
+    )
+}
+
+fn validate_validated_claims_full_with_fingerprint<F>(
+    validated: ValidatedClaims,
+    deployment_v2: Option<DeploymentTokenInspection>,
+    get_machine_fingerprint: F,
+) -> Result<ValidatedToken, LicenseError>
+where
+    F: FnOnce() -> Result<String, machine_id::MachineIdError>,
+{
+    let deployment_v2_policy = validated.deployment_v2.clone();
+    if let Some(deployment_v2) = validated.deployment_v2.as_ref()
+        && !allows_sdk_version(SDK_VERSION, deployment_v2.sdk_release_line)
+    {
+        return Err(LicenseError::IncompatibleReleaseLine {
+            token_release_line: deployment_v2.sdk_release_line,
+            sdk_version: SDK_VERSION.to_string(),
+        });
+    }
+
+    let claims = validated.to_token_claims();
     let now = current_unix_timestamp();
 
     // Check expiry
@@ -387,7 +820,7 @@ fn validate_token_claims_full(claims: TokenClaims) -> Result<ValidatedToken, Lic
         TokenType::Trial | TokenType::Developer | TokenType::RealPurchase | TokenType::Leased
     ) && let Some(ref token_machine_id) = claims.machine_id
     {
-        match machine_id::get_machine_fingerprint() {
+        match get_machine_fingerprint() {
             Ok(local_machine_id) => {
                 if token_machine_id != &local_machine_id {
                     return Err(LicenseError::MachineMismatch {
@@ -396,9 +829,11 @@ fn validate_token_claims_full(claims: TokenClaims) -> Result<ValidatedToken, Lic
                     });
                 }
             }
-            Err(e) => {
-                log::warn!("Could not verify machine binding: {e}");
-                // Continue — we don't block on machine ID failure
+            Err(_) => {
+                log::warn!("Could not verify machine binding: machine fingerprint unavailable");
+                return Err(LicenseError::ValidationFailed(
+                    "machine fingerprint unavailable".to_string(),
+                ));
             }
         }
     }
@@ -427,6 +862,8 @@ fn validate_token_claims_full(claims: TokenClaims) -> Result<ValidatedToken, Lic
     Ok(ValidatedToken {
         claims,
         source: TokenSourceKind::None, // Set by caller
+        deployment_v2,
+        deployment_v2_policy,
     })
 }
 
@@ -435,6 +872,11 @@ fn validate_token_claims_full(claims: TokenClaims) -> Result<ValidatedToken, Lic
 pub struct ValidatedToken {
     pub claims: TokenClaims,
     pub source: TokenSourceKind,
+    /// PII-free inspection facts for a fully validated v2 deployment token.
+    pub deployment_v2: Option<DeploymentTokenInspection>,
+    /// Fully validated policy facts used only by internal runtime entitlement
+    /// and limit enforcement.
+    pub deployment_v2_policy: Option<DeploymentV2Metadata>,
 }
 
 // ── Token Resolution ─────────────────────────────────────────────────
@@ -518,6 +960,7 @@ pub fn resolve_token(explicit_key: Option<&str>) -> TokenResolution {
         source: TokenSourceKind::None,
         raw_token: None,
         claims: None,
+        deployment_v2: None,
         valid: false,
         error: None,
     }
@@ -533,6 +976,7 @@ fn resolve_from_source(raw_token: String, source: TokenSourceKind) -> TokenResol
                 source,
                 raw_token: Some(raw_token),
                 claims: Some(validated.claims),
+                deployment_v2: validated.deployment_v2_policy,
                 valid: true,
                 error: None,
             }
@@ -543,6 +987,7 @@ fn resolve_from_source(raw_token: String, source: TokenSourceKind) -> TokenResol
                 source,
                 raw_token: Some(raw_token),
                 claims: None,
+                deployment_v2: None,
                 valid: false,
                 error: Some(e.to_string()),
             }
@@ -817,19 +1262,15 @@ pub fn default_license_environment() -> &'static str {
     LICENSE_ENVIRONMENT
 }
 
-/// Embedded ES256 public key PEM.
-pub fn embedded_es256_public_key_pem() -> &'static str {
-    ES256_PUBLIC_KEY_PEM
-}
-
 /// Embedded ES256 public key source path or fallback label.
 pub fn embedded_es256_public_key_source() -> &'static str {
     ES256_PUBLIC_KEY_SOURCE
 }
 
-/// Embedded ES256 public key id.
-pub fn embedded_es256_public_key_kid() -> &'static str {
-    ES256_PUBLIC_KEY_KID
+/// Embedded exact-key verifier bundle used by the default runtime.
+#[doc(hidden)]
+pub fn embedded_es256_public_key_bundle() -> &'static [(&'static str, &'static str)] {
+    ES256_PUBLIC_KEY_BUNDLE
 }
 
 /// Explicitly refresh the cached license token through the licensing API.
@@ -933,6 +1374,7 @@ where
         source: TokenSourceKind::TokenFile,
         raw_token: Some(refreshed_token),
         claims: Some(validated.claims),
+        deployment_v2: validated.deployment_v2_policy,
         valid: true,
         error: None,
     })
@@ -1504,6 +1946,15 @@ pub enum LicenseError {
         ceiling: String,
         sdk_version: String,
     },
+    /// A v2 deployment token belongs to another SDK major release line.
+    IncompatibleReleaseLine {
+        token_release_line: u32,
+        sdk_version: String,
+    },
+    /// A v2 deployment token omitted its exact signing-key identifier.
+    MissingDeploymentKeyId,
+    /// A v2 deployment token violated the frozen claims/privacy contract.
+    InvalidDeploymentClaims,
     /// RSA public key error.
     KeyError(String),
     /// General validation failure.
@@ -1564,6 +2015,23 @@ impl std::fmt::Display for LicenseError {
                 "Deployment token covers up to v{ceiling}.x. \
                  Current SDK is v{sdk_version}. Update your deployment token."
             ),
+            LicenseError::IncompatibleReleaseLine {
+                token_release_line,
+                sdk_version,
+            } => write!(
+                f,
+                "Deployment token is for SDK release line {token_release_line}; \
+                 current SDK is v{sdk_version}."
+            ),
+            LicenseError::MissingDeploymentKeyId => {
+                write!(f, "v2 deployment token is missing an exact signing key id")
+            }
+            LicenseError::InvalidDeploymentClaims => {
+                write!(
+                    f,
+                    "v2 deployment token does not satisfy the accepted claims contract"
+                )
+            }
             LicenseError::KeyError(msg) => write!(f, "Public key error: {msg}"),
             LicenseError::ValidationFailed(msg) => write!(f, "Token validation failed: {msg}"),
             LicenseError::StorageError(msg) => write!(f, "Token storage error: {msg}"),
@@ -1596,6 +2064,9 @@ impl LicenseError {
             LicenseError::TrialSuspended => "trial_suspended",
             LicenseError::MachineMismatch { .. } => "machine_id_mismatch",
             LicenseError::VersionCeilingExceeded { .. } => "version_ceiling_exceeded",
+            LicenseError::IncompatibleReleaseLine { .. } => "incompatible_release_line",
+            LicenseError::MissingDeploymentKeyId => "missing_deployment_key_id",
+            LicenseError::InvalidDeploymentClaims => "invalid_deployment_claims",
             LicenseError::KeyError(_) => "key_error",
             LicenseError::ValidationFailed(_) => "validation_failed",
             LicenseError::StorageError(_) => "storage_error",
@@ -1613,10 +2084,9 @@ impl LicenseError {
 mod tests {
     use super::*;
 
-    // Ensure NXUS_SIGNING_KEY_PATH points to the test key BEFORE any test
-    // calls get_verifier(). This is critical when the `licensing-client`
-    // feature is enabled, because ExternalClientVerifier uses this env var
-    // and OnceLock caches the first verifier instance for the process.
+    // Ensure NXUS_SIGNING_KEY_PATH points to the test key before any test
+    // calls get_verifier(), because OnceLock caches the first verifier
+    // instance for the process.
     //
     // We use std::sync::Once to make this safe for parallel test execution.
     fn ensure_test_key_env() {
@@ -1690,12 +2160,198 @@ mod tests {
     #[test]
     fn test_license_error_display() {
         let err = LicenseError::VersionCeilingExceeded {
-            ceiling: "1.0".to_string(),
-            sdk_version: "1.1.0".to_string(),
+            ceiling: "0.9".to_string(),
+            sdk_version: "0.10.0".to_string(),
         };
         let msg = err.to_string();
-        assert!(msg.contains("v1.0.x"));
-        assert!(msg.contains("v1.1.0"));
+        assert!(msg.contains("v0.9.x"));
+        assert!(msg.contains("v0.10.0"));
+    }
+
+    fn signed_legacy_token(
+        token_type: TokenType,
+        machine_id: Option<&str>,
+        expires_at: i64,
+    ) -> (String, StubTokenVerifier) {
+        let (private_key_pem, public_key_pem) = crate::test_fixtures::test_es256_keypair();
+        let now = current_unix_timestamp();
+        let claims = TokenClaims {
+            product_id: "nxuskit".to_string(),
+            iss: EXPECTED_ISSUER.to_string(),
+            iat: now,
+            nbf: Some(now),
+            exp: Some(expires_at),
+            token_type,
+            edition: "pro".to_string(),
+            tenant_id: Some("org-machine-binding-test".to_string()),
+            machine_id: machine_id.map(str::to_string),
+            seat_index: Some(1),
+            activated: (token_type == TokenType::Trial).then_some(true),
+            sdk_version_ceiling: None,
+            customer_email: None,
+        };
+        let token = crate::test_fixtures::sign_test_jwt(&claims, &private_key_pem);
+        let verifier = StubTokenVerifier::with_public_key(&public_key_pem);
+        (token, verifier)
+    }
+
+    #[test]
+    fn machine_binding_fingerprint_outcomes_cover_every_bound_legacy_family() {
+        let now = current_unix_timestamp();
+        let bound_machine = "sha256:bound-license-test";
+        let wrong_machine = "sha256:wrong-license-test";
+        let sensitive_lookup_detail = "device serial SECRET-DEVICE-DETAIL";
+
+        for token_type in [
+            TokenType::Leased,
+            TokenType::Trial,
+            TokenType::Developer,
+            TokenType::RealPurchase,
+        ] {
+            let (token, verifier) =
+                signed_legacy_token(token_type, Some(bound_machine), now + 2 * 60 * 60);
+            let matched = validate_token_full_with_verifier_environment_and_fingerprint(
+                &token,
+                &verifier,
+                "test",
+                || Ok(bound_machine.to_string()),
+            )
+            .expect("a matching machine fingerprint must retain authorization");
+            assert_eq!(matched.claims.token_type, token_type);
+
+            let mismatch = validate_token_full_with_verifier_environment_and_fingerprint(
+                &token,
+                &verifier,
+                "test",
+                || Ok(wrong_machine.to_string()),
+            )
+            .expect_err("a wrong machine fingerprint must be rejected");
+            assert!(matches!(
+                mismatch,
+                LicenseError::MachineMismatch { expected, actual }
+                    if expected == bound_machine && actual == wrong_machine
+            ));
+
+            let unavailable = validate_token_full_with_verifier_environment_and_fingerprint(
+                &token,
+                &verifier,
+                "test",
+                || {
+                    Err(machine_id::MachineIdError::Unavailable(
+                        sensitive_lookup_detail.to_string(),
+                    ))
+                },
+            )
+            .expect_err("a bound claim must fail when its fingerprint cannot be checked");
+            assert!(matches!(
+                &unavailable,
+                LicenseError::ValidationFailed(message)
+                    if message == "machine fingerprint unavailable"
+            ));
+            let rendered = unavailable.to_string();
+            assert!(!rendered.contains(sensitive_lookup_detail));
+            assert!(!rendered.contains(bound_machine));
+            assert!(!rendered.contains(&token));
+        }
+    }
+
+    #[test]
+    fn machine_binding_unbound_legacy_families_retain_their_existing_contract() {
+        let now = current_unix_timestamp();
+
+        for token_type in [
+            TokenType::Trial,
+            TokenType::Developer,
+            TokenType::RealPurchase,
+            TokenType::Leased,
+        ] {
+            let (token, verifier) = signed_legacy_token(token_type, None, now + 2 * 60 * 60);
+            let validated = validate_token_full_with_verifier_environment_and_fingerprint(
+                &token,
+                &verifier,
+                "test",
+                || -> Result<String, machine_id::MachineIdError> {
+                    panic!("unbound claims must not query a machine fingerprint")
+                },
+            )
+            .expect("an unbound legacy claim must retain its established contract");
+            assert_eq!(validated.claims.token_type, token_type);
+            assert!(validated.claims.machine_id.is_none());
+        }
+    }
+
+    #[test]
+    fn machine_binding_expired_lease_rejects_before_fingerprint_lookup() {
+        let now = current_unix_timestamp();
+        let (token, verifier) = signed_legacy_token(
+            TokenType::Leased,
+            Some("sha256:expired-lease-machine"),
+            now - 1,
+        );
+
+        let error = validate_token_full_with_verifier_environment_and_fingerprint(
+            &token,
+            &verifier,
+            "test",
+            || -> Result<String, machine_id::MachineIdError> {
+                panic!("expired claims must reject before machine fingerprint lookup")
+            },
+        )
+        .expect_err("an expired lease must be rejected");
+
+        assert!(matches!(
+            error,
+            LicenseError::Expired {
+                token_type: TokenType::Leased
+            }
+        ));
+    }
+
+    #[test]
+    fn machine_binding_strict_v2_claims_remain_unbound_and_non_expiring() {
+        let (private_key_pem, public_key_pem) = crate::test_fixtures::test_es256_keypair();
+        let claims = serde_json::json!({
+            "iss": EXPECTED_ISSUER,
+            "aud": "nxuskit-deployment-runtime",
+            "sub": "account_machine_binding_compat",
+            "jti": "11111111-1111-4111-8111-111111111111",
+            "iat": current_unix_timestamp(),
+            "type": "deployment",
+            "product_id": "nxuskit",
+            "edition": "pro",
+            "grant_id": "grant_machine_binding_compat",
+            "grant_revision": 1,
+            "purpose": "offline_deployment",
+            "target_id": "target_machine_binding_compat",
+            "policy_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "sdk_release_line": 2,
+            "authorization_scope": "client_entitlement",
+            "capability_grants": ["cap.solver"],
+            "capability_denials": [],
+            "limits_override": {},
+        });
+        let mut header = jsonwebtoken::Header::new(Algorithm::ES256);
+        header.kid = Some("es256-v1".to_string());
+        let encoding_key = jsonwebtoken::EncodingKey::from_ec_pem(private_key_pem.as_bytes())
+            .expect("test ES256 private key must be valid");
+        let token = jsonwebtoken::encode(&header, &claims, &encoding_key)
+            .expect("strict v2 fixture signing must succeed");
+        let verifier = StubTokenVerifier::with_public_key(&public_key_pem);
+
+        let validated = validate_token_full_with_verifier_environment_and_fingerprint(
+            &token,
+            &verifier,
+            "production",
+            || -> Result<String, machine_id::MachineIdError> {
+                panic!("strict v2 claims must not query a machine fingerprint")
+            },
+        )
+        .expect("strict v2 deployment claims must retain their frozen contract");
+
+        assert_eq!(validated.claims.token_type, TokenType::Deployment);
+        assert!(validated.claims.exp.is_none());
+        assert!(validated.claims.machine_id.is_none());
+        assert!(validated.deployment_v2.is_some());
     }
 
     #[test]
@@ -1763,10 +2419,8 @@ mod tests {
 
     /// Ensure the test ES256 public key is available for the global verifier.
     ///
-    /// When the external licensing feature is enabled, `get_verifier()` returns
-    /// `ExternalClientVerifier` which uses `NXUS_SIGNING_KEY_PATH` if set. This
-    /// function writes the test public key to a temp file and sets the env var
-    /// so that test-signed tokens verify correctly.
+    /// This function writes the test public key to a temp file and sets
+    /// NXUS_SIGNING_KEY_PATH so that test-signed tokens verify correctly.
     ///
     /// Uses `ctor` pattern to run before any test, ensuring the OnceLock in
     /// `get_verifier()` picks up the test key on first initialization.
@@ -1870,6 +2524,15 @@ mod tests {
                 customer_email: Some("test@example.com".to_string()),
             };
             sign_claims(&claims)
+        }
+
+        fn assert_legacy_deployment_claims_are_rejected(error: LicenseError) {
+            match error {
+                LicenseError::InvalidDeploymentClaims => {}
+                LicenseError::ValidationFailed(message)
+                    if message.contains("strict DeploymentClaimsV2") => {}
+                other => panic!("legacy deployment claims must fail closed, got {other:?}"),
+            }
         }
 
         /// Create a trial token (unactivated).
@@ -2011,8 +2674,8 @@ mod tests {
         // ── T046: Deployment token validation tests ──────────────────
 
         #[test]
-        fn test_deployment_token_no_expiry() {
-            let jwt = match make_deployment_token("1.0") {
+        fn test_legacy_deployment_token_is_rejected_even_without_expiry() {
+            let jwt = match make_deployment_token("2.0") {
                 Some(t) => t,
                 None => {
                     eprintln!("SKIP: private key not available");
@@ -2020,37 +2683,16 @@ mod tests {
                 }
             };
 
-            let claims = validate_token(&jwt).expect("deployment token should validate");
-            assert_eq!(claims.token_type, TokenType::Deployment);
-            assert!(claims.exp.is_none());
-            assert!(!claims.is_expired());
-        }
-
-        #[test]
-        fn test_deployment_token_version_ceiling_within() {
-            // Ceiling "1.0" should allow SDK 1.0.x
-            let jwt = match make_deployment_token("1.0") {
-                Some(t) => t,
-                None => {
-                    eprintln!("SKIP: private key not available");
-                    return;
-                }
-            };
-
-            // SDK version is 1.0.0, ceiling is 1.0 — should pass
-            let validated = validate_token_full(&jwt)
-                .expect("deployment token with matching ceiling should pass");
-            assert_eq!(validated.claims.token_type, TokenType::Deployment);
-            assert_eq!(
-                validated.claims.sdk_version_ceiling,
-                Some("1.0".to_string())
+            let error = validate_token(&jwt).expect_err(
+                "legacy customer-email/version-ceiling deployment claims must not bypass DeploymentClaimsV2",
             );
+            assert!(matches!(error, LicenseError::ValidationFailed(_)));
+            assert!(error.to_string().contains("strict DeploymentClaimsV2"));
         }
 
         #[test]
-        fn test_deployment_token_version_ceiling_exceeded() {
-            // Ceiling "0.8" should reject SDK 1.0.x
-            let jwt = match make_deployment_token("0.8") {
+        fn test_legacy_deployment_token_version_ceiling_is_not_a_v2_fallback() {
+            let jwt = match make_deployment_token("2.0") {
                 Some(t) => t,
                 None => {
                     eprintln!("SKIP: private key not available");
@@ -2058,15 +2700,15 @@ mod tests {
                 }
             };
 
-            let err = validate_token_full(&jwt).unwrap_err();
-            assert!(matches!(err, LicenseError::VersionCeilingExceeded { .. }));
-            let msg = err.to_string();
-            assert!(msg.contains("v0.8.x"));
+            let error = validate_token_full(&jwt).expect_err(
+                "a legacy version ceiling must not authorize a strict v2 deployment token",
+            );
+            assert_legacy_deployment_claims_are_rejected(error);
         }
 
         #[test]
-        fn test_deployment_token_no_machine_binding() {
-            let jwt = match make_deployment_token("1.0") {
+        fn test_legacy_deployment_token_rejects_before_version_ceiling_logic() {
+            let jwt = match make_deployment_token("1.9") {
                 Some(t) => t,
                 None => {
                     eprintln!("SKIP: private key not available");
@@ -2074,13 +2716,26 @@ mod tests {
                 }
             };
 
-            // Deployment tokens should never check machine ID
-            let claims = validate_token(&jwt).unwrap();
-            assert!(claims.machine_id.is_none());
-            // Full validation passes without machine check
-            let validated =
-                validate_token_full(&jwt).expect("no machine binding check for deployment");
-            assert_eq!(validated.claims.token_type, TokenType::Deployment);
+            let error = validate_token_full(&jwt).expect_err(
+                "a legacy deployment token must not reach obsolete version-ceiling authorization",
+            );
+            assert_legacy_deployment_claims_are_rejected(error);
+        }
+
+        #[test]
+        fn test_legacy_deployment_token_no_machine_binding_is_not_sufficient() {
+            let jwt = match make_deployment_token("2.0") {
+                Some(t) => t,
+                None => {
+                    eprintln!("SKIP: private key not available");
+                    return;
+                }
+            };
+
+            let error = validate_token_full(&jwt).expect_err(
+                "removing machine binding must not make legacy deployment claims acceptable",
+            );
+            assert_legacy_deployment_claims_are_rejected(error);
         }
 
         // ── T051: Resolution chain integration tests ─────────────────
@@ -2117,7 +2772,7 @@ mod tests {
                     return;
                 }
             };
-            let deploy_jwt = match make_deployment_token("1.0") {
+            let deploy_jwt = match make_deployment_token("2.0") {
                 Some(t) => t,
                 None => {
                     eprintln!("SKIP: private key not available");
@@ -2139,13 +2794,13 @@ mod tests {
         }
 
         #[test]
-        fn test_resolution_api_param_fallback_with_signed_token() {
+        fn test_resolution_api_param_legacy_deployment_token_fails_closed() {
             // Ensure no token file exists (may have been created by earlier tests)
             let _ = remove_token_file();
             // Ensure env var is unset so resolution falls through to API param
             unsafe { std::env::set_var(LICENSE_ENV_VAR, "") };
 
-            let jwt = match make_deployment_token("1.0") {
+            let jwt = match make_deployment_token("2.0") {
                 Some(t) => t,
                 None => {
                     eprintln!("SKIP: private key not available");
@@ -2154,10 +2809,14 @@ mod tests {
             };
 
             let resolution = resolve_token(Some(&jwt));
-            assert!(resolution.valid);
+            assert!(!resolution.valid);
             assert_eq!(resolution.source, TokenSourceKind::ApiParameter);
-            let claims = resolution.claims.unwrap();
-            assert_eq!(claims.token_type, TokenType::Deployment);
+            assert!(
+                resolution
+                    .error
+                    .as_deref()
+                    .is_some_and(|error| error.contains("strict DeploymentClaimsV2"))
+            );
 
             unsafe { std::env::remove_var(LICENSE_ENV_VAR) };
         }
@@ -2317,7 +2976,7 @@ mod tests {
 
         #[test]
         fn test_resolution_chain_under_5ms() {
-            let jwt = match make_deployment_token("1.0") {
+            let jwt = match make_deployment_token("2.0") {
                 Some(t) => t,
                 None => {
                     eprintln!("SKIP: private key not available");
@@ -3480,14 +4139,30 @@ mod tests {
         #[test]
         fn test_validate_token_full_with_es256() {
             setup_test_signing_key();
-            // Use a deployment token (no machine binding, no expiry) to avoid
-            // machine ID mismatch in full validation.
-            let (jwt, _pub_pem) = test_fixtures::make_deployment_token();
+            let (private_key_pem, _) = test_fixtures::test_es256_keypair();
+            let now = crate::license_types::current_unix_timestamp();
+            let jwt = test_fixtures::sign_test_jwt(
+                &TokenClaims {
+                    product_id: "nxuskit".to_string(),
+                    iss: "nxus-licensing".to_string(),
+                    iat: now,
+                    nbf: Some(now),
+                    exp: Some(now + 86400),
+                    token_type: TokenType::Developer,
+                    edition: "pro".to_string(),
+                    tenant_id: Some("test-org".to_string()),
+                    machine_id: None,
+                    seat_index: Some(1),
+                    activated: None,
+                    sdk_version_ceiling: None,
+                    customer_email: None,
+                },
+                &private_key_pem,
+            );
 
             let result = validate_token_full(&jwt);
             let validated = result.expect("validate_token_full should work with ES256 tokens");
-            assert_eq!(validated.claims.token_type, TokenType::Deployment);
-            assert!(!validated.claims.is_expired());
+            assert_eq!(validated.claims.token_type, TokenType::Developer);
         }
 
         /// T020: StubTokenVerifier accepts token with missing product_id
@@ -3521,21 +4196,20 @@ mod tests {
             assert_eq!(validated.product_id, "nxuskit");
         }
 
-        /// T021: StubTokenVerifier returns correct ValidatedClaims fields.
+        /// T021: the native verifier cannot accept a legacy deployment token.
         #[test]
-        fn test_stub_verifier_validated_claims_completeness() {
+        fn test_stub_verifier_rejects_legacy_deployment_claims() {
             let (jwt, pub_pem) = test_fixtures::make_deployment_token();
             let verifier = StubTokenVerifier::with_public_key(&pub_pem);
 
-            let claims = verifier
+            let error = verifier
                 .verify(&jwt)
-                .expect("deployment token should verify");
-            assert_eq!(claims.token_type, TokenType::Deployment);
-            assert_eq!(claims.edition, "pro");
-            assert_eq!(claims.iss, "nxus-licensing");
-            assert!(claims.exp.is_none()); // deployment tokens have no expiry
-            assert_eq!(claims.sdk_version_ceiling, Some("1.0".to_string()));
-            assert_eq!(claims.customer_email, Some("test@example.com".to_string()));
+                .expect_err("legacy deployment claims must not bypass DeploymentClaimsV2");
+            assert!(matches!(
+                error,
+                VerifyError::ValidationFailed(message)
+                    if message.contains("strict DeploymentClaimsV2")
+            ));
         }
 
         /// T022: Verifier name is "StubTokenVerifier".

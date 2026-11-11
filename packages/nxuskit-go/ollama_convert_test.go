@@ -1,6 +1,7 @@
 package nxuskit
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -145,7 +146,7 @@ func TestConvertThinkingModeToOllama(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := convertThinkingModeToOllama(tt.mode)
+		result := convertThinkingModeToOllama(tt.mode, "llama3.2")
 		if tt.expected == nil {
 			if result != nil {
 				t.Errorf("mode %s: expected nil, got %v", tt.mode, *result)
@@ -160,17 +161,64 @@ func TestConvertThinkingModeToOllama(t *testing.T) {
 	}
 }
 
+func TestOllamaAutoThinkingMatchesFrozenModelHeuristic(t *testing.T) {
+	for _, model := range []string{"qwen3:8b", "QWEN3:8b", "deepseek-r1:8b", "deepseek-v3:latest", "custom:thinking"} {
+		got := convertThinkingModeToOllama(ThinkingModeAuto, model)
+		if got == nil || !*got {
+			t.Errorf("auto %q=%v", model, got)
+		}
+		if convertThinkingModeToOllama(ThinkingModeOmit, model) != nil {
+			t.Errorf("omit %q sent think", model)
+		}
+	}
+	if convertThinkingModeToOllama(ThinkingModeAuto, "llama3.2") != nil {
+		t.Error("ordinary model auto must omit")
+	}
+}
+
+func TestOllamaCanonicalRawFinishTruth(t *testing.T) {
+	for _, tc := range []struct {
+		raw       string
+		reason    string
+		canonical string
+	}{
+		{`"stop"`, "stop", "stop"}, {`"length"`, "length", "length"},
+		{`"vendor-new"`, "vendor-new", ""}, {`null`, "", ""},
+	} {
+		var wire ollamaChatResponse
+		if err := json.Unmarshal([]byte(`{"model":"actual","message":{"content":"x"},"done":true,"done_reason":`+tc.raw+`}`), &wire); err != nil {
+			t.Fatal(err)
+		}
+		response := convertFromOllamaResponse(&wire)
+		if tc.canonical == "" {
+			if response.FinishReason != nil {
+				t.Errorf("fabricated canonical reason: %v", response.FinishReason)
+			}
+		} else if response.FinishReason == nil || string(*response.FinishReason) != tc.canonical {
+			t.Errorf("wrong canonical reason: %v", response.FinishReason)
+		}
+		if tc.reason == "" {
+			if response.RawFinishReason != nil {
+				t.Error("fabricated raw reason")
+			}
+		} else if response.RawFinishReason == nil || *response.RawFinishReason != tc.reason {
+			t.Error("lost raw reason")
+		}
+	}
+}
+
 func TestConvertFromOllamaResponse(t *testing.T) {
 	resp := &ollamaChatResponse{
 		Model: "llama3.2",
 		Message: ollamaMessage{
-			Role:    "assistant",
-			Content: "Hello!",
+			Role:     "assistant",
+			Content:  "Hello!",
+			Thinking: "Let me think...",
 		},
 		Done:            true,
+		DoneReason:      strPtr("stop"),
 		EvalCount:       10,
 		PromptEvalCount: 5,
-		Thinking:        "Let me think...",
 	}
 
 	cr := convertFromOllamaResponse(resp)

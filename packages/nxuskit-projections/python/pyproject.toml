@@ -1,0 +1,12 @@
+[project]
+name = "nxuskit-projection-alpha"
+version = "0.0.0-alpha.1"
+description = "Gate H alpha Pydantic projection conformance artifacts for nxusKit v2 contracts"
+requires-python = ">=3.9"
+dependencies = [
+    "pydantic>=2.7,<3",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["nxuskit_projection_alpha*"]

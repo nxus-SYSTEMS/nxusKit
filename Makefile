@@ -47,7 +47,7 @@ BUNDLE_PLATFORM := $(BUNDLE_OS)-$(BUNDLE_ARCH)
 BUNDLE_DIR ?= $(DIST_DIR)/nxuskit-sdk-$(VERSION)-oss-$(BUNDLE_PLATFORM)
 CE_RELEASE_ENV ?= NXUSKIT_ALLOW_DEV_KEY_IN_RELEASE=1 NXUSKIT_ALLOW_FALLBACK_CATALOG_IN_RELEASE=1
 
-.PHONY: help build build-rust build-core build-cli build-go build-python build-release bundle cache-info cache-warm check check-rust public-ce-boundary qa clean
+.PHONY: help build build-rust build-core build-cli build-go build-python build-release bundle cache-info cache-warm check check-rust examples-conformance-freshness public-ce-boundary qa clean
 
 help:
 	@echo "nxusKit Community Edition build targets"
@@ -57,6 +57,8 @@ help:
 	@echo "  make cache-info   Show local persistent build-cache paths"
 	@echo "  make cache-warm   Warm local Rust, Go, and Python build caches"
 	@echo "  make check        Run compile checks without producing release artifacts"
+	@echo "  make examples-conformance-freshness"
+	@echo "                    Verify SDK examples metadata matches the examples repo when available"
 	@echo "  make public-ce-boundary"
 	@echo "                    Verify public CE source has no Pro implementation/deps"
 	@echo "  make qa           Run the CE source-build QA gate"
@@ -86,7 +88,7 @@ build-python:
 	@$(PYTHON) -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else "Python 3.11+ is required; set PYTHON=/path/to/python3.11")'
 	cd $(PYTHON_DIR) && $(PYTHON) -m compileall -q src
 
-bundle: build-release
+bundle: examples-conformance-freshness build-release
 	@test "$(BUNDLE_OS)" != "unknown" || (echo "Unsupported local bundle platform: $(UNAME_S)/$(UNAME_M)" && exit 1)
 	@test -f "$(RUST_RELEASE_DIR)/$(CORE_DYLIB)" || (echo "Missing dynamic library: $(RUST_RELEASE_DIR)/$(CORE_DYLIB)" && exit 1)
 	@test -f "$(RUST_RELEASE_DIR)/libnxuskit_core.a" || (echo "Missing static library: $(RUST_RELEASE_DIR)/libnxuskit_core.a" && exit 1)
@@ -130,6 +132,7 @@ bundle: build-release
 	fi
 	mkdir -p "$(BUNDLE_DIR)/rust"
 	cp -R packages/nxuskit/src "$(BUNDLE_DIR)/rust/src"
+	if [ -d packages/nxuskit/benches ]; then cp -R packages/nxuskit/benches "$(BUNDLE_DIR)/rust/benches"; fi
 	cp packages/nxuskit/Cargo.toml packages/nxuskit/build.rs packages/nxuskit/README.md packages/nxuskit/CHANGELOG.md "$(BUNDLE_DIR)/rust/"
 	cp -R "$(GO_DIR)" "$(BUNDLE_DIR)/go"
 	rm -rf "$(BUNDLE_DIR)/go/bin" "$(BUNDLE_DIR)/go/.git"
@@ -169,7 +172,10 @@ check-rust:
 public-ce-boundary:
 	bash scripts/assert-public-ce-clean.sh
 
-qa: check public-ce-boundary
+examples-conformance-freshness:
+	bash scripts/check-sdk-examples-conformance-freshness.sh
+
+qa: examples-conformance-freshness check public-ce-boundary
 	cd $(GO_DIR) && go test ./...
 
 clean:

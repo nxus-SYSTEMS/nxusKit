@@ -225,8 +225,8 @@ fn build_auth_url(provider_id: &str, session: &OAuthSession) -> String {
         "{}?response_type=code&client_id=nxuskit&redirect_uri={}&state={}&code_challenge={}&code_challenge_method=S256&scope=api.read",
         base_url,
         urlencoded(&session.redirect_uri),
-        &session.state,
-        &session.code_challenge,
+        session.state,
+        session.code_challenge,
     )
 }
 

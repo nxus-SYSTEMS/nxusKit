@@ -34,7 +34,7 @@ pub fn test_es256_keypair() -> (String, String) {
         .to_string();
 
     // Build PEM manually from the SEC1 encoded point
-    let point = verifying_key.to_encoded_point(false);
+    let point = verifying_key.to_sec1_point(false);
     let point_bytes = point.as_bytes();
 
     // DER encoding for EC public key: SEQUENCE { SEQUENCE { OID, OID }, BIT STRING }
@@ -166,7 +166,7 @@ pub fn make_deployment_token() -> (String, String) {
         machine_id: None,
         seat_index: None,
         activated: None,
-        sdk_version_ceiling: Some("1.0".to_string()),
+        sdk_version_ceiling: Some("2.0".to_string()),
         customer_email: Some("test@example.com".to_string()),
     };
     (sign_test_jwt(&claims, &priv_pem), pub_pem)

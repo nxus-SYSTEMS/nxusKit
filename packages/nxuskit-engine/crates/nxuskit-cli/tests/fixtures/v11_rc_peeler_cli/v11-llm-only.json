@@ -1,0 +1,23 @@
+{
+  "contract_version": "1.1",
+  "pipeline_id": "v11-llm-only",
+  "version": "1.0.0",
+  "stages": [
+    {
+      "name": "summarize",
+      "stage_type": "llm",
+      "provider_ref": "loopback",
+      "model_ref": "echo",
+      "capability_ref": "llm.text_completion",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "completion"
+        }
+      ],
+      "metadata": {
+        "prompt": "summarize: hello world"
+      }
+    }
+  ]
+}

@@ -296,6 +296,7 @@ mod tests {
             limits_override: None,
             features_override: None,
             environment: None,
+            deployment_v2: None,
         };
         let grant = resolve_entitlement(&claims);
         assert_eq!(grant.edition, Edition::Pro);
@@ -327,6 +328,7 @@ mod tests {
             }),
             features_override: Some(vec!["solver".to_string()]),
             environment: None,
+            deployment_v2: None,
         };
         let grant = resolve_entitlement(&claims);
         assert_eq!(grant.edition, Edition::Community);

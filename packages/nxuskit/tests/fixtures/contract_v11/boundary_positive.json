@@ -1,0 +1,8 @@
+{
+  "contract_version": "1.1",
+  "fixture_kind": "boundary_positive",
+  "description": "Public CE exemplar — generic regulated-workflow language only. No persona schema, no PHI-shaped content, no internal repo name, no Pro topology, no internal routing detail, no decision-claim text.",
+  "sample_pipeline_id": "pl_generic_demo",
+  "sample_stage_name": "draft",
+  "sample_capability_id": "llm.text_completion"
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nxus.systems/contracts/licensing/deployment-claims-v2.schema.json",
+  "title": "DeploymentClaimsV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["iss", "aud", "sub", "jti", "iat", "type", "product_id", "edition", "grant_id", "grant_revision", "purpose", "target_id", "policy_hash", "sdk_release_line", "authorization_scope"],
+  "properties": {
+    "iss": {"type": "string", "minLength": 1, "maxLength": 128},
+    "aud": {"const": "nxuskit-deployment-runtime"},
+    "sub": {"type": "string", "minLength": 1, "maxLength": 128, "not": {"pattern": "@"}},
+    "jti": {"type": "string", "format": "uuid"},
+    "iat": {"type": "integer"},
+    "type": {"const": "deployment"},
+    "product_id": {"type": "string", "minLength": 1, "maxLength": 64},
+    "edition": {"type": "string", "minLength": 1, "maxLength": 64},
+    "grant_id": {"type": "string", "minLength": 1, "maxLength": 128, "not": {"pattern": "@"}},
+    "grant_revision": {"type": "integer", "minimum": 1},
+    "purpose": {"type": "string", "minLength": 1, "maxLength": 64},
+    "target_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "policy_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "sdk_release_line": {"type": "integer", "minimum": 2},
+    "authorization_scope": {"enum": ["nfr", "client_entitlement", "named_production_rider"]},
+    "production_rider_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "capability_grants": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "capability_denials": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "limits_override": {"type": "object", "additionalProperties": true}
+  },
+  "allOf": [
+    {"if": {"properties": {"authorization_scope": {"const": "named_production_rider"}}}, "then": {"required": ["production_rider_id"]}, "else": {"not": {"required": ["production_rider_id"]}}}
+  ]
+}

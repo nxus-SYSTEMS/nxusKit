@@ -1,0 +1,456 @@
+{
+  "_meta": {
+    "authority": "provider-oracles-v1.json + qualification-matrix-v1.json",
+    "candidate": "a52459aed1995642d50cfb0ccc27e9a1f8ce0759",
+    "definition_revision": "f81fdc9a03012b4c664cfd20f4fa8413d34462c7",
+    "expected_values_source": "hand-authored accepted oracle; never production adapter output",
+    "fixture_kind": "response_mapping",
+    "provider_oracles_sha256": "ae3941015b4ae0957e18ce24d8e4388ab5ff12beb6b334a610b628575d60bd06",
+    "qualification_matrix_sha256": "ce1a8cd22dee5d1c507e4711f0974456e3b499a8a9186f3c9410a77b5b46650a",
+    "schema_version": "nxus-spec119-python-provider-fixtures/v1"
+  },
+  "claude": {
+    "cases": [
+      {
+        "control": "response",
+        "expected_error": null,
+        "expected_wire": {
+          "canonical_finish": "stop",
+          "content": "{\"x\":1}",
+          "model": "llama3.2",
+          "provider": "ollama",
+          "raw_finish": "stop",
+          "thinking": "reason",
+          "usage": {
+            "completion": 2,
+            "prompt": 10,
+            "total": 12
+          }
+        },
+        "id": "RESPONSE-LITERAL",
+        "polarity": "positive",
+        "provenance": "Hand-authored response mapping oracle; production serializers may not generate it.",
+        "request_patch": {
+          "fixture": "response-literal"
+        }
+      }
+    ],
+    "expected": {
+      "content": "claude-fixture-response",
+      "finish_reason": "stop",
+      "provider_id": "claude"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/responses.json#/claude",
+    "oracle_case_ids": [
+      "RESPONSE-LITERAL"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_claude_provider.py plus provider-oracles-v1.json"
+  },
+  "fireworks": {
+    "cases": [
+      {
+        "control": "response",
+        "expected_error": null,
+        "expected_wire": {
+          "canonical_finish": "stop",
+          "content": "{\"x\":1}",
+          "model": "llama3.2",
+          "provider": "ollama",
+          "raw_finish": "stop",
+          "thinking": "reason",
+          "usage": {
+            "completion": 2,
+            "prompt": 10,
+            "total": 12
+          }
+        },
+        "id": "RESPONSE-LITERAL",
+        "polarity": "positive",
+        "provenance": "Hand-authored response mapping oracle; production serializers may not generate it.",
+        "request_patch": {
+          "fixture": "response-literal"
+        }
+      }
+    ],
+    "expected": {
+      "content": "fireworks-fixture-response",
+      "finish_reason": "stop",
+      "provider_id": "fireworks"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/responses.json#/fireworks",
+    "oracle_case_ids": [
+      "RESPONSE-LITERAL"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_fireworks_provider.py plus provider-oracles-v1.json"
+  },
+  "groq": {
+    "cases": [
+      {
+        "control": "response",
+        "expected_error": null,
+        "expected_wire": {
+          "canonical_finish": "stop",
+          "content": "{\"x\":1}",
+          "model": "llama3.2",
+          "provider": "ollama",
+          "raw_finish": "stop",
+          "thinking": "reason",
+          "usage": {
+            "completion": 2,
+            "prompt": 10,
+            "total": 12
+          }
+        },
+        "id": "RESPONSE-LITERAL",
+        "polarity": "positive",
+        "provenance": "Hand-authored response mapping oracle; production serializers may not generate it.",
+        "request_patch": {
+          "fixture": "response-literal"
+        }
+      }
+    ],
+    "expected": {
+      "content": "groq-fixture-response",
+      "finish_reason": "stop",
+      "provider_id": "groq"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/responses.json#/groq",
+    "oracle_case_ids": [
+      "RESPONSE-LITERAL"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_groq_provider.py plus provider-oracles-v1.json"
+  },
+  "lmstudio": {
+    "cases": [
+      {
+        "control": "response",
+        "expected_error": null,
+        "expected_wire": {
+          "canonical_finish": "stop",
+          "content": "{\"x\":1}",
+          "model": "llama3.2",
+          "provider": "ollama",
+          "raw_finish": "stop",
+          "thinking": "reason",
+          "usage": {
+            "completion": 2,
+            "prompt": 10,
+            "total": 12
+          }
+        },
+        "id": "RESPONSE-LITERAL",
+        "polarity": "positive",
+        "provenance": "Hand-authored response mapping oracle; production serializers may not generate it.",
+        "request_patch": {
+          "fixture": "response-literal"
+        }
+      }
+    ],
+    "expected": {
+      "content": "lmstudio-fixture-response",
+      "finish_reason": "stop",
+      "provider_id": "lmstudio"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/responses.json#/lmstudio",
+    "oracle_case_ids": [
+      "RESPONSE-LITERAL"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_lmstudio_provider.py plus provider-oracles-v1.json"
+  },
+  "mistral": {
+    "cases": [
+      {
+        "control": "response",
+        "expected_error": null,
+        "expected_wire": {
+          "canonical_finish": "stop",
+          "content": "{\"x\":1}",
+          "model": "llama3.2",
+          "provider": "ollama",
+          "raw_finish": "stop",
+          "thinking": "reason",
+          "usage": {
+            "completion": 2,
+            "prompt": 10,
+            "total": 12
+          }
+        },
+        "id": "RESPONSE-LITERAL",
+        "polarity": "positive",
+        "provenance": "Hand-authored response mapping oracle; production serializers may not generate it.",
+        "request_patch": {
+          "fixture": "response-literal"
+        }
+      }
+    ],
+    "expected": {
+      "content": "mistral-fixture-response",
+      "finish_reason": "stop",
+      "provider_id": "mistral"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/responses.json#/mistral",
+    "oracle_case_ids": [
+      "RESPONSE-LITERAL"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_mistral_provider.py plus provider-oracles-v1.json"
+  },
+  "ollama_cloud_via_daemon": {
+    "cases": [
+      {
+        "control": "response",
+        "expected_error": null,
+        "expected_wire": {
+          "canonical_finish": "stop",
+          "content": "{\"x\":1}",
+          "model": "llama3.2",
+          "provider": "ollama",
+          "raw_finish": "stop",
+          "thinking": "reason",
+          "usage": {
+            "completion": 2,
+            "prompt": 10,
+            "total": 12
+          }
+        },
+        "id": "RESPONSE-LITERAL",
+        "polarity": "positive",
+        "provenance": "Hand-authored response mapping oracle; production serializers may not generate it.",
+        "request_patch": {
+          "fixture": "response-literal"
+        }
+      }
+    ],
+    "expected": {
+      "content": "ollama_cloud_via_daemon-fixture-response",
+      "finish_reason": "stop",
+      "provider_id": "ollama_cloud_via_daemon"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/responses.json#/ollama_cloud_via_daemon",
+    "oracle_case_ids": [
+      "RESPONSE-LITERAL"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_ollama_provider.py plus provider-oracles-v1.json"
+  },
+  "ollama_local": {
+    "cases": [
+      {
+        "control": "response",
+        "expected_error": null,
+        "expected_wire": {
+          "canonical_finish": "stop",
+          "content": "{\"x\":1}",
+          "model": "llama3.2",
+          "provider": "ollama",
+          "raw_finish": "stop",
+          "thinking": "reason",
+          "usage": {
+            "completion": 2,
+            "prompt": 10,
+            "total": 12
+          }
+        },
+        "id": "RESPONSE-LITERAL",
+        "polarity": "positive",
+        "provenance": "Hand-authored response mapping oracle; production serializers may not generate it.",
+        "request_patch": {
+          "fixture": "response-literal"
+        }
+      }
+    ],
+    "expected": {
+      "content": "ollama_local-fixture-response",
+      "finish_reason": "stop",
+      "provider_id": "ollama_local"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/responses.json#/ollama_local",
+    "oracle_case_ids": [
+      "RESPONSE-LITERAL"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_ollama_provider.py plus provider-oracles-v1.json"
+  },
+  "openai": {
+    "cases": [
+      {
+        "control": "response",
+        "expected_error": null,
+        "expected_wire": {
+          "canonical_finish": "stop",
+          "content": "{\"x\":1}",
+          "model": "llama3.2",
+          "provider": "ollama",
+          "raw_finish": "stop",
+          "thinking": "reason",
+          "usage": {
+            "completion": 2,
+            "prompt": 10,
+            "total": 12
+          }
+        },
+        "id": "RESPONSE-LITERAL",
+        "polarity": "positive",
+        "provenance": "Hand-authored response mapping oracle; production serializers may not generate it.",
+        "request_patch": {
+          "fixture": "response-literal"
+        }
+      }
+    ],
+    "expected": {
+      "content": "openai-fixture-response",
+      "finish_reason": "stop",
+      "provider_id": "openai"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/responses.json#/openai",
+    "oracle_case_ids": [
+      "RESPONSE-LITERAL"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_openai_provider.py plus provider-oracles-v1.json"
+  },
+  "openrouter": {
+    "cases": [
+      {
+        "control": "response",
+        "expected_error": null,
+        "expected_wire": {
+          "canonical_finish": "stop",
+          "content": "{\"x\":1}",
+          "model": "llama3.2",
+          "provider": "ollama",
+          "raw_finish": "stop",
+          "thinking": "reason",
+          "usage": {
+            "completion": 2,
+            "prompt": 10,
+            "total": 12
+          }
+        },
+        "id": "RESPONSE-LITERAL",
+        "polarity": "positive",
+        "provenance": "Hand-authored response mapping oracle; production serializers may not generate it.",
+        "request_patch": {
+          "fixture": "response-literal"
+        }
+      }
+    ],
+    "expected": {
+      "content": "openrouter-fixture-response",
+      "finish_reason": "stop",
+      "provider_id": "openrouter"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/responses.json#/openrouter",
+    "oracle_case_ids": [
+      "RESPONSE-LITERAL"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_openrouter_provider.py plus provider-oracles-v1.json"
+  },
+  "perplexity": {
+    "cases": [
+      {
+        "control": "response",
+        "expected_error": null,
+        "expected_wire": {
+          "canonical_finish": "stop",
+          "content": "{\"x\":1}",
+          "model": "llama3.2",
+          "provider": "ollama",
+          "raw_finish": "stop",
+          "thinking": "reason",
+          "usage": {
+            "completion": 2,
+            "prompt": 10,
+            "total": 12
+          }
+        },
+        "id": "RESPONSE-LITERAL",
+        "polarity": "positive",
+        "provenance": "Hand-authored response mapping oracle; production serializers may not generate it.",
+        "request_patch": {
+          "fixture": "response-literal"
+        }
+      }
+    ],
+    "expected": {
+      "content": "perplexity-fixture-response",
+      "finish_reason": "stop",
+      "provider_id": "perplexity"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/responses.json#/perplexity",
+    "oracle_case_ids": [
+      "RESPONSE-LITERAL"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_perplexity_provider.py plus provider-oracles-v1.json"
+  },
+  "together": {
+    "cases": [
+      {
+        "control": "response",
+        "expected_error": null,
+        "expected_wire": {
+          "canonical_finish": "stop",
+          "content": "{\"x\":1}",
+          "model": "llama3.2",
+          "provider": "ollama",
+          "raw_finish": "stop",
+          "thinking": "reason",
+          "usage": {
+            "completion": 2,
+            "prompt": 10,
+            "total": 12
+          }
+        },
+        "id": "RESPONSE-LITERAL",
+        "polarity": "positive",
+        "provenance": "Hand-authored response mapping oracle; production serializers may not generate it.",
+        "request_patch": {
+          "fixture": "response-literal"
+        }
+      }
+    ],
+    "expected": {
+      "content": "together-fixture-response",
+      "finish_reason": "stop",
+      "provider_id": "together"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/responses.json#/together",
+    "oracle_case_ids": [
+      "RESPONSE-LITERAL"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_together_provider.py plus provider-oracles-v1.json"
+  },
+  "xai": {
+    "cases": [
+      {
+        "control": "response",
+        "expected_error": null,
+        "expected_wire": {
+          "canonical_finish": "stop",
+          "content": "{\"x\":1}",
+          "model": "llama3.2",
+          "provider": "ollama",
+          "raw_finish": "stop",
+          "thinking": "reason",
+          "usage": {
+            "completion": 2,
+            "prompt": 10,
+            "total": 12
+          }
+        },
+        "id": "RESPONSE-LITERAL",
+        "polarity": "positive",
+        "provenance": "Hand-authored response mapping oracle; production serializers may not generate it.",
+        "request_patch": {
+          "fixture": "response-literal"
+        }
+      }
+    ],
+    "expected": {
+      "content": "xai-fixture-response",
+      "finish_reason": "stop",
+      "provider_id": "xai"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/responses.json#/xai",
+    "oracle_case_ids": [
+      "RESPONSE-LITERAL"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_xai_provider.py plus provider-oracles-v1.json"
+  }
+}

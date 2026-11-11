@@ -1,0 +1,18 @@
+{
+  "request": {
+    "schema_version": "nxuskit-action-gate-preview/request/v1", "request_ref": "request.synthetic.review", "case_ref": "synthetic.case.review",
+    "action": {"kind": "service_credit", "action_ref": "action.synthetic.review.service_credit", "public_projection_requested": false, "runtime_provider_claim_requested": false, "unbounded_file_or_network_access_requested": false},
+    "actor_context": {"actor_ref": "synthetic.actor.review", "context_ref": "synthetic.context.review", "local_synthetic_context": true, "contains_secret_material": false, "contains_customer_or_production_data": false},
+    "consequence": {"kind": "service_credit", "consequence_ref": "consequence.synthetic.review.credit", "exports_sensitive_data": false, "material_effect": true, "requires_review": true},
+    "policy": {"policy_ref": "policy.synthetic.review", "low_consequence_action_allowed": false, "sensitive_export_allowed": false, "material_effect_requires_review": true, "public_projection_allowed": false},
+    "evidence": {"evidence_refs": ["evidence.synthetic.review.action", "evidence.synthetic.review.actor_context", "evidence.synthetic.review.policy"], "required_evidence_refs": ["evidence.synthetic.review.action", "evidence.synthetic.review.actor_context", "evidence.synthetic.review.policy"], "receipt_ready_refs": ["receipt.synthetic.review.agent_action_gate.ready"], "gate_ready_refs": ["gate.synthetic.review.agent_action_gate"]},
+    "review_handoff_ref": "handoff.synthetic.review.private_human_review"
+  },
+  "expected_result": {
+    "schema_version": "nxuskit-action-gate-preview/result/v1", "preview": true, "case_ref": "synthetic.case.review", "policy_family": "d1_support_playbook", "decision": "review_required", "status": "decision_derived", "derived_from_typed_facts": true,
+    "decision_labels": ["d1_service_credit_requires_human_review"], "denial_labels": [], "blocker_labels": [], "handoff_labels": ["private_human_review_handoff_recorded"],
+    "evidence_ready_refs": ["evidence.synthetic.review.action", "evidence.synthetic.review.actor_context", "evidence.synthetic.review.policy"], "receipt_ready_refs": ["receipt.synthetic.review.agent_action_gate.ready"], "gate_ready_refs": ["gate.synthetic.review.agent_action_gate"], "review_handoff_ref": "handoff.synthetic.review.private_human_review",
+    "closed_gate_labels": ["callbacks_webhooks_managed_queues_closed", "customer_or_production_data_closed", "downstream_publication_closed", "durable_persistence_and_store_write_closed", "live_licensing_and_product_catalog_closed", "material_support_compliance_security_claims_closed", "provider_runtime_and_external_io_closed", "public_projection_closed", "public_sdk_api_schema_cli_wrapper_prelude_closed", "release_package_and_public_artifact_closed", "w561_plus_continuation_closed"],
+    "action_execution_authorized": false, "public_projection_authorized": false, "provider_runtime_authorized": false, "customer_or_production_data_authorized": false, "release_or_package_authorized": false, "downstream_publication_authorized": false
+  }
+}

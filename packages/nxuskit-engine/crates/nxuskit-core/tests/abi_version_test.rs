@@ -1,13 +1,13 @@
 use std::ffi::CStr;
 
 #[test]
-fn abi_version_reports_stable_v100() {
+fn abi_version_reports_v200() {
     let ptr = nxuskit_core::nxuskit_abi_version();
     assert!(!ptr.is_null());
     let version = unsafe { CStr::from_ptr(ptr) }
         .to_str()
         .expect("ABI version must be valid UTF-8");
-    assert_eq!(version, "1.0.0");
+    assert_eq!(version, "2.0.0");
 }
 
 #[test]
@@ -24,6 +24,6 @@ fn capabilities_report_same_abi_version() {
 
     let capabilities: serde_json::Value =
         serde_json::from_str(&json).expect("capabilities JSON must parse");
-    assert_eq!(capabilities["abi_version"], "1.0.0");
-    assert_eq!(capabilities["sdk_version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(capabilities["abi_version"], "2.0.0");
+    assert_eq!(capabilities["sdk_version"], "2.0.0");
 }

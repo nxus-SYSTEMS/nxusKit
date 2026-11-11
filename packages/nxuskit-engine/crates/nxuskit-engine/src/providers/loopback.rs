@@ -172,6 +172,12 @@ impl LoopbackModel {
     fn from_name(name: &str) -> Option<Self> {
         match name {
             "echo" => Some(Self::Echo),
+            // Feature 106 / US1 (FR-002, FR-051): backward-compatibility
+            // alias for the runtime-callable default loopback model id.
+            // Older RC fixtures and downstream artifacts may still
+            // address the loopback default by its v1.1 contract alias.
+            // The alias resolves to the same model as `echo`.
+            "loopback:v1" => Some(Self::Echo),
             "echo-json-native" => Some(Self::EchoJsonNative),
             "echo-json-fallback" => Some(Self::EchoJsonFallback),
             "echo-limited-claude" => Some(Self::EchoLimitedClaude),
@@ -558,6 +564,7 @@ fn loopback_model_info() -> Vec<ModelInfo> {
 #[async_trait]
 impl LLMProvider for LoopbackProvider {
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse> {
+        request.validate_legacy_sampling(self.provider_name())?;
         // Parse model name
         let model = LoopbackModel::from_name(&request.model).ok_or_else(|| {
             NxuskitError::InvalidRequest(format!(
@@ -644,6 +651,7 @@ impl LLMProvider for LoopbackProvider {
         &self,
         request: &ChatRequest,
     ) -> Result<Box<dyn Stream<Item = Result<StreamChunk>> + Send + Unpin>> {
+        request.validate_legacy_sampling(self.provider_name())?;
         // Parse model and handle errors
         let model = LoopbackModel::from_name(&request.model).ok_or_else(|| {
             NxuskitError::InvalidRequest(format!(

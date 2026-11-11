@@ -1,0 +1,15 @@
+{
+  "contract_version": "1.1",
+  "pipeline_id": "v11-tool-external",
+  "version": "1.0.0",
+  "stages": [
+    {
+      "name": "emit_artifact",
+      "stage_type": "tool",
+      "capability_ref": "tool.emit_artifact",
+      "inputs": [],
+      "outputs": [],
+      "metadata": {}
+    }
+  ]
+}

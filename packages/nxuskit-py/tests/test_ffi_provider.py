@@ -58,6 +58,14 @@ class TestCreateProvider:
 class TestSyncChat:
     """Test synchronous chat via FFI."""
 
+    @pytest.mark.parametrize("seed", [9223372036854775808, -9223372036854775809])
+    def test_raw_ffi_seed_overflow_rejected(self, seed):
+        from nxuskit._ffi_errors import ProviderError
+
+        with create_ffi_provider({"provider_type": "mock"}) as provider:
+            with pytest.raises(ProviderError, match="Failed to parse ChatRequest JSON"):
+                provider.chat({"model": "test", "messages": [], "seed": seed})
+
     def test_chat_with_mock_returns_response(self):
         with create_ffi_provider({"provider_type": "mock"}) as p:
             resp = p.chat(

@@ -1,0 +1,30 @@
+{
+  "contract_version": "1.1",
+  "pipeline_id": "v11-fanout",
+  "version": "1.0.0",
+  "stages": [
+    {
+      "name": "compare_summaries",
+      "stage_type": "llm",
+      "provider_ref": "loopback",
+      "model_ref": "echo",
+      "capability_ref": "llm.text_completion",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "summary"
+        }
+      ],
+      "metadata": {
+        "prompt": "summarize: hello fan-out",
+        "fan_out": {
+          "mode": "parallel",
+          "provider_model_pairs": [
+            { "provider_ref": "loopback", "model_ref": "echo" },
+            { "provider_ref": "loopback", "model_ref": "echo-json-native" }
+          ]
+        }
+      }
+    }
+  ]
+}

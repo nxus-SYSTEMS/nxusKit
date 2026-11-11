@@ -10,8 +10,8 @@
 //! `streaming::stream_collect_chunks` style.
 
 use nxuskit::{
-    ChatRequest, Message, NxuskitProvider, ProviderConfig, Role, StreamChunk,
-    StreamLogprobsDelta, TokenLogprob, TopLogprob,
+    ChatRequest, Message, NxuskitProvider, ProviderConfig, Role, StreamChunk, StreamLogprobsDelta,
+    TokenLogprob, TopLogprob,
 };
 
 #[test]

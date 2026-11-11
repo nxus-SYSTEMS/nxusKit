@@ -2,6 +2,7 @@ package nxuskit
 
 import (
 	"encoding/json"
+	"math"
 )
 
 // Content part type constants.
@@ -335,8 +336,43 @@ type ChatRequest struct {
 	Metadata map[string]any `json:"-"`
 }
 
+// validateGenerationControls checks numeric bounds and the qualified logprob boundary.
+// Passing does not imply provider support for every other request control.
+func validateGenerationControls(req *ChatRequest, provider string) error {
+	for _, bound := range []struct {
+		name     string
+		value    *float64
+		min, max float64
+	}{
+		{"temperature", req.Temperature, 0, 2},
+		{"top_p", req.TopP, 0, 1},
+		{"presence_penalty", req.PresencePenalty, -2, 2},
+		{"frequency_penalty", req.FrequencyPenalty, -2, 2},
+	} {
+		if bound.value != nil && (math.IsNaN(*bound.value) || math.IsInf(*bound.value, 0) || *bound.value < bound.min || *bound.value > bound.max) {
+			return NewInvalidRequestError(provider, "invalid "+bound.name, nil)
+		}
+	}
+	if req.MaxTokens != nil && (*req.MaxTokens < 1 || *req.MaxTokens > 1048576) {
+		return NewInvalidRequestError(provider, "max_tokens must be between 1 and 1048576", nil)
+	}
+	if req.TopLogprobs != nil && (*req.TopLogprobs < 1 || *req.TopLogprobs > 20 || req.Logprobs == nil || !*req.Logprobs) {
+		return NewInvalidRequestError(provider, "top_logprobs requires logprobs=true and must be between 1 and 20", nil)
+	}
+	if req.Logprobs != nil || req.TopLogprobs != nil {
+		switch provider {
+		case "openai", "together", "openrouter":
+		default:
+			return NewNotImplementedError(provider + " logprobs")
+		}
+	}
+	return nil
+}
+
 // ChatResponse represents a response from an LLM provider.
 type ChatResponse struct {
+	// ProviderMetadata contains bounded selected upstream JSON fields.
+	ProviderMetadata map[string]any `json:"provider_metadata,omitempty"`
 	// Content is the generated text content.
 	Content string `json:"content"`
 	// Model is the model that generated the response.
@@ -345,6 +381,8 @@ type ChatResponse struct {
 	Usage TokenUsage `json:"usage"`
 	// FinishReason indicates why generation stopped. Nil if unknown.
 	FinishReason *FinishReason `json:"finish_reason,omitempty"`
+	// RawFinishReason is the unmodified provider value, even when canonical reason is unknown.
+	RawFinishReason *string `json:"raw_finish_reason,omitempty"`
 	// Thinking contains chain-of-thought reasoning if enabled.
 	Thinking *string `json:"thinking,omitempty"`
 	// ToolCalls contains tool calls requested by the model.

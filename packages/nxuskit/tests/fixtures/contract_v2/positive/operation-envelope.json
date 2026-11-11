@@ -1,0 +1,177 @@
+{
+  "contract_version": "2.0-alpha",
+  "operation_id": "op.fixture.001",
+  "correlation_id": "corr.fixture.001",
+  "causality_id": "cause.fixture.001",
+  "actor": {
+    "actor_id": "actor.fixture",
+    "tenant_id": "tenant.fixture",
+    "subject_kind": "service_account"
+  },
+  "capability_ref": {
+    "capability_id": "capability.fixture.validate",
+    "capability_version": "2.0-alpha",
+    "classification": "preview"
+  },
+  "route_ref": {
+    "route_id": "route.fixture.local",
+    "route_label": "local preview route",
+    "locality": "local",
+    "trust": "trusted",
+    "classification": "internal"
+  },
+  "input_refs": [
+    {
+      "kind": "artifact",
+      "artifact_id": "artifact.fixture.input",
+      "artifact_kind": "report",
+      "schema_ref": {
+        "schema_id": "schema.fixture.input",
+        "schema_kind": "json_schema",
+        "schema_version": "2.0-alpha",
+        "uri": "nxuskit://schemas/v2/operation-envelope.schema.json",
+        "fingerprint": "sha256:fixture-input-schema",
+        "classification": "preview"
+      },
+      "fingerprint": "sha256:fixture-artifact",
+      "locality": "remote",
+      "trust": "verified",
+      "classification": "preview"
+    },
+    {
+      "kind": "batch",
+      "batch_id": "batch.fixture.input",
+      "schema_ref": {
+        "schema_id": "schema.fixture.batch",
+        "schema_kind": "arrow_schema_ref",
+        "schema_version": "2.0-alpha",
+        "uri": "nxuskit://schemas/v2/batch-input.schema.json",
+        "fingerprint": "sha256:fixture-batch-schema",
+        "classification": "preview"
+      },
+      "row_count_hint": 20,
+      "byte_size_hint": 4096,
+      "locality": "remote",
+      "trust": "verified",
+      "classification": "preview"
+    },
+    {
+      "kind": "fact_set",
+      "fact_set_id": "facts.fixture.input",
+      "schema_refs": [
+        {
+          "schema_id": "schema.fixture.facts",
+          "schema_kind": "json_schema",
+          "schema_version": "2.0-alpha",
+          "uri": "nxuskit://schemas/v2/facts.schema.json",
+          "fingerprint": "sha256:fixture-facts-schema",
+          "classification": "preview"
+        }
+      ],
+      "locality": "remote",
+      "trust": "verified",
+      "classification": "preview"
+    },
+    {
+      "kind": "packet",
+      "packet_id": "packet.fixture.input",
+      "schema_ref": {
+        "schema_id": "schema.fixture.packet",
+        "schema_kind": "json_schema",
+        "schema_version": "2.0-alpha",
+        "uri": "nxuskit://schemas/v2/packet.schema.json",
+        "fingerprint": "sha256:fixture-packet-schema",
+        "classification": "preview"
+      },
+      "locality": "remote",
+      "trust": "verified",
+      "classification": "preview"
+    },
+    {
+      "kind": "schema",
+      "schema_id": "schema.fixture.output",
+      "schema_kind": "json_schema",
+      "schema_version": "2.0-alpha",
+      "uri": "nxuskit://schemas/v2/operation-result.schema.json",
+      "fingerprint": "sha256:fixture-output-schema",
+      "classification": "preview"
+    }
+  ],
+  "plan_refs": [
+    {
+      "plan_id": "plan.fixture.analysis",
+      "plan_kind": "portable_plan",
+      "compatibility_posture": "declaration_only",
+      "schema_ref": {
+        "schema_id": "schema.fixture.plan",
+        "schema_kind": "json_schema",
+        "schema_version": "2.0-alpha",
+        "uri": "nxuskit://schemas/v2/plan.schema.json",
+        "fingerprint": "sha256:fixture-plan-schema",
+        "classification": "preview"
+      },
+      "locality": "packaged",
+      "trust": "trusted",
+      "classification": "preview"
+    }
+  ],
+  "expected_output_schema_refs": [
+    {
+      "schema_id": "schema.fixture.output",
+      "schema_kind": "json_schema",
+      "schema_version": "2.0-alpha",
+      "uri": "nxuskit://schemas/v2/operation-result.schema.json",
+      "fingerprint": "sha256:fixture-output-schema",
+      "classification": "preview"
+    }
+  ],
+  "side_effect": "read_only",
+  "determinism": "deterministic",
+  "execution_policy": {
+    "timeout_ms": 30000,
+    "cancellable": true,
+    "cancellation_token": "cancel.fixture.001",
+    "retry": {
+      "max_attempts": 2,
+      "retry_after_ms": 1000,
+      "backoff_hint": "linear"
+    },
+    "idempotency_key": "idem.fixture.001",
+    "dedupe_key": "dedupe.fixture.001",
+    "causality_id": "cause.fixture.001",
+    "budget": {
+      "max_runtime_ms": 60000,
+      "max_output_refs": 10,
+      "max_cost_units": 100,
+      "budget_tag": "fixture"
+    }
+  },
+  "projection": {
+    "posture": "projection_ready",
+    "source_schema_refs": [
+      {
+        "schema_id": "schema.fixture.input",
+        "schema_kind": "json_schema",
+        "schema_version": "2.0-alpha",
+        "uri": "nxuskit://schemas/v2/operation-envelope.schema.json",
+        "fingerprint": "sha256:fixture-input-schema",
+        "classification": "preview"
+      }
+    ],
+    "classification": "preview"
+  },
+  "audit": {
+    "submitted_at": "2026-06-05T00:00:00Z",
+    "actor": {
+      "actor_id": "actor.fixture",
+      "tenant_id": "tenant.fixture",
+      "subject_kind": "service_account"
+    },
+    "reason": "fixture conformance",
+    "classification": "preview"
+  },
+  "classification": "preview",
+  "metadata": {
+    "fixture_id": "operation-envelope-positive"
+  }
+}

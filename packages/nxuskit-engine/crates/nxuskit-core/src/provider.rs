@@ -1,10 +1,50 @@
+use std::ffi::CString;
 use std::time::Duration;
 
 use nxuskit_engine::LLMProvider;
 use serde_json::Value;
 
-use crate::error::set_last_error;
-use crate::types::NxuskitProvider;
+use crate::error::{AsyncCallbackError, set_last_error};
+use crate::types::{NxuskitProvider, NxuskitResponse};
+
+pub(crate) async fn chat_for_callback(
+    provider: &NxuskitProvider,
+    request: nxuskit_engine::ChatRequest,
+    thinking_mode_explicit: bool,
+) -> Result<NxuskitResponse, AsyncCallbackError> {
+    let request = provider
+        .prepare_request(request, thinking_mode_explicit)
+        .map_err(|error| AsyncCallbackError::from_provider(&error))?;
+    let response = provider
+        .inner()
+        .chat(&request)
+        .await
+        .map_err(|error| AsyncCallbackError::from_provider(&error))?;
+    let mut value = serde_json::to_value(&response).map_err(|error| {
+        AsyncCallbackError::internal(&format!("Failed to serialize response: {error}"))
+    })?;
+    provider.decorate_response_value(&mut value);
+    let json = serde_json::to_string(&value).map_err(|error| {
+        AsyncCallbackError::internal(&format!("Failed to serialize response: {error}"))
+    })?;
+    NxuskitResponse::from_json(json)
+        .ok_or_else(|| AsyncCallbackError::internal("Response JSON contains an interior NUL byte"))
+}
+
+pub(crate) async fn list_models_for_callback(
+    provider: &NxuskitProvider,
+) -> Result<CString, AsyncCallbackError> {
+    let models = provider
+        .inner()
+        .list_models()
+        .await
+        .map_err(|error| AsyncCallbackError::from_provider(&error))?;
+    let json = serde_json::to_string(&models).map_err(|error| {
+        AsyncCallbackError::internal(&format!("Failed to serialize models: {error}"))
+    })?;
+    CString::new(json)
+        .map_err(|_| AsyncCallbackError::internal("Models JSON contains an interior NUL byte"))
+}
 
 /// Parse a JSON config string and create the appropriate provider.
 ///
@@ -34,6 +74,51 @@ pub(crate) fn create_provider_from_json(config_json: &str) -> Option<NxuskitProv
             return None;
         }
     };
+    let declared_profile = config.get("profile").and_then(Value::as_str);
+    let (provider_type, declared_profile) = match provider_type {
+        "ollama_local" => {
+            if declared_profile.is_some_and(|profile| profile != "ollama_local") {
+                set_last_error(
+                    "invalid_config",
+                    "provider_type ollama_local conflicts with profile",
+                    None,
+                );
+                return None;
+            }
+            ("ollama", Some("ollama_local"))
+        }
+        "ollama_cloud_via_daemon" => {
+            if declared_profile.is_some_and(|profile| profile != "ollama_cloud_via_daemon") {
+                set_last_error(
+                    "invalid_config",
+                    "provider_type ollama_cloud_via_daemon conflicts with profile",
+                    None,
+                );
+                return None;
+            }
+            ("ollama", Some("ollama_cloud_via_daemon"))
+        }
+        "ollama" => match declared_profile {
+            None | Some("ollama_local") | Some("ollama_cloud_via_daemon") => {
+                ("ollama", declared_profile)
+            }
+            Some(_) => {
+                set_last_error("invalid_config", "Invalid declared Ollama profile", None);
+                return None;
+            }
+        },
+        other => {
+            if declared_profile.is_some() {
+                set_last_error(
+                    "invalid_config",
+                    "profile is only valid for Ollama providers",
+                    None,
+                );
+                return None;
+            }
+            (other, None)
+        }
+    };
 
     let api_key = config.get("api_key").and_then(Value::as_str);
     let model = config.get("model").and_then(Value::as_str);
@@ -54,12 +139,12 @@ pub(crate) fn create_provider_from_json(config_json: &str) -> Option<NxuskitProv
         "ollama" => build_ollama(model, base_url, timeout_ms),
         "lmstudio" => build_lmstudio(model, base_url, timeout_ms),
         "xai" => build_xai(api_key, model, base_url, timeout_ms),
-        "groq" => build_groq(api_key, model, timeout_ms),
-        "fireworks" => build_fireworks(api_key, model, timeout_ms),
-        "together" => build_together(api_key, model, timeout_ms),
-        "openrouter" => build_openrouter(api_key, model, timeout_ms),
-        "perplexity" => build_perplexity(api_key, model, timeout_ms),
-        "mistral" => build_mistral(api_key, model, timeout_ms),
+        "groq" => build_groq(api_key, model, base_url, timeout_ms),
+        "fireworks" => build_fireworks(api_key, model, base_url, timeout_ms),
+        "together" => build_together(api_key, model, base_url, timeout_ms),
+        "openrouter" => build_openrouter(api_key, model, base_url, timeout_ms),
+        "perplexity" => build_perplexity(api_key, model, base_url, timeout_ms),
+        "mistral" => build_mistral(api_key, model, base_url, timeout_ms),
         "mock" => build_mock(model),
         "loopback" => build_loopback(model),
         "clips" => build_clips(model),
@@ -78,6 +163,8 @@ pub(crate) fn create_provider_from_json(config_json: &str) -> Option<NxuskitProv
                 "claude",
                 "openai",
                 "ollama",
+                "ollama_local",
+                "ollama_cloud_via_daemon",
                 "lmstudio",
                 "xai",
                 "groq",
@@ -108,7 +195,10 @@ pub(crate) fn create_provider_from_json(config_json: &str) -> Option<NxuskitProv
     };
 
     match result {
-        Ok(provider) => Some(NxuskitProvider::new(provider)),
+        Ok(provider) => Some(NxuskitProvider::with_declared_profile(
+            provider,
+            declared_profile.map(str::to_owned),
+        )),
         Err(e) => {
             crate::error::set_from_nxuskit_error(&e);
             None
@@ -214,9 +304,15 @@ fn build_xai(
 fn build_groq(
     api_key: Option<&str>,
     model: Option<&str>,
+    base_url: Option<&str>,
     timeout_ms: Option<u64>,
 ) -> nxuskit_engine::Result<Box<dyn LLMProvider>> {
     let b = apply_api_key!(nxuskit_engine::GroqProvider::builder(), api_key, "groq")?;
+    let b = if let Some(url) = base_url {
+        b.base_url(url)
+    } else {
+        b
+    };
     let b = apply_common!(b, model, timeout_ms);
     Ok(Box::new(b.build()?))
 }
@@ -224,6 +320,7 @@ fn build_groq(
 fn build_fireworks(
     api_key: Option<&str>,
     model: Option<&str>,
+    base_url: Option<&str>,
     timeout_ms: Option<u64>,
 ) -> nxuskit_engine::Result<Box<dyn LLMProvider>> {
     let b = apply_api_key!(
@@ -231,6 +328,11 @@ fn build_fireworks(
         api_key,
         "fireworks"
     )?;
+    let b = if let Some(url) = base_url {
+        b.base_url(url)
+    } else {
+        b
+    };
     let b = apply_common!(b, model, timeout_ms);
     Ok(Box::new(b.build()?))
 }
@@ -238,6 +340,7 @@ fn build_fireworks(
 fn build_together(
     api_key: Option<&str>,
     model: Option<&str>,
+    base_url: Option<&str>,
     timeout_ms: Option<u64>,
 ) -> nxuskit_engine::Result<Box<dyn LLMProvider>> {
     let b = apply_api_key!(
@@ -245,6 +348,11 @@ fn build_together(
         api_key,
         "together"
     )?;
+    let b = if let Some(url) = base_url {
+        b.base_url(url)
+    } else {
+        b
+    };
     let b = apply_common!(b, model, timeout_ms);
     Ok(Box::new(b.build()?))
 }
@@ -252,19 +360,28 @@ fn build_together(
 fn build_openrouter(
     api_key: Option<&str>,
     _model: Option<&str>,
-    _timeout_ms: Option<u64>,
+    base_url: Option<&str>,
+    timeout_ms: Option<u64>,
 ) -> nxuskit_engine::Result<Box<dyn LLMProvider>> {
     let key = api_key.ok_or_else(|| {
         nxuskit_engine::NxuskitError::Configuration(
             "api_key is required for openrouter provider".into(),
         )
     })?;
-    Ok(Box::new(nxuskit_engine::OpenRouterProvider::new(key)))
+    let mut provider = nxuskit_engine::OpenRouterProvider::new(key);
+    if let Some(timeout) = timeout_ms {
+        provider = provider.with_timeout(Duration::from_millis(timeout))?;
+    }
+    if let Some(url) = base_url {
+        provider = provider.with_base_url(url);
+    }
+    Ok(Box::new(provider))
 }
 
 fn build_perplexity(
     api_key: Option<&str>,
     model: Option<&str>,
+    base_url: Option<&str>,
     timeout_ms: Option<u64>,
 ) -> nxuskit_engine::Result<Box<dyn LLMProvider>> {
     let b = apply_api_key!(
@@ -273,20 +390,33 @@ fn build_perplexity(
         "perplexity"
     )?;
     let b = apply_common!(b, model, timeout_ms);
+    let b = if let Some(url) = base_url {
+        b.base_url(url)
+    } else {
+        b
+    };
     Ok(Box::new(b.build()?))
 }
 
 fn build_mistral(
     api_key: Option<&str>,
     _model: Option<&str>,
-    _timeout_ms: Option<u64>,
+    base_url: Option<&str>,
+    timeout_ms: Option<u64>,
 ) -> nxuskit_engine::Result<Box<dyn LLMProvider>> {
     let key = api_key.ok_or_else(|| {
         nxuskit_engine::NxuskitError::Configuration(
             "api_key is required for mistral provider".into(),
         )
     })?;
-    Ok(Box::new(nxuskit_engine::MistralProvider::new(key)))
+    let mut provider = nxuskit_engine::MistralProvider::new(key);
+    if let Some(url) = base_url {
+        provider = provider.with_base_url(url);
+    }
+    if let Some(timeout) = timeout_ms {
+        provider = provider.with_timeout(Duration::from_millis(timeout))?;
+    }
+    Ok(Box::new(provider))
 }
 
 fn build_mock(model: Option<&str>) -> nxuskit_engine::Result<Box<dyn LLMProvider>> {

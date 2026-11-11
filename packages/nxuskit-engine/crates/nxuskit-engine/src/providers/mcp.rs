@@ -49,8 +49,13 @@
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::Stream;
+use rmcp::{
+    model::CallToolRequestParams,
+    service::{Peer, RoleClient, RunningService, ServiceExt},
+};
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use std::{process::Stdio, time::Duration};
+use tokio::process::{Child, Command};
 
 use crate::{
     ChatRequest, ChatResponse, LLMProvider, ModelInfo, StreamChunk,
@@ -247,56 +252,217 @@ impl McpProvider {
             .build()
     }
 
-    /// List available tools from the MCP server
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use nxuskit_engine::prelude::*;
-    /// # async fn example() -> Result<Vec<McpToolInfo>> {
-    /// let provider = McpProvider::builder()
-    ///     .server_uri("stdio://mcp-server")
-    ///     .build()?;
-    ///
-    /// let tools = provider.list_tools().await?;
-    /// for tool in &tools {
-    ///     println!("Tool: {} - {:?}", tool.name, tool.description);
-    /// }
-    /// # Ok(tools)
-    /// # }
-    /// ```
-    pub async fn list_tools(&self) -> Result<Vec<McpToolInfo>> {
-        Err(NxuskitError::not_implemented("MCP tool listing"))
+    fn stdio_program_and_args(&self) -> Result<(String, Vec<String>)> {
+        let spec = self.server_uri.strip_prefix("stdio://").ok_or_else(|| {
+            NxuskitError::mcp_protocol_error(
+                "MCP tool discovery and invocation currently require a stdio:// server URI",
+            )
+        })?;
+        let mut parts = spec.split_whitespace();
+        let program = parts
+            .next()
+            .filter(|part| !part.is_empty())
+            .ok_or_else(|| NxuskitError::mcp_connection_failed("MCP stdio command is empty"))?;
+        Ok((
+            program.to_string(),
+            parts.map(ToString::to_string).collect(),
+        ))
     }
 
-    /// Call an MCP tool with the given arguments
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use nxuskit_engine::prelude::*;
-    /// # use serde_json::json;
-    /// # async fn example() -> Result<McpToolResult> {
-    /// let provider = McpProvider::builder()
-    ///     .server_uri("stdio://mcp-server")
-    ///     .build()?;
-    ///
-    /// let args = json!({
-    ///     "query": "rust async programming"
-    /// });
-    ///
-    /// let result = provider.call_tool("search", args.as_object().cloned()).await?;
-    /// println!("Tool result: {:?}", result);
-    /// # Ok(result)
-    /// # }
-    /// ```
+    async fn connect_stdio(&self) -> Result<(RunningService<RoleClient, ()>, Child)> {
+        let (program, args) = self.stdio_program_and_args()?;
+        let mut command = Command::new(program);
+        command
+            .args(args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .kill_on_drop(true);
+
+        let mut child = command.spawn().map_err(|error| {
+            NxuskitError::mcp_connection_failed(format!(
+                "failed to spawn MCP stdio server: {error}"
+            ))
+        })?;
+        let stdout = child.stdout.take().ok_or_else(|| {
+            NxuskitError::mcp_connection_failed("MCP stdio server stdout was not piped")
+        })?;
+        let stdin = child.stdin.take().ok_or_else(|| {
+            NxuskitError::mcp_connection_failed("MCP stdio server stdin was not piped")
+        })?;
+
+        let service = tokio::time::timeout(self.timeout, ().serve((stdout, stdin)))
+            .await
+            .map_err(|_| NxuskitError::mcp_timeout("MCP initialize timed out"))?
+            .map_err(|error| {
+                NxuskitError::mcp_connection_failed(format!("MCP initialize failed: {error}"))
+            })?;
+        Ok((service, child))
+    }
+
+    async fn shutdown_stdio(service: RunningService<RoleClient, ()>, mut child: Child) {
+        let _ = tokio::time::timeout(Duration::from_secs(2), service.cancel()).await;
+        if matches!(child.try_wait(), Ok(None)) {
+            let _ = child.kill().await;
+        }
+        let _ = tokio::time::timeout(Duration::from_secs(2), child.wait()).await;
+    }
+
+    fn map_tool(tool: rmcp::model::Tool) -> Result<McpToolInfo> {
+        let value = serde_json::to_value(tool)
+            .map_err(|error| NxuskitError::mcp_invalid_response(error.to_string()))?;
+        let object = value.as_object().ok_or_else(|| {
+            NxuskitError::mcp_invalid_response("MCP tool definition is not an object")
+        })?;
+        let name = object
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| NxuskitError::mcp_invalid_response("MCP tool is missing name"))?
+            .to_string();
+        let description = object
+            .get("description")
+            .and_then(serde_json::Value::as_str)
+            .map(ToString::to_string);
+        let input_schema = object
+            .get("inputSchema")
+            .or_else(|| object.get("input_schema"))
+            .cloned();
+        Ok(McpToolInfo {
+            name,
+            description,
+            input_schema,
+        })
+    }
+
+    fn map_content(value: serde_json::Value) -> Result<McpContent> {
+        let kind = value
+            .get("type")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| NxuskitError::mcp_invalid_response("MCP content is missing type"))?;
+        match kind {
+            "text" => Ok(McpContent::Text {
+                text: value
+                    .get("text")
+                    .and_then(serde_json::Value::as_str)
+                    .ok_or_else(|| {
+                        NxuskitError::mcp_invalid_response("MCP text content is missing text")
+                    })?
+                    .to_string(),
+            }),
+            "image" => Ok(McpContent::Image {
+                data: value
+                    .get("data")
+                    .and_then(serde_json::Value::as_str)
+                    .ok_or_else(|| {
+                        NxuskitError::mcp_invalid_response("MCP image content is missing data")
+                    })?
+                    .to_string(),
+                mime_type: value
+                    .get("mimeType")
+                    .or_else(|| value.get("mime_type"))
+                    .and_then(serde_json::Value::as_str)
+                    .ok_or_else(|| {
+                        NxuskitError::mcp_invalid_response("MCP image content is missing MIME type")
+                    })?
+                    .to_string(),
+            }),
+            "resource" => {
+                let resource = value.get("resource").unwrap_or(&value);
+                Ok(McpContent::Resource {
+                    uri: resource
+                        .get("uri")
+                        .and_then(serde_json::Value::as_str)
+                        .ok_or_else(|| {
+                            NxuskitError::mcp_invalid_response(
+                                "MCP resource content is missing URI",
+                            )
+                        })?
+                        .to_string(),
+                    text: resource
+                        .get("text")
+                        .and_then(serde_json::Value::as_str)
+                        .map(ToString::to_string),
+                })
+            }
+            other => Err(NxuskitError::mcp_invalid_response(format!(
+                "unsupported MCP content type: {other}"
+            ))),
+        }
+    }
+
+    async fn list_tools_from_peer(peer: &Peer<RoleClient>) -> Result<Vec<McpToolInfo>> {
+        peer.list_all_tools()
+            .await
+            .map_err(|error| {
+                NxuskitError::mcp_protocol_error(format!("MCP tools/list failed: {error}"))
+            })?
+            .into_iter()
+            .map(Self::map_tool)
+            .collect()
+    }
+
+    async fn call_tool_from_peer(
+        peer: &Peer<RoleClient>,
+        name: &str,
+        arguments: Option<serde_json::Map<String, serde_json::Value>>,
+    ) -> Result<McpToolResult> {
+        let mut params = CallToolRequestParams::new(name.to_owned());
+        params.arguments = arguments;
+        let result = peer.call_tool(params).await.map_err(|error| {
+            NxuskitError::mcp_protocol_error(format!("MCP tools/call failed: {error}"))
+        })?;
+        let rmcp::model::CallToolResult {
+            content: blocks,
+            structured_content,
+            is_error,
+            ..
+        } = result;
+
+        let mut content = Vec::with_capacity(blocks.len().max(1));
+        for block in blocks {
+            let value = serde_json::to_value(block)
+                .map_err(|error| NxuskitError::mcp_invalid_response(error.to_string()))?;
+            content.push(Self::map_content(value)?);
+        }
+        if content.is_empty()
+            && let Some(structured_content) = structured_content
+        {
+            content.push(McpContent::Text {
+                text: structured_content.to_string(),
+            });
+        }
+
+        Ok(McpToolResult {
+            content,
+            is_error: is_error.unwrap_or(false),
+        })
+    }
+
+    /// List available tools from a local stdio MCP server.
+    pub async fn list_tools(&self) -> Result<Vec<McpToolInfo>> {
+        let (service, child) = self.connect_stdio().await?;
+        let result = tokio::time::timeout(self.timeout, Self::list_tools_from_peer(service.peer()))
+            .await
+            .map_err(|_| NxuskitError::mcp_timeout("MCP tools/list timed out"))?;
+        Self::shutdown_stdio(service, child).await;
+        result
+    }
+
+    /// Call a tool on a local stdio MCP server.
     pub async fn call_tool(
         &self,
         name: &str,
         arguments: Option<serde_json::Map<String, serde_json::Value>>,
     ) -> Result<McpToolResult> {
-        let _ = (name, arguments); // Avoid unused variable warnings
-        Err(NxuskitError::not_implemented("MCP tool calling"))
+        let (service, child) = self.connect_stdio().await?;
+        let result = tokio::time::timeout(
+            self.timeout,
+            Self::call_tool_from_peer(service.peer(), name, arguments),
+        )
+        .await
+        .map_err(|_| NxuskitError::mcp_timeout("MCP tools/call timed out"))?;
+        Self::shutdown_stdio(service, child).await;
+        result
     }
 
     /// List available resources from the MCP server
@@ -564,6 +730,230 @@ mod tests {
     // Mutex to serialize tests that modify MCP environment variables
     static MCP_ENV_MUTEX: Mutex<()> = Mutex::new(());
 
+    fn local_fixture_script() -> &'static str {
+        r#"
+import json
+import sys
+
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    message = json.loads(line)
+    method = message.get("method")
+    request_id = message.get("id")
+
+    if method == "initialize":
+        params = message.get("params") or {}
+        result = {
+            "protocolVersion": params.get("protocolVersion", "2025-06-18"),
+            "capabilities": {"tools": {}},
+            "serverInfo": {"name": "nxuskit-local-fixture", "version": "1.0.0"},
+        }
+    elif method == "notifications/initialized":
+        continue
+    elif method == "tools/list":
+        result = {
+            "tools": [{
+                "name": "echo",
+                "description": "Echo deterministic text",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"text": {"type": "string"}},
+                    "required": ["text"],
+                },
+            }]
+        }
+    elif method == "tools/call":
+        params = message.get("params") or {}
+        args = params.get("arguments") or {}
+        if params.get("name") != "echo":
+            print(json.dumps({
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {"code": -32601, "message": "unknown tool"},
+            }), flush=True)
+            continue
+        result = {
+            "content": [
+                {"type": "text", "text": "echo:" + str(args.get("text", ""))},
+                {"type": "text", "text": json.dumps(params, sort_keys=True)},
+            ],
+            "isError": False,
+        }
+    elif request_id is None:
+        continue
+    else:
+        print(json.dumps({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {"code": -32601, "message": "unknown method"},
+        }), flush=True)
+        continue
+
+    print(json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result}), flush=True)
+"#
+    }
+
+    fn tool_call_wire_matches(
+        actual: &serde_json::Value,
+        expected_application: &serde_json::Value,
+    ) -> bool {
+        // RMCP's Peer adds protocol metadata after constructing the DTO. The
+        // sender chooses the token; do not confuse fresh-peer zero with a
+        // protocol-wide constant or discard other metadata without checking it.
+        let Some(meta) = actual.get("_meta").and_then(serde_json::Value::as_object) else {
+            return false;
+        };
+        let Some(token) = meta.get("progressToken") else {
+            return false;
+        };
+        if meta.len() != 1 || !(token.is_i64() || token.is_string()) {
+            return false;
+        }
+        let mut expected = expected_application.clone();
+        let Some(expected) = expected.as_object_mut() else {
+            return false;
+        };
+        expected.insert(
+            "_meta".to_owned(),
+            serde_json::json!({"progressToken": token}),
+        );
+        actual.as_object() == Some(expected)
+    }
+
+    fn check_tool_call_wire_contract() {
+        for application in [
+            serde_json::json!({"name": "echo"}),
+            serde_json::json!({"name": "echo", "arguments": {}}),
+            serde_json::json!({"name": "echo", "arguments": {"text": "hello", "nested": {"count": 1}}}),
+        ] {
+            for token in [
+                serde_json::json!(0),
+                serde_json::json!(19),
+                serde_json::json!(-3),
+                serde_json::json!("sender-chosen"),
+            ] {
+                let mut wire = application.clone();
+                wire["_meta"] = serde_json::json!({"progressToken": token});
+                assert!(tool_call_wire_matches(&wire, &application));
+            }
+        }
+        let expected = serde_json::json!({"name": "echo"});
+        for invalid in [
+            serde_json::json!({"name": "echo"}),
+            serde_json::json!({"name": "echo", "_meta": null}),
+            serde_json::json!({"name": "echo", "_meta": {}}),
+            serde_json::json!({"name": "echo", "_meta": {"progressToken": null}}),
+            serde_json::json!({"name": "echo", "_meta": {"progressToken": true}}),
+            serde_json::json!({"name": "echo", "_meta": {"progressToken": 1.5}}),
+            serde_json::json!({"name": "echo", "_meta": {"progressToken": {"nested": 1}}}),
+            serde_json::json!({"name": "echo", "_meta": {"progressToken": 0, "callerData": "unexpected"}}),
+            serde_json::json!({"name": "echo", "_meta": {"progressToken": 0}, "task": {}}),
+            serde_json::json!({"name": "echo", "_meta": {"progressToken": 0}, "arguments": {}}),
+            serde_json::json!({"name": "other", "_meta": {"progressToken": 0}}),
+        ] {
+            assert!(!tool_call_wire_matches(&invalid, &expected), "{invalid}");
+        }
+        let populated = serde_json::json!({"name": "echo", "arguments": {"text": "hello", "nested": {"count": 1}}});
+        assert!(!tool_call_wire_matches(
+            &serde_json::json!({"name": "echo", "arguments": {"text": "hello", "nested": {"count": 2}}, "_meta": {"progressToken": 0}}),
+            &populated,
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_local_stdio_tool_discovery_and_invocation() {
+        check_tool_call_wire_contract();
+        let dir = tempfile::tempdir().expect("create MCP fixture temp dir");
+        let script = dir.path().join("mcp_fixture.py");
+        std::fs::write(&script, local_fixture_script()).expect("write MCP fixture server");
+
+        let python = if cfg!(target_os = "windows") {
+            "python"
+        } else {
+            "python3"
+        };
+        let provider = McpProvider::builder()
+            .server_uri(format!("stdio://{python} {}", script.display()))
+            .timeout(Duration::from_secs(10))
+            .build()
+            .expect("build MCP provider");
+
+        let tools = provider.list_tools().await.expect("list fixture tools");
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].name, "echo");
+        assert_eq!(
+            tools[0].description.as_deref(),
+            Some("Echo deterministic text")
+        );
+        assert_eq!(
+            tools[0].input_schema.as_ref().and_then(|schema| {
+                schema
+                    .get("properties")
+                    .and_then(|value| value.get("text"))
+                    .and_then(|value| value.get("type"))
+                    .and_then(serde_json::Value::as_str)
+            }),
+            Some("string")
+        );
+
+        let populated = serde_json::json!({"text": "hello", "nested": {"count": 1}})
+            .as_object()
+            .expect("fixture arguments object")
+            .clone();
+        for (arguments, expected_wire, expected_echo) in [
+            (None, serde_json::json!({"name": "echo"}), "echo:"),
+            (
+                Some(serde_json::Map::new()),
+                serde_json::json!({"name": "echo", "arguments": {}}),
+                "echo:",
+            ),
+            (
+                Some(populated),
+                serde_json::json!({
+                    "name": "echo",
+                    "arguments": {"text": "hello", "nested": {"count": 1}},
+                }),
+                "echo:hello",
+            ),
+        ] {
+            let result = provider
+                .call_tool("echo", arguments)
+                .await
+                .expect("call fixture tool");
+            assert!(!result.is_error);
+            let [McpContent::Text { text }, McpContent::Text { text: wire }] =
+                result.content.as_slice()
+            else {
+                panic!("fixture must return the echo and exact received request");
+            };
+            assert_eq!(text, expected_echo);
+            assert!(
+                tool_call_wire_matches(
+                    &serde_json::from_str::<serde_json::Value>(wire)
+                        .expect("received request JSON"),
+                    &expected_wire,
+                ),
+                "preserve exact application data and absent task, with only a valid progress token",
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_non_stdio_tool_transport_fails_closed() {
+        let provider = McpProvider::builder()
+            .server_uri("tcp://127.0.0.1:1")
+            .build()
+            .expect("builder preserves legacy URI acceptance");
+        let error = provider
+            .list_tools()
+            .await
+            .expect_err("non-stdio tool transport must fail closed");
+        assert!(matches!(error, NxuskitError::Mcp(_)));
+        assert!(error.to_string().contains("stdio://"));
+    }
+
     #[test]
     fn test_builder_missing_server_uri() {
         let _guard = MCP_ENV_MUTEX.lock().unwrap();
@@ -741,34 +1131,6 @@ mod tests {
         assert!(matches!(err, NxuskitError::NotImplemented { .. }));
         let err_msg = err.to_string();
         assert!(err_msg.contains("not yet implemented"));
-    }
-
-    #[tokio::test]
-    async fn test_list_tools_returns_not_implemented_error() {
-        let provider = McpProvider::builder()
-            .server_uri("stdio://test")
-            .build()
-            .unwrap();
-
-        let result = provider.list_tools().await;
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, NxuskitError::NotImplemented { .. }));
-        assert!(err.to_string().contains("not yet implemented"));
-    }
-
-    #[tokio::test]
-    async fn test_call_tool_returns_not_implemented_error() {
-        let provider = McpProvider::builder()
-            .server_uri("stdio://test")
-            .build()
-            .unwrap();
-
-        let result = provider.call_tool("test_tool", None).await;
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, NxuskitError::NotImplemented { .. }));
-        assert!(err.to_string().contains("not yet implemented"));
     }
 
     #[tokio::test]

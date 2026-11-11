@@ -459,6 +459,15 @@ pub enum NxuskitError {
     #[error("{0}")]
     Clips(ClipsErrorKind),
 
+    /// Explicitly requested provider capability is unsupported.
+    #[error("{provider} does not support {capability}")]
+    UnsupportedCapability {
+        /// Provider rejecting the capability.
+        provider: String,
+        /// Requested capability/control.
+        capability: String,
+    },
+
     /// Feature not yet implemented
     #[error("{feature} is not yet implemented")]
     NotImplemented {
@@ -634,6 +643,17 @@ impl NxuskitError {
         }
     }
 
+    /// Create an unsupported provider capability error.
+    pub fn unsupported_capability(
+        provider: impl Into<String>,
+        capability: impl Into<String>,
+    ) -> Self {
+        NxuskitError::UnsupportedCapability {
+            provider: provider.into(),
+            capability: capability.into(),
+        }
+    }
+
     /// Create a not implemented error
     pub fn not_implemented(feature: impl Into<String>) -> Self {
         NxuskitError::NotImplemented {
@@ -688,9 +708,245 @@ impl NxuskitError {
     }
 }
 
+// ============================================================================
+// Spec 119 Sprint 1A: canonical Rust provider contract error surface
+//
+// This section introduces the additive `Provider*` error types shared by
+// every concrete provider contract mapper (`ProviderContractMapper` in
+// `crate::provider`). They are independent of `NxuskitError` above: each
+// mapper classifies its own transport/HTTP failures into one of these
+// eleven codes per `specs/119-v2-python-provider-surface-parity/data-model.md`
+// `ProviderError`.
+// ============================================================================
+
+/// Canonical failure classification for a `ProviderContractMapper`
+/// operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderErrorCode {
+    /// Credential rejected or absent.
+    Authentication,
+    /// Caller cancelled before terminal success.
+    Cancelled,
+    /// Unexpected invariant or serialization failure.
+    Internal,
+    /// DTO type, bound, or structural failure.
+    InvalidRequest,
+    /// Provider response could not be decoded.
+    MalformedResponse,
+    /// Transport failed without a provider response.
+    Network,
+    /// Provider throttled the request; `retry_after_ms` is optional.
+    RateLimited,
+    /// Connect, read, or operation deadline exceeded.
+    Timeout,
+    /// Edition or entitlement denied.
+    Unauthorized,
+    /// Provider, endpoint, model, or closed facade unavailable.
+    Unavailable,
+    /// Explicit requested feature is unsupported and was not silently
+    /// dropped.
+    UnsupportedCapability,
+}
+
+/// A single canonical provider contract failure.
+///
+/// Every `ProviderContractMapper` operation that can fail returns this type
+/// (or `ProviderContractResult<T>`, its `Result` alias). `retry_after_ms` is
+/// populated only when the provider itself supplied retry metadata; the SDK
+/// never invents a default.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProviderError {
+    /// Canonical failure classification.
+    pub code: ProviderErrorCode,
+    /// Human-readable, non-secret failure description.
+    pub message: String,
+    /// The DTO field or wire control implicated by this failure, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
+    /// Normalized `Retry-After` in milliseconds, present only when the
+    /// provider supplied retry metadata.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry_after_ms: Option<u64>,
+}
+
+impl std::fmt::Display for ProviderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}: {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for ProviderError {}
+
+/// Result alias used throughout the canonical Spec 119 provider contract
+/// surface (`ProviderConfig::validate`, `ProviderRequest::validate`,
+/// `ProviderContractMapper::request_to_wire`/`response_from_wire`, ...).
+pub type ProviderContractResult<T> = std::result::Result<T, ProviderError>;
+
+impl ProviderError {
+    fn new(code: ProviderErrorCode, message: impl Into<String>) -> Self {
+        Self {
+            code,
+            message: message.into(),
+            field: None,
+            retry_after_ms: None,
+        }
+    }
+
+    /// Constructs an `invalid_request` error for the given DTO field.
+    pub fn invalid_request(field: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            field: Some(field.into()),
+            ..Self::new(ProviderErrorCode::InvalidRequest, message)
+        }
+    }
+
+    /// Constructs an `unsupported_capability` error for the given DTO
+    /// field/control that a provider explicitly does not support.
+    pub fn unsupported_capability(field: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            field: Some(field.into()),
+            ..Self::new(ProviderErrorCode::UnsupportedCapability, message)
+        }
+    }
+
+    /// Constructs an `authentication` error (credential rejected or
+    /// absent).
+    pub fn authentication(message: impl Into<String>) -> Self {
+        Self::new(ProviderErrorCode::Authentication, message)
+    }
+
+    /// Constructs a `cancelled` error (caller cancelled before terminal
+    /// success).
+    pub fn cancelled(message: impl Into<String>) -> Self {
+        Self::new(ProviderErrorCode::Cancelled, message)
+    }
+
+    /// Constructs an `internal` error (unexpected invariant or
+    /// serialization failure).
+    pub fn internal(message: impl Into<String>) -> Self {
+        Self::new(ProviderErrorCode::Internal, message)
+    }
+
+    /// Constructs a `malformed_response` error (provider response could
+    /// not be decoded).
+    pub fn malformed_response(message: impl Into<String>) -> Self {
+        Self::new(ProviderErrorCode::MalformedResponse, message)
+    }
+
+    /// Constructs a `network` error (transport failed without a provider
+    /// response).
+    pub fn network(message: impl Into<String>) -> Self {
+        Self::new(ProviderErrorCode::Network, message)
+    }
+
+    /// Constructs a `rate_limited` error, optionally with a normalized
+    /// `Retry-After` in milliseconds.
+    pub fn rate_limited(message: impl Into<String>, retry_after_ms: Option<u64>) -> Self {
+        Self {
+            retry_after_ms,
+            ..Self::new(ProviderErrorCode::RateLimited, message)
+        }
+    }
+
+    /// Constructs a `timeout` error (connect, read, or operation deadline
+    /// exceeded).
+    pub fn timeout(message: impl Into<String>) -> Self {
+        Self::new(ProviderErrorCode::Timeout, message)
+    }
+
+    /// Constructs an `unauthorized` error (edition or entitlement denied).
+    pub fn unauthorized(message: impl Into<String>) -> Self {
+        Self::new(ProviderErrorCode::Unauthorized, message)
+    }
+
+    /// Constructs an `unavailable` error (provider, endpoint, model, or
+    /// closed facade unavailable).
+    pub fn unavailable(message: impl Into<String>) -> Self {
+        Self::new(ProviderErrorCode::Unavailable, message)
+    }
+}
+
+/// The transport-level outcome of a provider call, supplied alongside any
+/// HTTP status/body a provider returned. `None` means the call reached the
+/// provider and received an HTTP response (successful or not); the other
+/// variants mean no provider response was received.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProviderTransportFailureKind {
+    /// Connect, read, or operation deadline exceeded.
+    Timeout,
+    /// Transport failed without a provider response.
+    Network,
+    /// Caller cancelled before terminal success.
+    Cancelled,
+    /// No transport failure; an HTTP response (if any) was received.
+    None,
+}
+
+/// The raw, provider-agnostic inputs a `ProviderContractMapper` uses to
+/// classify a failed operation into a `ProviderError` via
+/// `error_from_failure`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProviderFailureInput {
+    /// HTTP status code, if an HTTP response was received.
+    pub status: Option<u16>,
+    /// The raw, unparsed `Retry-After` header value, if the provider sent
+    /// one.
+    pub retry_after: Option<String>,
+    /// The raw response body, if any (used for e.g. malformed-response
+    /// detection).
+    pub body: Option<String>,
+    /// The transport-level outcome of the call.
+    pub transport_kind: ProviderTransportFailureKind,
+}
+
+/// Normalizes a raw `Retry-After` header value (currently: a plain integer
+/// number of seconds, e.g. `"2"`) into milliseconds. Returns `None` when no
+/// value was supplied or it cannot be parsed; callers must never invent a
+/// default when this returns `None`.
+pub fn normalize_retry_after_ms(retry_after: Option<&str>) -> Option<u64> {
+    retry_after
+        .and_then(|raw| raw.trim().parse::<u64>().ok())
+        .and_then(|seconds| seconds.checked_mul(1000))
+}
+
+/// Shared HTTP/transport failure classification used by concrete
+/// `ProviderContractMapper` implementations, per design.md Step 2. Transport
+/// failures (timeout/network/cancelled) take precedence over any HTTP
+/// status; otherwise 401/403 map to `authentication`, 429 to
+/// `rate_limited`, 500..=599 to `unavailable`, an undecodable 200 body to
+/// `malformed_response`, and anything else to `internal`.
+pub fn classify_provider_failure(input: &ProviderFailureInput) -> ProviderErrorCode {
+    match input.transport_kind {
+        ProviderTransportFailureKind::Timeout => return ProviderErrorCode::Timeout,
+        ProviderTransportFailureKind::Network => return ProviderErrorCode::Network,
+        ProviderTransportFailureKind::Cancelled => return ProviderErrorCode::Cancelled,
+        ProviderTransportFailureKind::None => {}
+    }
+
+    match input.status {
+        Some(401) | Some(403) => ProviderErrorCode::Authentication,
+        Some(429) => ProviderErrorCode::RateLimited,
+        Some(status) if (500..=599).contains(&status) => ProviderErrorCode::Unavailable,
+        Some(200) => match &input.body {
+            Some(body) if serde_json::from_str::<serde_json::Value>(body).is_err() => {
+                ProviderErrorCode::MalformedResponse
+            }
+            _ => ProviderErrorCode::Internal,
+        },
+        _ => ProviderErrorCode::Internal,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn provider_contract_manager_canary_rejects_retry_after_overflow() {
+        let raw = u64::MAX.to_string();
+        assert_eq!(normalize_retry_after_ms(Some(&raw)), None);
+    }
 
     #[test]
     fn test_error_retryable() {

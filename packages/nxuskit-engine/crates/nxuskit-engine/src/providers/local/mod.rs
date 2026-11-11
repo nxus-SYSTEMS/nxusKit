@@ -282,6 +282,7 @@ impl std::fmt::Debug for LocalRuntimeProvider {
 #[async_trait]
 impl crate::LLMProvider for LocalRuntimeProvider {
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse> {
+        request.validate_legacy_sampling(self.provider_name())?;
         // Adapt request parameters to our capabilities (T039/T041 parity)
         let capabilities = self.get_capabilities();
         let adapted = ParameterAdapter::adapt(request, &capabilities);
@@ -341,6 +342,8 @@ impl crate::LLMProvider for LocalRuntimeProvider {
             }));
 
         Ok(ChatResponse {
+            raw_finish_reason: None,
+            provider_metadata: None,
             content: result.content,
             model: model_path,
             provider: self.provider_name().to_string(),
@@ -358,6 +361,7 @@ impl crate::LLMProvider for LocalRuntimeProvider {
         &self,
         request: &ChatRequest,
     ) -> Result<Box<dyn Stream<Item = Result<StreamChunk>> + Send + Unpin>> {
+        request.validate_legacy_sampling(self.provider_name())?;
         // Adapt request parameters (T040 parity)
         let capabilities = self.get_capabilities();
         let adapted = ParameterAdapter::adapt(request, &capabilities);

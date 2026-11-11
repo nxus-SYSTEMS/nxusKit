@@ -45,6 +45,30 @@ typedef struct NxuskitSolverSession NxuskitSolverSession;
  */
 typedef struct NxuskitStream NxuskitStream;
 
+/**
+ * Completion callback for `nxuskit_chat_async`.
+ *
+ * An accepted operation invokes this exactly once on the `nxuskit_runtime_worker` thread.
+ * On success, `response` is caller-owned and must be freed with `nxuskit_free_response`.
+ * On failure, `response` is NULL and `error_json` is borrowed and valid only during the callback.
+ */
+typedef void (*NxuskitChatAsyncCallback)(int32_t status,
+                                         struct NxuskitResponse *response,
+                                         const char *error_json,
+                                         void *user_data);
+
+/**
+ * Completion callback for `nxuskit_list_models_async`.
+ *
+ * An accepted operation invokes this exactly once on the `nxuskit_runtime_worker` thread.
+ * On success, `models_json` is caller-owned and must be freed with `nxuskit_free_string`.
+ * On failure, `models_json` is NULL and `error_json` is borrowed and valid only during the callback.
+ */
+typedef void (*NxuskitListModelsAsyncCallback)(int32_t status,
+                                               char *models_json,
+                                               const char *error_json,
+                                               void *user_data);
+
 typedef int32_t (*NxuskitStreamCallback)(const char *chunk_json, void *user_data);
 
 typedef void (*NxuskitStreamDoneCallback)(const char *final_json, void *user_data);
@@ -61,8 +85,6 @@ typedef bool (*NxuskitBnStreamCallback)(const char *chunk_json,
                                         uint32_t total,
                                         bool is_final,
                                         void *user_data);
-
-
 
 
 
@@ -250,6 +272,29 @@ const char *nxuskit_response_json(const struct NxuskitResponse *response);
 
 void nxuskit_free_response(struct NxuskitResponse *response);
 
+/**
+ * Schedule a chat request on the shared runtime.
+ *
+ * Returns 2 without scheduling when `provider`, `request_json`, or `callback` is NULL or the
+ * request is invalid. Returns 0 once accepted. The caller must not free `provider` until the
+ * callback returns and must keep `user_data` valid through that callback.
+ */
+int32_t nxuskit_chat_async(struct NxuskitProvider *provider,
+                           const char *request_json,
+                           NxuskitChatAsyncCallback callback,
+                           void *user_data);
+
+/**
+ * Schedule model discovery on the shared runtime.
+ *
+ * Returns 2 without scheduling when `provider` or `callback` is NULL. Returns 0 once accepted.
+ * The caller must not free `provider` until the callback returns and must keep `user_data` valid
+ * through that callback.
+ */
+int32_t nxuskit_list_models_async(struct NxuskitProvider *provider,
+                                  NxuskitListModelsAsyncCallback callback,
+                                  void *user_data);
+
 struct NxuskitStream *nxuskit_chat_stream(struct NxuskitProvider *provider,
                                           const char *request_json,
                                           NxuskitStreamCallback on_chunk,
@@ -420,6 +465,18 @@ int32_t nxuskit_oauth_revoke(const char *provider_id);
 const char *nxuskit_last_error(void);
 
 void nxuskit_free_string(char *ptr);
+
+/**
+ * Evaluate one strict Action Gate preview request through the additive JSON C
+ * ABI. The caller owns a non-null returned string and frees it with
+ * `nxuskit_free_string`.
+ *
+ * # Safety
+ *
+ * `request_json` must be null or point to a NUL-terminated byte string valid
+ * for the duration of this call.
+ */
+char *nxuskit_action_gate_preview_evaluate_json(const char *request_json);
 
 /**
  * Create an empty BayesianNetwork.

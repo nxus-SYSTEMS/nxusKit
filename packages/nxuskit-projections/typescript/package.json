@@ -1,0 +1,17 @@
+{
+  "name": "@nxuskit/projection-conformance-alpha",
+  "version": "0.0.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "python3 ../../../tools/projection/generate_v2_projection_alpha.py",
+    "test": "tsx tests/gate_h_projection_conformance.ts"
+  },
+  "dependencies": {
+    "zod": "^3.25.57"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}

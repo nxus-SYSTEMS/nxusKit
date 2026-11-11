@@ -1,0 +1,41 @@
+{
+  "version": "1.0.0",
+  "description": "Paradigm groupings for website example cards and navigation sections",
+  "groups": [
+    {
+      "slug": "llm-patterns",
+      "title": "LLM Patterns",
+      "description": "Core patterns for working with cloud and local language models — chat, streaming, structured output, retries, cost routing, and more.",
+      "filter_tags": ["LLM", "Streaming", "Vision", "Auth", "OAuth"],
+      "order": 1
+    },
+    {
+      "slug": "rule-engines",
+      "title": "Rule Engines & Decision Tables",
+      "description": "Deterministic reasoning with CLIPS rules and ZEN decision tables — alone or combined with LLMs for hybrid AI pipelines.",
+      "filter_tags": ["CLIPS", "ZEN"],
+      "order": 2
+    },
+    {
+      "slug": "constraint-solvers",
+      "title": "Constraint Solvers",
+      "description": "Z3-based constraint solving for optimization, scheduling, and what-if analysis through the nxusKit solver API.",
+      "filter_tags": ["Solver"],
+      "order": 3
+    },
+    {
+      "slug": "probabilistic-reasoning",
+      "title": "Probabilistic Reasoning",
+      "description": "Bayesian networks for inference, structure learning, and probabilistic modeling integrated into application workflows.",
+      "filter_tags": ["BN"],
+      "order": 4
+    },
+    {
+      "slug": "apps",
+      "title": "Complete Applications",
+      "description": "Full applications that combine multiple SDK features into end-to-end workflows — benchmarking, puzzle solving, rule generation, and more.",
+      "categories": ["apps"],
+      "order": 5
+    }
+  ]
+}

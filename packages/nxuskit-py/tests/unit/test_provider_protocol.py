@@ -77,6 +77,48 @@ class TestChatStreamMethodSignature:
         inspect.signature(LLMProvider.chat_stream)
 
 
+def test_sync_protocol_exposes_current_canonical_request_controls():
+    import inspect
+
+    from nxuskit.provider import LLMProvider
+
+    expected = {
+        "response_format",
+        "thinking",
+        "presence_penalty",
+        "frequency_penalty",
+        "seed",
+        "top_k",
+        "min_p",
+        "logprobs",
+        "top_logprobs",
+        "reasoning_effort",
+    }
+    for method in (LLMProvider.chat, LLMProvider.chat_stream):
+        assert expected <= set(inspect.signature(method).parameters)
+
+
+def test_async_protocol_exposes_current_canonical_request_controls():
+    import inspect
+
+    from nxuskit.provider import AsyncLLMProvider
+
+    expected = {
+        "response_format",
+        "thinking",
+        "presence_penalty",
+        "frequency_penalty",
+        "seed",
+        "top_k",
+        "min_p",
+        "logprobs",
+        "top_logprobs",
+        "reasoning_effort",
+    }
+    for method in (AsyncLLMProvider.chat_async, AsyncLLMProvider.chat_stream_async):
+        assert expected <= set(inspect.signature(method).parameters)
+
+
 class TestProviderImplementation:
     """Tests for concrete provider implementations."""
 

@@ -77,7 +77,7 @@ pub struct TokenClaims {
     /// Whether trial has been activated (trial tokens)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub activated: Option<bool>,
-    /// Major.minor version ceiling, e.g. "1.0" (deployment tokens)
+    /// Major.minor version ceiling, e.g. "0.9" (deployment tokens)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sdk_version_ceiling: Option<String>,
     /// Customer email for audit trail (deployment tokens)
@@ -167,6 +167,10 @@ pub struct TokenResolution {
     pub raw_token: Option<String>,
     /// Validated claims, if token was valid
     pub claims: Option<TokenClaims>,
+    /// Fully validated v2 deployment policy facts, retained for the runtime
+    /// entitlement and limit boundaries. This contains no raw JWT or PII.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deployment_v2: Option<DeploymentV2Metadata>,
     /// Whether the token passed validation
     pub valid: bool,
     /// Error message if validation failed
@@ -253,10 +257,25 @@ pub(crate) fn current_unix_timestamp() -> i64 {
 
 // ── ValidatedClaims ──────────────────────────────────────────────────
 
+/// Derived, SDK-consumed facts from the Licensing-owned v2 deployment claims.
+///
+/// This is deliberately not a serialized token schema. The Licensing client
+/// validates the immutable schema and returns these facts only after signature
+/// and contract validation succeed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeploymentV2Metadata {
+    pub sdk_release_line: u32,
+    pub grant_revision: u32,
+    pub authorization_scope: String,
+    pub capability_grants: Vec<String>,
+    pub capability_denials: Vec<String>,
+    pub limits_override: HashMap<String, serde_json::Value>,
+}
+
 /// Verified token claims produced by a `TokenVerifier` implementation.
 ///
 /// Extends `TokenClaims` with product-aware and entitlement-override fields
-/// from the `external licensing client` crate's `ValidatedClaims` shape.
+/// from the SDK's validated-claims projection.
 ///
 /// # Examples
 ///
@@ -279,6 +298,7 @@ pub(crate) fn current_unix_timestamp() -> i64 {
 ///     limits_override: None,
 ///     features_override: None,
 ///     environment: Some("production".to_string()),
+///     deployment_v2: None,
 /// };
 /// assert_eq!(claims.product_id, "nxuskit");
 /// assert_eq!(claims.edition, "pro");
@@ -331,6 +351,10 @@ pub struct ValidatedClaims {
     /// Issuing environment: production, staging, development, or test.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub environment: Option<String>,
+
+    /// Present only for a fully validated Licensing-owned v2 deployment token.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deployment_v2: Option<DeploymentV2Metadata>,
 }
 
 fn default_product_id() -> String {
@@ -360,6 +384,7 @@ impl From<TokenClaims> for ValidatedClaims {
             limits_override: None,
             features_override: None,
             environment: None,
+            deployment_v2: None,
         }
     }
 }
@@ -440,7 +465,7 @@ impl std::error::Error for VerifyError {}
 /// Separates signature verification from business logic (expiry, machine
 /// binding, version ceiling). Implementations:
 /// - `StubTokenVerifier`: Local ES256 verification via `jsonwebtoken` crate
-/// - `ClientCrateVerifier`: Wraps `external licensing client::TokenValidator` (future)
+/// - Native exact-key verifier: validates the package-owned ES256 bundle
 pub trait TokenVerifier: Send + Sync {
     /// Verify a JWT string and extract validated claims.
     ///
@@ -535,7 +560,7 @@ mod tests {
             machine_id: None,
             seat_index: None,
             activated: None,
-            sdk_version_ceiling: Some("1.0".to_string()),
+            sdk_version_ceiling: Some("0.9".to_string()),
             customer_email: Some("dev@co.com".to_string()),
         };
 

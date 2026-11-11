@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nxus.systems/nxuskit/v2/operation-accepted.schema.json",
+  "title": "nxusKit v2 OperationAccepted",
+  "type": "object",
+  "x-nxuskit-contract-version": "2.0-alpha",
+  "x-nxuskit-classification": "preview",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "operation_id",
+    "correlation_id",
+    "status",
+    "classification"
+  ],
+  "properties": {
+    "contract_version": { "const": "2.0-alpha" },
+    "operation_id": { "type": "string", "minLength": 1 },
+    "correlation_id": { "type": "string", "minLength": 1 },
+    "status": {
+      "enum": [
+        "accepted",
+        "rejected_before_dispatch",
+        "validation_failed"
+      ]
+    },
+    "accepted_at": { "type": "string" },
+    "validation_errors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/error_summary" },
+      "default": []
+    },
+    "event_stream_ref": { "$ref": "refs.schema.json#/$defs/packet_ref" },
+    "result_ref": { "$ref": "refs.schema.json#/$defs/packet_ref" },
+    "classification": { "$ref": "#/$defs/surface_classification" },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "surface_classification": {
+      "enum": [
+        "stable",
+        "preview",
+        "internal",
+        "pro_private",
+        "enterprise_private"
+      ]
+    },
+    "error_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error_code", "message", "retryable"],
+      "properties": {
+        "error_code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string" },
+        "category": { "type": "string" },
+        "retryable": { "type": "boolean" },
+        "metadata": { "type": "object" }
+      }
+    }
+  }
+}

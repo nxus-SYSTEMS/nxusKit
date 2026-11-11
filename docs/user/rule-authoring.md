@@ -221,26 +221,18 @@ fmt.Println("Alerts:", response.Content)
 ### Python Example
 
 ```python
-from nxuskit._ffi_provider import create_ffi_provider
+from nxuskit-py import create_provider, Message
 
-provider = create_ffi_provider({
-    "provider_type": "clips",
-    "model": "/path/to/rules",
-})
+provider = create_provider("clips", model="/path/to/rules")
 
-response = provider.chat({
-    "model": "clips",
-    "messages": [
-        {
-            "role": "user",
-            "content": '{"facts": [{"template": "input-data", "values": {"record-id": 1, "value": 150.0}}]}',
-        },
-    ],
-    "provider_options": {
+response = provider.chat(
+    model="clips",
+    messages=[Message.user('{"facts": [{"template": "input-data", "values": {"record-id": 1, "value": 150.0}}]}')],
+    provider_options={
         "focus": ["data-qc"],
         "derived_only_new": True,
     },
-})
+)
 print("Alerts:", response.content)
 ```
 
@@ -358,13 +350,15 @@ func TestRulesWithMock(t *testing.T) {
 
 ```python
 import pytest
-from nxuskit import Message
-from nxuskit.mock import MockProvider
+from nxuskit-py import create_provider, Message
 
 def test_rules_with_mock():
-    provider = MockProvider(chunks=["low_confidence alert fired"])
-    chunks = list(provider.chat_stream([Message.user("test input")]))
-    assert "low_confidence" in "".join(chunk.delta for chunk in chunks)
+    provider = create_provider("mock", responses=["low_confidence alert fired"])
+    response = provider.chat(
+        model="clips",
+        messages=[Message.user("test input")],
+    )
+    assert "low_confidence" in response.content
 ```
 
 ## Debugging Rules

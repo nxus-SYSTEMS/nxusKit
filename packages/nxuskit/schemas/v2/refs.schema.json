@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nxus.systems/nxuskit/v2/refs.schema.json",
+  "title": "nxusKit v2 Reference Primitives",
+  "type": "object",
+  "x-nxuskit-contract-version": "2.0-alpha",
+  "x-nxuskit-classification": "preview",
+  "$defs": {
+    "surface_classification": {
+      "enum": [
+        "stable",
+        "preview",
+        "internal",
+        "pro_private",
+        "enterprise_private"
+      ]
+    },
+    "reference_locality": {
+      "enum": ["local", "remote", "packaged", "external"]
+    },
+    "ref_trust_posture": {
+      "enum": ["trusted", "verified", "unverified", "derived"]
+    },
+    "schema_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_id",
+        "schema_kind",
+        "schema_version",
+        "classification"
+      ],
+      "properties": {
+        "schema_id": { "type": "string", "minLength": 1 },
+        "schema_kind": {
+          "enum": [
+            "json_schema",
+            "arrow_schema_ref",
+            "open_api_schema",
+            "rust_dto",
+            "other"
+          ]
+        },
+        "schema_version": { "type": "string", "minLength": 1 },
+        "uri": { "type": "string" },
+        "fingerprint": { "type": "string" },
+        "classification": { "$ref": "#/$defs/surface_classification" },
+        "metadata": { "type": "object" }
+      }
+    },
+    "artifact_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "artifact_kind",
+        "locality",
+        "trust",
+        "classification"
+      ],
+      "properties": {
+        "artifact_id": { "type": "string", "minLength": 1 },
+        "artifact_kind": {
+          "enum": [
+            "file",
+            "package",
+            "model_artifact",
+            "history_entry",
+            "report",
+            "other"
+          ]
+        },
+        "schema_ref": { "$ref": "#/$defs/schema_ref" },
+        "fingerprint": { "type": "string" },
+        "locality": { "$ref": "#/$defs/reference_locality" },
+        "trust": { "$ref": "#/$defs/ref_trust_posture" },
+        "classification": { "$ref": "#/$defs/surface_classification" },
+        "metadata": { "type": "object" }
+      }
+    },
+    "batch_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "batch_id",
+        "schema_ref",
+        "locality",
+        "trust",
+        "classification"
+      ],
+      "properties": {
+        "batch_id": { "type": "string", "minLength": 1 },
+        "schema_ref": { "$ref": "#/$defs/schema_ref" },
+        "row_count_hint": { "type": "integer", "minimum": 0 },
+        "byte_size_hint": { "type": "integer", "minimum": 0 },
+        "locality": { "$ref": "#/$defs/reference_locality" },
+        "trust": { "$ref": "#/$defs/ref_trust_posture" },
+        "classification": { "$ref": "#/$defs/surface_classification" },
+        "metadata": { "type": "object" }
+      }
+    },
+    "fact_set_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fact_set_id",
+        "locality",
+        "trust",
+        "classification"
+      ],
+      "properties": {
+        "fact_set_id": { "type": "string", "minLength": 1 },
+        "schema_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/schema_ref" },
+          "default": []
+        },
+        "input_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/operation_ref" },
+          "default": []
+        },
+        "locality": { "$ref": "#/$defs/reference_locality" },
+        "trust": { "$ref": "#/$defs/ref_trust_posture" },
+        "classification": { "$ref": "#/$defs/surface_classification" },
+        "metadata": { "type": "object" }
+      }
+    },
+    "plan_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan_id",
+        "plan_kind",
+        "compatibility_posture",
+        "locality",
+        "trust",
+        "classification"
+      ],
+      "properties": {
+        "plan_id": { "type": "string", "minLength": 1 },
+        "plan_kind": {
+          "enum": [
+            "portable_plan",
+            "sql_text_reference",
+            "engine_specific_reference",
+            "other"
+          ]
+        },
+        "compatibility_posture": {
+          "enum": [
+            "declaration_only",
+            "executable_when_runtime_present",
+            "unknown"
+          ]
+        },
+        "schema_ref": { "$ref": "#/$defs/schema_ref" },
+        "locality": { "$ref": "#/$defs/reference_locality" },
+        "trust": { "$ref": "#/$defs/ref_trust_posture" },
+        "classification": { "$ref": "#/$defs/surface_classification" },
+        "metadata": { "type": "object" }
+      }
+    },
+    "packet_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packet_id", "locality", "trust", "classification"],
+      "properties": {
+        "packet_id": { "type": "string", "minLength": 1 },
+        "schema_ref": { "$ref": "#/$defs/schema_ref" },
+        "artifact_ref": { "$ref": "#/$defs/artifact_ref" },
+        "locality": { "$ref": "#/$defs/reference_locality" },
+        "trust": { "$ref": "#/$defs/ref_trust_posture" },
+        "classification": { "$ref": "#/$defs/surface_classification" },
+        "metadata": { "type": "object" }
+      }
+    },
+    "capability_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capability_id", "classification"],
+      "properties": {
+        "capability_id": { "type": "string", "minLength": 1 },
+        "capability_version": { "type": "string" },
+        "classification": { "$ref": "#/$defs/surface_classification" },
+        "metadata": { "type": "object" }
+      }
+    },
+    "route_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["route_id", "locality", "trust", "classification"],
+      "properties": {
+        "route_id": { "type": "string", "minLength": 1 },
+        "route_label": { "type": "string" },
+        "locality": { "$ref": "#/$defs/reference_locality" },
+        "trust": { "$ref": "#/$defs/ref_trust_posture" },
+        "classification": { "$ref": "#/$defs/surface_classification" },
+        "metadata": { "type": "object" }
+      }
+    },
+    "operation_ref": {
+      "oneOf": [
+        {
+          "allOf": [
+            { "required": ["kind"] },
+            {
+              "properties": {
+                "kind": { "const": "artifact" }
+              }
+            },
+            { "$ref": "#/$defs/artifact_ref" }
+          ]
+        },
+        {
+          "allOf": [
+            { "required": ["kind"] },
+            {
+              "properties": {
+                "kind": { "const": "batch" }
+              }
+            },
+            { "$ref": "#/$defs/batch_ref" }
+          ]
+        },
+        {
+          "allOf": [
+            { "required": ["kind"] },
+            {
+              "properties": {
+                "kind": { "const": "fact_set" }
+              }
+            },
+            { "$ref": "#/$defs/fact_set_ref" }
+          ]
+        },
+        {
+          "allOf": [
+            { "required": ["kind"] },
+            {
+              "properties": {
+                "kind": { "const": "packet" }
+              }
+            },
+            { "$ref": "#/$defs/packet_ref" }
+          ]
+        },
+        {
+          "allOf": [
+            { "required": ["kind"] },
+            {
+              "properties": {
+                "kind": { "const": "schema" }
+              }
+            },
+            { "$ref": "#/$defs/schema_ref" }
+          ]
+        }
+      ]
+    }
+  }
+}

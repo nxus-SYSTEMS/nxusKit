@@ -96,11 +96,6 @@ if [[ "$FULL_FEATURES" -eq 1 ]]; then
   features="${NXUSKIT_LOCAL_WARM_FEATURES:-blocking-api,stream-token-estimation}"
   echo "==> Warm Rust optional-feature engine check cache ($features)"
   cargo check --manifest-path packages/nxuskit-engine/Cargo.toml -p nxuskit-engine --features "$features"
-  if grep -q '^licensing-client =' packages/nxuskit-engine/crates/nxuskit-core/Cargo.toml; then
-    echo "==> Warm Rust licensing-client check cache"
-    cargo check --manifest-path packages/nxuskit-engine/Cargo.toml -p nxuskit-core --features licensing-client
-    cargo check --manifest-path packages/nxuskit-engine/Cargo.toml -p nxuskit-cli --features licensing-client
-  fi
 fi
 
 if [[ "$RELEASE" -eq 1 ]]; then

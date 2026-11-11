@@ -245,11 +245,13 @@ async fn trait_polymorphism_with_mock() {
     impl AsyncProvider for MockAsyncProvider {
         async fn chat(&self, _request: ChatRequest) -> Result<ChatResponse, NxuskitError> {
             Ok(ChatResponse {
+                provider_metadata: None,
                 content: "mock-async-response".into(),
                 model: "mock-async-model".into(),
                 provider: "mock-async".into(),
                 usage: Default::default(),
                 finish_reason: Some(FinishReason::Stop),
+                raw_finish_reason: None,
                 metadata: Default::default(),
                 warnings: vec![],
                 logprobs: None,

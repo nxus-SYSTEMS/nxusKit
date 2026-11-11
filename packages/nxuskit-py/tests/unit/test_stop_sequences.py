@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from nxuskit import Message, Provider
 from nxuskit.providers.openai_compatible import OpenAICompatibleProvider
 
@@ -253,6 +255,31 @@ class TestStopSequencesClaude:
         assert request_body["top_p"] == 0.9
         assert request_body["stop_sequences"] == ["\n\n", "END"]
 
+    def test_claude_stop_provider_limit_is_four(self):
+        """Claude accepts four stop sequences and rejects five."""
+        from nxuskit.errors import ProviderError
+        from nxuskit.providers.claude import ClaudeProvider
+
+        provider = ClaudeProvider(model="claude-sonnet-4-20250514", api_key="test-key")
+        messages = [Message.user("Hello")]
+
+        request_body = provider._build_request(
+            messages,
+            effective_model=provider._model,
+            stream=False,
+            stop=["a", "b", "c", "d"],
+        )
+        assert request_body["stop_sequences"] == ["a", "b", "c", "d"]
+
+        with pytest.raises(ProviderError, match="invalid request control: stop") as caught:
+            provider._build_request(
+                messages,
+                effective_model=provider._model,
+                stream=False,
+                stop=["a", "b", "c", "d", "e"],
+            )
+        assert getattr(caught.value, "code", None) == "invalid_request"
+
 
 class TestStopSequencesOllama:
     """Test stop sequences with Ollama provider."""
@@ -268,8 +295,8 @@ class TestStopSequencesOllama:
             messages, effective_model=provider._model, stream=False, stop="\n\n"
         )
 
-        assert "stop" in request_body
-        assert request_body["stop"] == ["\n\n"]
+        assert "stop" not in request_body
+        assert request_body["options"] == {"stop": ["\n\n"]}
 
     def test_ollama_stop_list_preserved(self):
         """Ollama should preserve list format for stop."""
@@ -283,7 +310,8 @@ class TestStopSequencesOllama:
             messages, effective_model=provider._model, stream=False, stop=stop_list
         )
 
-        assert request_body["stop"] == stop_list
+        assert "stop" not in request_body
+        assert request_body["options"] == {"stop": ["\n\n", "END"]}
 
     def test_ollama_stop_not_included_if_none(self):
         """Ollama should not include stop if None."""
@@ -297,6 +325,7 @@ class TestStopSequencesOllama:
         )
 
         assert "stop" not in request_body
+        assert "options" not in request_body
 
     def test_ollama_stop_with_max_tokens(self):
         """Ollama stop should work with max_tokens (num_predict)."""
@@ -309,9 +338,9 @@ class TestStopSequencesOllama:
             messages, effective_model=provider._model, stream=False, max_tokens=100, stop="\n"
         )
 
-        # Ollama uses num_predict for max_tokens
-        assert request_body["num_predict"] == 100
-        assert request_body["stop"] == ["\n"]
+        # Ollama generation controls are nested, not root-level fields.
+        assert "num_predict" not in request_body and "stop" not in request_body
+        assert request_body["options"] == {"num_predict": 100, "stop": ["\n"]}
 
 
 class TestStopSequencesGroq:
@@ -367,15 +396,15 @@ class TestStopSequencesMistral:
 class TestStopSequencesAcrossAllProviders:
     """Integration-style tests for stop sequences across all providers."""
 
-    def test_all_openai_compatible_providers_support_stop(self):
-        """All OpenAI-compatible providers should support stop parameter."""
+    def test_qualified_openai_compatible_providers_support_stop(self):
+        """Qualified OpenAI-compatible providers should preserve stop."""
         provider_classes = [
             ("groq", "llama-3.3-70b-versatile"),
             ("mistral", "mistral-large-latest"),
             ("fireworks", "accounts/fireworks/models/llama-v3-70b"),
             ("together", "meta-llama/Llama-3-70b"),
             ("openrouter", "anthropic/claude-sonnet-4-20250514"),
-            ("perplexity", "llama-3.1-sonar-small-128k-online"),
+            ("lmstudio", "local-model"),
         ]
 
         for provider_name, model in provider_classes:
@@ -403,10 +432,10 @@ class TestStopSequencesAcrossAllProviders:
                 from nxuskit.providers.openrouter import OpenRouterProvider
 
                 provider = OpenRouterProvider(model=model, api_key="test-key")
-            elif provider_name == "perplexity":
-                from nxuskit.providers.perplexity import PerplexityProvider
+            elif provider_name == "lmstudio":
+                from nxuskit.providers.lmstudio import LMStudioProvider
 
-                provider = PerplexityProvider(model=model, api_key="test-key")
+                provider = LMStudioProvider(model=model)
             else:
                 continue
 
@@ -419,6 +448,181 @@ class TestStopSequencesAcrossAllProviders:
             assert request_body["stop"] == ["\n\n", "END"], (
                 f"{provider_name} didn't preserve stop list"
             )
+
+    def test_mistral_stop_provider_limit_is_four(self):
+        """Mistral accepts four stop sequences and rejects five."""
+        from nxuskit.errors import ProviderError
+        from nxuskit.providers.mistral import MistralProvider
+
+        provider = MistralProvider(model="mistral-large-latest", api_key="test-key")
+        messages = [Message.user("Hello")]
+        stops = ["a", "b", "c", "d"]
+
+        request_body = provider._build_request(
+            messages,
+            effective_model=provider._model,
+            stream=False,
+            stop=stops,
+        )
+        assert request_body["stop"] == stops
+
+        with pytest.raises(ProviderError, match="invalid request control: stop") as caught:
+            provider._build_request(
+                messages,
+                effective_model=provider._model,
+                stream=False,
+                stop=[*stops, "e"],
+            )
+        assert getattr(caught.value, "code", None) == "invalid_request"
+
+    def test_together_stop_provider_limit_is_four(self):
+        """Together accepts four stop sequences and rejects five."""
+        from nxuskit.errors import ProviderError
+        from nxuskit.providers.together import TogetherProvider
+
+        provider = TogetherProvider(model="meta-llama/Llama-3-70b", api_key="test-key")
+        messages = [Message.user("Hello")]
+        stops = ["a", "b", "c", "d"]
+
+        request_body = provider._build_request(
+            messages,
+            effective_model=provider._model,
+            stream=False,
+            stop=stops,
+        )
+        assert request_body["stop"] == stops
+
+        with pytest.raises(ProviderError, match="invalid request control: stop") as caught:
+            provider._build_request(
+                messages,
+                effective_model=provider._model,
+                stream=False,
+                stop=[*stops, "e"],
+            )
+        assert getattr(caught.value, "code", None) == "invalid_request"
+
+    def test_openrouter_stop_provider_limit_is_four(self):
+        """OpenRouter accepts four stop sequences and rejects five."""
+        from nxuskit.errors import ProviderError
+        from nxuskit.providers.openrouter import OpenRouterProvider
+
+        provider = OpenRouterProvider(model="anthropic/claude-sonnet-4-20250514", api_key="test-key")
+        messages = [Message.user("Hello")]
+        stops = ["a", "b", "c", "d"]
+
+        request_body = provider._build_request(
+            messages,
+            effective_model=provider._model,
+            stream=False,
+            stop=stops,
+        )
+        assert request_body["stop"] == stops
+
+        with pytest.raises(ProviderError, match="invalid request control: stop") as caught:
+            provider._build_request(
+                messages,
+                effective_model=provider._model,
+                stream=False,
+                stop=[*stops, "e"],
+            )
+        assert getattr(caught.value, "code", None) == "invalid_request"
+
+    def test_fireworks_stop_provider_limit_is_four(self):
+        """Fireworks accepts four stop sequences and rejects five."""
+        from nxuskit.errors import ProviderError
+        from nxuskit.providers.fireworks import FireworksProvider
+
+        provider = FireworksProvider(
+            model="accounts/fireworks/models/llama-v3-70b", api_key="test-key"
+        )
+        messages = [Message.user("Hello")]
+        stops = ["a", "b", "c", "d"]
+
+        request_body = provider._build_request(
+            messages,
+            effective_model=provider._model,
+            stream=False,
+            stop=stops,
+        )
+        assert request_body["stop"] == stops
+
+        with pytest.raises(ProviderError, match="invalid request control: stop") as caught:
+            provider._build_request(
+                messages,
+                effective_model=provider._model,
+                stream=False,
+                stop=[*stops, "e"],
+            )
+        assert getattr(caught.value, "code", None) == "invalid_request"
+
+    def test_groq_stop_provider_limit_is_four(self):
+        """Groq accepts four stop sequences and rejects five."""
+        from nxuskit.errors import ProviderError
+        from nxuskit.providers.groq import GroqProvider
+
+        provider = GroqProvider(model="llama-3.3-70b-versatile", api_key="test-key")
+        messages = [Message.user("Hello")]
+        stops = ["a", "b", "c", "d"]
+
+        request_body = provider._build_request(
+            messages,
+            effective_model=provider._model,
+            stream=False,
+            stop=stops,
+        )
+        assert request_body["stop"] == stops
+
+        with pytest.raises(ProviderError, match="invalid request control: stop") as caught:
+            provider._build_request(
+                messages,
+                effective_model=provider._model,
+                stream=False,
+                stop=[*stops, "e"],
+            )
+        assert getattr(caught.value, "code", None) == "invalid_request"
+
+    def test_lmstudio_stop_provider_limit_is_four(self):
+        """LM Studio accepts four stop sequences and rejects five."""
+        from nxuskit.errors import ProviderError
+        from nxuskit.providers.lmstudio import LMStudioProvider
+
+        provider = LMStudioProvider(model="local-model")
+        messages = [Message.user("Hello")]
+        stops = ["a", "b", "c", "d"]
+
+        request_body = provider._build_request(
+            messages,
+            effective_model=provider._model,
+            stream=False,
+            stop=stops,
+        )
+        assert request_body["stop"] == stops
+
+        with pytest.raises(ProviderError, match="invalid request control: stop") as caught:
+            provider._build_request(
+                messages,
+                effective_model=provider._model,
+                stream=False,
+                stop=[*stops, "e"],
+            )
+        assert getattr(caught.value, "code", None) == "invalid_request"
+
+    def test_perplexity_rejects_explicit_stop(self):
+        """Perplexity's accepted adapter does not expose stop sequences."""
+        from nxuskit.errors import ProviderError
+        from nxuskit.providers.perplexity import PerplexityProvider
+
+        provider = PerplexityProvider(
+            model="llama-3.1-sonar-small-128k-online", api_key="test-key"
+        )
+        with pytest.raises(ProviderError, match="unsupported request control: stop") as caught:
+            provider._build_request(
+                [Message.user("Hello")],
+                effective_model=provider._model,
+                stream=False,
+                stop=["END"],
+            )
+        assert getattr(caught.value, "code", None) == "unsupported_capability"
 
     def test_all_providers_accept_stop_in_chat_method(self):
         """All providers should accept stop parameter in chat() method."""

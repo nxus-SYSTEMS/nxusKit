@@ -1,0 +1,26 @@
+# Forbidden symbols for public CE tools facade checks.
+#
+# Tier: CE boundary fixture.
+# Keep this list focused on names that would reveal ProviderChannel,
+# ToolCatalog, full CapabilityTruth, Pro routing, or internal topology.
+
+ProviderChannel
+ProviderEntry
+ToolCatalog
+CatalogEntry
+EntitlementSource
+CapabilityTruthSnapshot
+CapabilityEntry
+Posture
+TierPosture
+Edition
+RequestEnvelope
+ResultEnvelope
+Outcome
+internal_channel
+InternalChannel
+pro_routing
+nxuskit_engine::channel
+nxuskit_engine::tool_catalog
+nxuskit_engine::capability_truth
+nxuskit_engine::clips_bridge

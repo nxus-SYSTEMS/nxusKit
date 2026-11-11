@@ -90,17 +90,28 @@ fn public_capability_manifest_serializes_public_json_keys() {
     };
 
     let value = serde_json::to_value(manifest).expect("manifest serializes");
-    assert_eq!(value["schema_version"], "capability-manifest-v2-public-preview/1");
+    assert_eq!(
+        value["schema_version"],
+        "capability-manifest-v2-public-preview/1"
+    );
     assert_eq!(value["posture"], "split");
     assert_eq!(value["providers"][0]["name"], "openai");
-    assert_eq!(value["providers"][0]["capabilities"]["json_schema_strict"], "supported");
+    assert_eq!(
+        value["providers"][0]["capabilities"]["json_schema_strict"],
+        "supported"
+    );
     assert_eq!(
         value["providers"][0]["capabilities"]["tool_calling"],
         "provider_specific"
     );
 
     let provider = value["providers"][0].as_object().expect("provider object");
-    for internal_key in ["evidence", "model_overrides", "provider_specific", "features"] {
+    for internal_key in [
+        "evidence",
+        "model_overrides",
+        "provider_specific",
+        "features",
+    ] {
         assert!(
             !provider.contains_key(internal_key),
             "public manifest provider leaked internal key {internal_key}"

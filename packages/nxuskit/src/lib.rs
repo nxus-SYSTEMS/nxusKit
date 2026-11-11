@@ -19,6 +19,7 @@ pub mod blocking;
 pub mod bn;
 pub mod builders;
 pub mod clips;
+pub mod contract;
 mod error;
 mod ffi;
 pub mod license;
@@ -30,6 +31,7 @@ pub mod solver;
 pub mod solver_types;
 mod stream;
 pub mod tool_types;
+pub mod tools;
 mod types;
 mod version;
 pub mod zen;
@@ -67,10 +69,10 @@ pub use tool_types::{
 pub use types::{
     Capabilities, CapabilityDomains, CapabilityStatus, ChatRequest, ChatResponse, ContentPart,
     FinishReason, ImageData, ImageSource, InferenceMetadata, InferenceStep, LogprobsData,
-    ManifestPublicationPosture, Message, MessageContent, ModelInfo, ParameterWarning,
-    ProviderConfig, PublicCapabilityManifest, PublicProviderCapability, ResponseFormat, Role,
-    StreamChunk, StreamLogprobsDelta, ThinkingMode, TokenCount, TokenLogprob, TokenUsage,
-    TopLogprob, WarningSeverity, PUBLIC_CAPABILITY_FIELDS,
+    ManifestPublicationPosture, Message, MessageContent, ModelInfo, PUBLIC_CAPABILITY_FIELDS,
+    ParameterWarning, ProviderConfig, PublicCapabilityManifest, PublicProviderCapability,
+    ResponseFormat, Role, StreamChunk, StreamLogprobsDelta, ThinkingMode, TokenCount, TokenLogprob,
+    TokenUsage, TopLogprob, WarningSeverity,
 };
 pub use zen::zen_evaluate;
 

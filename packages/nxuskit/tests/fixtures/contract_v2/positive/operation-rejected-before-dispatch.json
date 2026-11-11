@@ -1,0 +1,15 @@
+{
+  "contract_version": "2.0-alpha",
+  "operation_id": "op.fixture.rejected",
+  "correlation_id": "corr.fixture.rejected",
+  "status": "rejected_before_dispatch",
+  "validation_errors": [
+    {
+      "error_code": "route.unavailable",
+      "message": "requested route is not available",
+      "category": "dispatch",
+      "retryable": false
+    }
+  ],
+  "classification": "preview"
+}

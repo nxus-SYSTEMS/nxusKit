@@ -2137,6 +2137,8 @@ impl LLMProvider for ClipsProvider {
         if let Some(help_result) = self.handle_help_command(&input_content, &request.model) {
             let content = help_result?;
             return Ok(ChatResponse {
+                raw_finish_reason: None,
+                provider_metadata: None,
                 content,
                 model: request.model.clone(),
                 provider: self.provider_name().to_string(),
@@ -2249,6 +2251,8 @@ impl LLMProvider for ClipsProvider {
         };
 
         Ok(ChatResponse {
+            raw_finish_reason: None,
+            provider_metadata: None,
             content,
             model: request.model.clone(),
             provider: self.provider_name().to_string(),
@@ -2275,6 +2279,9 @@ impl LLMProvider for ClipsProvider {
         if let Some(help_result) = self.handle_help_command(&input_content, &request.model) {
             let content = help_result?;
             let chunks = vec![Ok(StreamChunk {
+                raw_finish_reason: None,
+                provider_metadata: None,
+                terminal: false,
                 delta: content,
                 thinking: None,
                 finish_reason: Some(FinishReason::Stop),
@@ -2332,6 +2339,9 @@ impl LLMProvider for ClipsProvider {
                 let usage = TokenUsage::estimated_only(estimated);
 
                 vec![Ok(StreamChunk {
+                    raw_finish_reason: None,
+                    provider_metadata: None,
+                    terminal: false,
                     delta: content,
                     thinking: None,
                     finish_reason: Some(FinishReason::Stop),
@@ -2349,6 +2359,9 @@ impl LLMProvider for ClipsProvider {
                         let content =
                             serde_json::to_string(&fact).map_err(NxuskitError::Serialization)?;
                         Ok(StreamChunk {
+                            raw_finish_reason: None,
+                            provider_metadata: None,
+                            terminal: false,
                             delta: content,
                             thinking: None,
                             finish_reason: None,
@@ -2365,6 +2378,9 @@ impl LLMProvider for ClipsProvider {
                     output.stats.conclusions_count as u32,
                 );
                 chunks.push(Ok(StreamChunk {
+                    raw_finish_reason: None,
+                    provider_metadata: None,
+                    terminal: false,
                     delta: String::new(),
                     thinking: None,
                     finish_reason: Some(FinishReason::Stop),
@@ -2391,6 +2407,9 @@ impl LLMProvider for ClipsProvider {
                         let content = serde_json::to_string(&rule_output)
                             .map_err(NxuskitError::Serialization)?;
                         chunks.push(Ok(StreamChunk {
+                            raw_finish_reason: None,
+                            provider_metadata: None,
+                            terminal: false,
                             delta: content,
                             thinking: None,
                             finish_reason: None,
@@ -2411,6 +2430,9 @@ impl LLMProvider for ClipsProvider {
                     let content =
                         serde_json::to_string(&rule_output).map_err(NxuskitError::Serialization)?;
                     chunks.push(Ok(StreamChunk {
+                        raw_finish_reason: None,
+                        provider_metadata: None,
+                        terminal: false,
                         delta: content,
                         thinking: None,
                         finish_reason: None,
@@ -2428,6 +2450,9 @@ impl LLMProvider for ClipsProvider {
                     output.stats.total_rules_fired as u32,
                 );
                 chunks.push(Ok(StreamChunk {
+                    raw_finish_reason: None,
+                    provider_metadata: None,
+                    terminal: false,
                     delta: String::new(),
                     thinking: None,
                     finish_reason: Some(FinishReason::Stop),
