@@ -36,7 +36,7 @@ pub enum ContentPart {
     Text { text: String },
     /// Image content
     Image {
-        #[serde(flatten)]
+        /// Nested to keep the content and image-data `type` tags distinct.
         source: ImageSource,
     },
 }
@@ -907,7 +907,7 @@ pub struct StreamLogprobsDelta {
 ///
 /// Describes what features and parameters a provider supports.
 /// Used by the parameter adapter to gracefully handle unsupported parameters.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ProviderCapabilities {
     /// Whether the provider supports system messages
     pub supports_system_messages: bool,
@@ -985,6 +985,12 @@ pub struct ChatRequest {
     /// Nucleus sampling parameter
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_p: Option<f32>,
+    /// Optional top-k sampling, from 1 through 2147483647.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<i64>,
+    /// Optional minimum probability, finite and from 0 through 1.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_p: Option<f64>,
     /// Whether to stream the response
     #[serde(skip)]
     pub stream: bool,
@@ -999,7 +1005,7 @@ pub struct ChatRequest {
     pub frequency_penalty: Option<f32>,
     /// Seed for deterministic generation
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub seed: Option<u64>,
+    pub seed: Option<i64>,
     /// Whether to return log probabilities
     #[serde(skip_serializing_if = "Option::is_none")]
     pub logprobs: Option<bool>,
@@ -1070,6 +1076,84 @@ fn is_thinking_mode_auto(mode: &ThinkingMode) -> bool {
 }
 
 impl ChatRequest {
+    /// Validate common scalar bounds and the qualified top-k/min-p boundary.
+    pub(crate) fn validate_legacy_sampling(&self, provider: &str) -> crate::error::Result<()> {
+        use crate::error::NxuskitError;
+        for (name, value, min, max) in [
+            ("temperature", self.temperature, 0.0, 2.0),
+            ("top_p", self.top_p, 0.0, 1.0),
+            ("presence_penalty", self.presence_penalty, -2.0, 2.0),
+            ("frequency_penalty", self.frequency_penalty, -2.0, 2.0),
+        ] {
+            if value.is_some_and(|value| !value.is_finite() || !(min..=max).contains(&value)) {
+                return Err(NxuskitError::InvalidRequest(format!("invalid {name}")));
+            }
+        }
+        if self
+            .max_tokens
+            .is_some_and(|value| !(1..=1048576).contains(&value))
+        {
+            return Err(NxuskitError::InvalidRequest(
+                "max_tokens must be between 1 and 1048576".into(),
+            ));
+        }
+        if self
+            .top_k
+            .is_some_and(|value| !(1..=2147483647).contains(&value))
+        {
+            return Err(NxuskitError::InvalidRequest(
+                "top_k must be between 1 and 2147483647".into(),
+            ));
+        }
+        if self
+            .min_p
+            .is_some_and(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
+        {
+            return Err(NxuskitError::InvalidRequest(
+                "min_p must be finite and between 0 and 1".into(),
+            ));
+        }
+        if provider != "ollama" && (self.top_k.is_some() || self.min_p.is_some()) {
+            return Err(NxuskitError::not_implemented(format!(
+                "{provider} top_k/min_p sampling"
+            )));
+        }
+        Ok(())
+    }
+
+    /// Validate common shape requirements for legacy raw tool definitions.
+    pub(crate) fn validate_legacy_tools(&self) -> crate::error::Result<()> {
+        use crate::error::NxuskitError;
+
+        let invalid = || NxuskitError::InvalidRequest("invalid tool definition".into());
+        if let Some(tools) = self.tools.as_ref() {
+            for tool in tools {
+                let object = tool.as_object().ok_or_else(invalid)?;
+                if object.get("type").and_then(serde_json::Value::as_str) != Some("function") {
+                    return Err(invalid());
+                }
+                let function = object
+                    .get("function")
+                    .and_then(serde_json::Value::as_object)
+                    .ok_or_else(invalid)?;
+                if function
+                    .get("name")
+                    .and_then(serde_json::Value::as_str)
+                    .is_none_or(str::is_empty)
+                {
+                    return Err(invalid());
+                }
+                if function
+                    .get("parameters")
+                    .is_some_and(|parameters| !parameters.is_object())
+                {
+                    return Err(invalid());
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Create a new chat request with the specified model
     pub fn new(model: impl Into<String>) -> Self {
         Self {
@@ -1078,6 +1162,8 @@ impl ChatRequest {
             temperature: None,
             max_tokens: None,
             top_p: None,
+            top_k: None,
+            min_p: None,
             stream: false,
             stop: None,
             presence_penalty: None,
@@ -1191,6 +1277,9 @@ impl ChatRequest {
 /// Response from a chat completion request
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatResponse {
+    /// Bounded selected provider response fields; absent when not supplied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_metadata: Option<serde_json::Map<String, serde_json::Value>>,
     /// Generated content
     pub content: String,
     /// Model that generated the response
@@ -1203,6 +1292,9 @@ pub struct ChatResponse {
     /// Reason why generation stopped
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finish_reason: Option<FinishReason>,
+    /// Unmodified provider finish value, including values unknown to this SDK.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub raw_finish_reason: Option<String>,
     /// Provider-specific metadata (legacy, use inference_metadata for new code)
     #[serde(default)]
     pub metadata: HashMap<String, serde_json::Value>,
@@ -1237,6 +1329,8 @@ impl ChatResponse {
             provider: String::new(),
             usage,
             finish_reason: None,
+            raw_finish_reason: None,
+            provider_metadata: None,
             metadata: HashMap::new(),
             warnings: Vec::new(),
             logprobs: None,
@@ -1308,6 +1402,9 @@ impl ChatResponse {
 /// A chunk of a streaming response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StreamChunk {
+    /// Bounded selected metadata, exposed only on successful terminal chunks.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_metadata: Option<serde_json::Map<String, serde_json::Value>>,
     /// Incremental content from the model
     #[serde(default, alias = "content")]
     pub delta: String,
@@ -1324,6 +1421,12 @@ pub struct StreamChunk {
     /// Reason for completion (if finished)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub finish_reason: Option<FinishReason>,
+    /// Unmodified provider finish value, independent of canonical interpretation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub raw_finish_reason: Option<String>,
+    /// Explicit protocol terminality; absent in older JSON payloads.
+    #[serde(default)]
+    pub terminal: bool,
     /// Token usage (only in final chunk for some providers)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<TokenUsage>,
@@ -1351,6 +1454,9 @@ impl StreamChunk {
             delta,
             thinking: None,
             finish_reason: None,
+            raw_finish_reason: None,
+            provider_metadata: None,
+            terminal: false,
             usage: None,
             tool_calls: None,
             logprobs: None,
@@ -1381,6 +1487,9 @@ impl StreamChunk {
             delta: String::new(),
             thinking: Some(thinking),
             finish_reason: None,
+            raw_finish_reason: None,
+            provider_metadata: None,
+            terminal: false,
             usage: None,
             tool_calls: None,
             logprobs: None,
@@ -1401,6 +1510,9 @@ impl StreamChunk {
             delta,
             thinking: Some(thinking),
             finish_reason: None,
+            raw_finish_reason: None,
+            provider_metadata: None,
+            terminal: false,
             usage: None,
             tool_calls: None,
             logprobs: None,
@@ -1413,6 +1525,9 @@ impl StreamChunk {
             delta: String::new(),
             thinking: None,
             finish_reason: Some(finish_reason),
+            raw_finish_reason: None,
+            provider_metadata: None,
+            terminal: true,
             usage,
             tool_calls: None,
             logprobs: None,
@@ -1421,7 +1536,7 @@ impl StreamChunk {
 
     /// Check if this is a final chunk
     pub fn is_final(&self) -> bool {
-        self.finish_reason.is_some()
+        self.terminal || self.finish_reason.is_some()
     }
 
     /// Check if this chunk contains thinking content
@@ -1750,10 +1865,660 @@ impl ModelInfo {
     }
 }
 
+// ============================================================================
+// Spec 119 Sprint 1A: canonical Rust provider contract DTOs
+//
+// This section introduces the additive `Provider*` DTO surface shared by all
+// concrete provider contract mappers (`ProviderContractMapper` in
+// `crate::provider`). These types are independent of the legacy
+// `ChatRequest` / `ChatResponse` surface above: they exist to give every
+// provider mapper (Ollama, OpenAI, ...) one canonical, provider-agnostic
+// request/response/error shape with exact validation bounds, per
+// `specs/119-v2-python-provider-surface-parity/data-model.md`.
+// ============================================================================
+
+use std::collections::BTreeMap;
+
+/// Transport selection for a `ProviderConfig`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderTransportMode {
+    /// Let the SDK choose the best available transport.
+    Auto,
+    /// Force the provider's native HTTP transport.
+    Native,
+    /// Force the FFI transport.
+    Ffi,
+}
+
+/// Canonical, provider-agnostic connection configuration.
+///
+/// See `specs/119-v2-python-provider-surface-parity/data-model.md`
+/// `ProviderConfig` for the exact field/rule table this type implements.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProviderConfig {
+    /// Nonempty canonical provider identifier (e.g. "ollama_local", "openai").
+    pub provider_id: String,
+    /// Nonempty string required for inference creation.
+    pub model: String,
+    /// Optional absolute HTTP or HTTPS URL.
+    #[serde(default)]
+    pub endpoint: Option<String>,
+    /// Optional nonsecret credential reference.
+    #[serde(default)]
+    pub auth_selector: Option<String>,
+    /// Transport selection: auto, native, or ffi.
+    pub transport: ProviderTransportMode,
+    /// Integer 1 through 300000.
+    pub connect_timeout_ms: u32,
+    /// Integer 1 through 300000.
+    pub read_timeout_ms: u32,
+}
+
+impl ProviderConfig {
+    /// Validates this configuration against the exact Spec 119 DTO bounds.
+    pub fn validate(&self) -> crate::error::ProviderContractResult<()> {
+        if self.provider_id.is_empty() {
+            return Err(crate::error::ProviderError::invalid_request(
+                "provider_id",
+                "provider_id must not be empty",
+            ));
+        }
+        if self.model.is_empty() {
+            return Err(crate::error::ProviderError::invalid_request(
+                "model",
+                "model must not be empty",
+            ));
+        }
+        if !(1..=300_000).contains(&self.connect_timeout_ms) {
+            return Err(crate::error::ProviderError::invalid_request(
+                "connect_timeout_ms",
+                "connect_timeout_ms must be between 1 and 300000",
+            ));
+        }
+        if !(1..=300_000).contains(&self.read_timeout_ms) {
+            return Err(crate::error::ProviderError::invalid_request(
+                "read_timeout_ms",
+                "read_timeout_ms must be between 1 and 300000",
+            ));
+        }
+        if let Some(endpoint) = &self.endpoint {
+            let url = reqwest::Url::parse(endpoint).map_err(|_| {
+                crate::error::ProviderError::invalid_request(
+                    "endpoint",
+                    "endpoint must be an absolute HTTP or HTTPS URL",
+                )
+            })?;
+            if url.scheme() != "http" && url.scheme() != "https" {
+                return Err(crate::error::ProviderError::invalid_request(
+                    "endpoint",
+                    "endpoint must use the http or https scheme",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Computes the normalized scheme/host/non-default-port origin of
+    /// `endpoint`, for use as `ProviderDescriptor.endpoint_origin` by
+    /// concrete mappers.
+    ///
+    /// Returns `Ok(None)` when no endpoint is configured. The returned
+    /// origin contains no userinfo, path, query, or fragment.
+    pub fn endpoint_origin(&self) -> crate::error::ProviderContractResult<Option<String>> {
+        let Some(endpoint) = &self.endpoint else {
+            return Ok(None);
+        };
+        let url = reqwest::Url::parse(endpoint).map_err(|_| {
+            crate::error::ProviderError::invalid_request(
+                "endpoint",
+                "endpoint must be an absolute HTTP or HTTPS URL",
+            )
+        })?;
+        let scheme = url.scheme();
+        if scheme != "http" && scheme != "https" {
+            return Err(crate::error::ProviderError::invalid_request(
+                "endpoint",
+                "endpoint must use the http or https scheme",
+            ));
+        }
+        let host = url.host_str().ok_or_else(|| {
+            crate::error::ProviderError::invalid_request("endpoint", "endpoint must include a host")
+        })?;
+        let default_port = if scheme == "https" { 443 } else { 80 };
+        let origin = match url.port() {
+            Some(port) if port != default_port => format!("{scheme}://{host}:{port}"),
+            _ => format!("{scheme}://{host}"),
+        };
+        Ok(Some(origin))
+    }
+}
+
+/// Role of a `ProviderMessage` sender.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderMessageRole {
+    System,
+    User,
+    Assistant,
+}
+
+/// A single role/content message in a `ProviderRequest`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProviderMessage {
+    pub role: ProviderMessageRole,
+    pub content: String,
+}
+
+/// A scalar `ProviderRequest.metadata` value. Non-scalar (object/array)
+/// values are rejected at deserialize time by design: no variant here
+/// matches a JSON object or array.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ProviderMetadataValue {
+    String(String),
+    Number(serde_json::Number),
+    Bool(bool),
+}
+
+/// Optional low/medium/high/max reasoning-effort control.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderReasoningEffort {
+    Low,
+    Medium,
+    High,
+    Max,
+}
+
+/// Optional auto/enabled/disabled thinking control.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderThinkingControl {
+    Auto,
+    Enabled,
+    Disabled,
+}
+
+/// Optional text, json, or direct JSON-schema-object response-format control.
+///
+/// Provider-native wrappers are intentionally absent from this canonical,
+/// provider-agnostic DTO. Mappers may wrap the direct schema object when
+/// constructing provider-specific wire JSON.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ProviderResponseFormat {
+    Text,
+    Json,
+    JsonSchema {
+        schema: serde_json::Map<String, serde_json::Value>,
+    },
+}
+
+/// A single exact function/tool definition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProviderToolDefinition {
+    /// Nonempty tool name.
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    /// JSON object schema (a non-object literal fails to deserialize).
+    pub parameters: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Canonical, provider-agnostic chat request.
+///
+/// See `specs/119-v2-python-provider-surface-parity/data-model.md`
+/// `ProviderRequest` for the exact field/rule table this type implements.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProviderRequest {
+    /// Array 1 through 128 of role/content objects.
+    pub messages: Vec<ProviderMessage>,
+    /// Optional nonempty model override.
+    #[serde(default)]
+    pub model: Option<String>,
+    /// Optional object at most 32 keys; key at most 64 UTF-8 bytes; scalar
+    /// values only.
+    #[serde(default)]
+    pub metadata: BTreeMap<String, ProviderMetadataValue>,
+    /// Optional number 0 through 2.
+    #[serde(default)]
+    pub temperature: Option<f64>,
+    /// Optional integer 1 through 1048576.
+    #[serde(default)]
+    pub max_tokens: Option<u32>,
+    /// Optional number 0 through 1.
+    #[serde(default)]
+    pub top_p: Option<f64>,
+    /// Optional integer 1 through 2147483647.
+    #[serde(default)]
+    pub top_k: Option<i64>,
+    /// Optional number 0 through 1.
+    #[serde(default)]
+    pub min_p: Option<f64>,
+    /// Optional signed 64-bit integer.
+    #[serde(default)]
+    pub seed: Option<i64>,
+    /// Optional array at most 16 nonempty strings.
+    #[serde(default)]
+    pub stop: Vec<String>,
+    /// Optional number -2 through 2.
+    #[serde(default)]
+    pub presence_penalty: Option<f64>,
+    /// Optional number -2 through 2.
+    #[serde(default)]
+    pub frequency_penalty: Option<f64>,
+    /// Optional low, medium, high, or max.
+    #[serde(default)]
+    pub reasoning_effort: Option<ProviderReasoningEffort>,
+    /// Optional text, json, or direct JSON schema object.
+    #[serde(default)]
+    pub response_format: Option<ProviderResponseFormat>,
+    /// Optional auto, enabled, or disabled.
+    #[serde(default)]
+    pub thinking: Option<ProviderThinkingControl>,
+    /// Optional boolean.
+    #[serde(default)]
+    pub logprobs: Option<bool>,
+    /// Optional integer 0 through 20.
+    #[serde(default)]
+    pub top_logprobs: Option<i64>,
+    /// Optional array at most 32 exact function definitions.
+    #[serde(default)]
+    pub tools: Vec<ProviderToolDefinition>,
+}
+
+impl ProviderRequest {
+    /// Validates this request against the exact Spec 119 DTO bounds.
+    pub fn validate(&self) -> crate::error::ProviderContractResult<()> {
+        use crate::error::ProviderError;
+
+        if self.messages.is_empty() || self.messages.len() > 128 {
+            return Err(ProviderError::invalid_request(
+                "messages",
+                "messages must contain between 1 and 128 entries",
+            ));
+        }
+        if let Some(model) = &self.model
+            && model.is_empty()
+        {
+            return Err(ProviderError::invalid_request(
+                "model",
+                "model override must not be empty",
+            ));
+        }
+        if self.metadata.len() > 32 {
+            return Err(ProviderError::invalid_request(
+                "metadata",
+                "metadata must contain at most 32 keys",
+            ));
+        }
+        for key in self.metadata.keys() {
+            if key.len() > 64 {
+                return Err(ProviderError::invalid_request(
+                    "metadata",
+                    "metadata keys must be at most 64 UTF-8 bytes",
+                ));
+            }
+        }
+        if let Some(t) = self.temperature
+            && !(0.0..=2.0).contains(&t)
+        {
+            return Err(ProviderError::invalid_request(
+                "temperature",
+                "temperature must be between 0 and 2",
+            ));
+        }
+        if let Some(m) = self.max_tokens
+            && !(1..=1_048_576).contains(&m)
+        {
+            return Err(ProviderError::invalid_request(
+                "max_tokens",
+                "max_tokens must be between 1 and 1048576",
+            ));
+        }
+        if let Some(p) = self.top_p
+            && !(0.0..=1.0).contains(&p)
+        {
+            return Err(ProviderError::invalid_request(
+                "top_p",
+                "top_p must be between 0 and 1",
+            ));
+        }
+        if let Some(k) = self.top_k
+            && !(1..=2_147_483_647).contains(&k)
+        {
+            return Err(ProviderError::invalid_request(
+                "top_k",
+                "top_k must be between 1 and 2147483647",
+            ));
+        }
+        if let Some(m) = self.min_p
+            && !(0.0..=1.0).contains(&m)
+        {
+            return Err(ProviderError::invalid_request(
+                "min_p",
+                "min_p must be between 0 and 1",
+            ));
+        }
+        if self.stop.len() > 16 {
+            return Err(ProviderError::invalid_request(
+                "stop",
+                "stop must contain at most 16 entries",
+            ));
+        }
+        for s in &self.stop {
+            if s.is_empty() {
+                return Err(ProviderError::invalid_request(
+                    "stop",
+                    "stop entries must be nonempty",
+                ));
+            }
+        }
+        if let Some(p) = self.presence_penalty
+            && !(-2.0..=2.0).contains(&p)
+        {
+            return Err(ProviderError::invalid_request(
+                "presence_penalty",
+                "presence_penalty must be between -2 and 2",
+            ));
+        }
+        if let Some(p) = self.frequency_penalty
+            && !(-2.0..=2.0).contains(&p)
+        {
+            return Err(ProviderError::invalid_request(
+                "frequency_penalty",
+                "frequency_penalty must be between -2 and 2",
+            ));
+        }
+        if let Some(t) = self.top_logprobs
+            && !(0..=20).contains(&t)
+        {
+            return Err(ProviderError::invalid_request(
+                "top_logprobs",
+                "top_logprobs must be between 0 and 20",
+            ));
+        }
+        if self.tools.len() > 32 {
+            return Err(ProviderError::invalid_request(
+                "tools",
+                "tools must contain at most 32 entries",
+            ));
+        }
+        for tool in &self.tools {
+            if tool.name.is_empty() {
+                return Err(ProviderError::invalid_request(
+                    "tools",
+                    "tool name must not be empty",
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Canonical finish reason for a `ProviderResponse`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderFinishReason {
+    Stop,
+    Length,
+    ToolCalls,
+    ContentFilter,
+    Cancelled,
+    Error,
+}
+
+/// A single exact tool call emitted by a provider response.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProviderToolCall {
+    pub id: String,
+    pub name: String,
+    pub arguments: serde_json::Value,
+}
+
+/// Nonnegative prompt/completion/total token usage plus an estimation flag.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ProviderUsage {
+    pub prompt: u64,
+    pub completion: u64,
+    pub total: u64,
+    pub is_estimated: bool,
+}
+
+/// Provenance-only descriptor of the provider/endpoint that produced a
+/// `ProviderResponse`.
+///
+/// `endpoint_origin` is present if and only if a validated HTTP/HTTPS
+/// `ProviderConfig.endpoint` participated in the operation; it equals the
+/// normalized scheme/host/non-default-port origin of that endpoint,
+/// contains no userinfo, path, query, or fragment, and is never used for
+/// routing. It is absent — never a placeholder for "unknown" — when no
+/// network endpoint participated. Built-in/plugin implementation
+/// provenance is future non-scope.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProviderDescriptor {
+    pub provider_id: String,
+    pub model: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endpoint_origin: Option<String>,
+    pub locality: String,
+    pub transport: String,
+}
+
+/// Canonical, provider-agnostic chat response.
+///
+/// See `specs/119-v2-python-provider-surface-parity/data-model.md`
+/// `ProviderResponse` for the exact field/rule table this type implements.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProviderResponse {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_metadata: Option<serde_json::Map<String, serde_json::Value>>,
+    pub content: String,
+    pub descriptor: ProviderDescriptor,
+    pub usage: ProviderUsage,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<crate::error::ProviderError>,
+    #[serde(default)]
+    pub thinking: Option<String>,
+    #[serde(default)]
+    pub tool_calls: Vec<ProviderToolCall>,
+    #[serde(default)]
+    pub canonical_finish: Option<ProviderFinishReason>,
+    #[serde(default)]
+    pub raw_finish: Option<String>,
+}
+
+// ============================================================================
+// Spec 119 Sprint 1C: canonical Rust stream event surface, per
+// `specs/119-v2-python-provider-surface-parity/data-model.md` "Exact Rust
+// `StreamEvent` schema". Emitted, in order, by `ProviderFacade::chat_stream`.
+// ============================================================================
+
+/// A single canonical stream event emitted by `ProviderFacade::chat_stream`.
+///
+/// `Complete`, `Error`, and `Cancelled` are terminal: exactly one is emitted
+/// per stream, and no event follows it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum StreamEvent {
+    Start,
+    Content {
+        delta: String,
+    },
+    Thinking {
+        delta: String,
+    },
+    ToolCall {
+        tool_call: ProviderToolCall,
+    },
+    Usage {
+        usage: ProviderUsage,
+    },
+    Complete {
+        content: String,
+        canonical_finish: Option<ProviderFinishReason>,
+        raw_finish: Option<String>,
+        usage: ProviderUsage,
+    },
+    Error {
+        error: crate::error::ProviderError,
+    },
+    Cancelled {
+        error: crate::error::ProviderError,
+    },
+}
+
 #[cfg(test)]
 #[allow(clippy::panic)]
 mod tests {
     use super::*;
+
+    fn assert_invalid_legacy_tools(tool: serde_json::Value) {
+        let mut request = ChatRequest::new("m");
+        request.tools = Some(vec![tool]);
+        assert!(matches!(
+            request.validate_legacy_tools(),
+            Err(crate::error::NxuskitError::InvalidRequest(_))
+        ));
+    }
+
+    #[test]
+    fn chat_request_legacy_tools_valid_function_object_parameters() {
+        let mut request = ChatRequest::new("m");
+        request.tools = Some(vec![serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "emit",
+                "parameters": {"type": "object"}
+            }
+        })]);
+        assert!(request.validate_legacy_tools().is_ok());
+    }
+
+    #[test]
+    fn chat_request_legacy_tools_rejects_missing_or_non_function_type() {
+        for tool in [
+            serde_json::json!({"function": {"name": "emit"}}),
+            serde_json::json!({"type": "other", "function": {"name": "emit"}}),
+        ] {
+            assert_invalid_legacy_tools(tool);
+        }
+    }
+
+    #[test]
+    fn chat_request_legacy_tools_rejects_missing_or_empty_function_name() {
+        for tool in [
+            serde_json::json!({"type": "function", "function": {}}),
+            serde_json::json!({"type": "function", "function": {"name": ""}}),
+        ] {
+            assert_invalid_legacy_tools(tool);
+        }
+    }
+
+    #[test]
+    fn chat_request_legacy_tools_rejects_non_object_parameters() {
+        assert_invalid_legacy_tools(serde_json::json!({
+            "type": "function",
+            "function": {"name": "emit", "parameters": []}
+        }));
+    }
+
+    #[test]
+    fn chat_request_legacy_tools_accepts_missing_parameters() {
+        let mut request = ChatRequest::new("m");
+        request.tools = Some(vec![serde_json::json!({
+            "type": "function",
+            "function": {"name": "emit"}
+        })]);
+        assert!(request.validate_legacy_tools().is_ok());
+    }
+
+    #[test]
+    fn chat_request_legacy_tools_accepts_empty_and_absent_tools() {
+        let absent = ChatRequest::new("m");
+        assert!(absent.validate_legacy_tools().is_ok());
+
+        let mut empty = ChatRequest::new("m");
+        empty.tools = Some(Vec::new());
+        assert!(empty.validate_legacy_tools().is_ok());
+    }
+
+    #[test]
+    fn legacy_top_k_min_p_survive_json() {
+        for (top_k, min_p) in [(1, 0.0), (2147483647, 1.0), (40, 0.1)] {
+            let request: ChatRequest = serde_json::from_value(serde_json::json!({
+                "model": "m", "messages": [], "top_k": top_k, "min_p": min_p
+            }))
+            .unwrap();
+            let value = serde_json::to_value(request).unwrap();
+            assert_eq!(value["top_k"], top_k);
+            assert_eq!(value["min_p"], min_p);
+        }
+    }
+
+    #[test]
+    fn legacy_chat_seed_signed_json_boundaries() {
+        for literal in ["-1", "-9223372036854775808", "9223372036854775807", "0"] {
+            let json = format!(r#"{{"model":"m","messages":[],"seed":{literal}}}"#);
+            let request: ChatRequest =
+                serde_json::from_str(&json).expect("signed seed must decode");
+            let encoded = serde_json::to_value(request).unwrap();
+            assert_eq!(encoded["seed"].to_string(), literal);
+        }
+        for literal in ["9223372036854775808", "-9223372036854775809", "1.5", "true"] {
+            let json = format!(r#"{{"model":"m","messages":[],"seed":{literal}}}"#);
+            assert!(
+                serde_json::from_str::<ChatRequest>(&json).is_err(),
+                "accepted {literal}"
+            );
+        }
+        let omitted: ChatRequest = serde_json::from_str(r#"{"model":"m","messages":[]}"#).unwrap();
+        assert!(omitted.seed.is_none());
+        assert!(serde_json::to_value(omitted).unwrap().get("seed").is_none());
+    }
+
+    #[test]
+    fn provider_contract_manager_canary_rejects_top_k_above_i32_max() {
+        let request: ProviderRequest = serde_json::from_value(serde_json::json!({
+            "messages": [{"role": "user", "content": "hello"}],
+            "top_k": 2_147_483_648_i64
+        }))
+        .expect("fixture must deserialize");
+
+        let error = request
+            .validate()
+            .expect_err("top_k above 2147483647 must be rejected");
+        assert_eq!(error.code, crate::error::ProviderErrorCode::InvalidRequest);
+    }
+
+    #[test]
+    fn provider_contract_manager_canary_preserves_optional_response_error() {
+        let response: ProviderResponse = serde_json::from_value(serde_json::json!({
+            "content": "",
+            "descriptor": {
+                "provider_id": "openai",
+                "model": "gpt-4o-mini",
+                "locality": "remote",
+                "transport": "native"
+            },
+            "usage": {
+                "prompt": 0,
+                "completion": 0,
+                "total": 0,
+                "is_estimated": false
+            },
+            "error": {
+                "code": "timeout",
+                "message": "provider timed out"
+            }
+        }))
+        .expect("canonical response must deserialize");
+
+        let roundtrip = serde_json::to_value(response).expect("response must serialize");
+        assert_eq!(roundtrip["error"]["code"], "timeout");
+        assert_eq!(roundtrip["error"]["message"], "provider timed out");
+    }
 
     #[test]
     fn test_role_serialization() {
@@ -1763,6 +2528,35 @@ mod tests {
             serde_json::to_string(&Role::Assistant).unwrap(),
             "\"assistant\""
         );
+    }
+
+    #[test]
+    fn terminal_truth_json_compatibility() {
+        for (body, terminal, raw) in [
+            (r#"{"delta":"old"}"#, false, None),
+            (r#"{"delta":"old","finish_reason":null}"#, false, None),
+            (r#"{"delta":"old","finish_reason":"stop"}"#, true, None),
+            (
+                r#"{"delta":"x","terminal":false,"finish_reason":null}"#,
+                false,
+                None,
+            ),
+            (
+                r#"{"delta":"x","terminal":true,"finish_reason":null,"raw_finish_reason":"vendor-new"}"#,
+                true,
+                Some("vendor-new"),
+            ),
+            (
+                r#"{"delta":"x","terminal":true,"finish_reason":null,"raw_finish_reason":null}"#,
+                true,
+                None,
+            ),
+        ] {
+            let chunk: StreamChunk = serde_json::from_str(body).unwrap();
+            assert_eq!(chunk.is_final(), terminal, "{body}");
+            let encoded = serde_json::to_value(chunk).unwrap();
+            assert_eq!(encoded["raw_finish_reason"].as_str(), raw, "{body}");
+        }
     }
 
     #[test]
@@ -1792,6 +2586,68 @@ mod tests {
         assert_eq!(usage.estimated.prompt_tokens, 100);
         assert_eq!(usage.estimated.completion_tokens, 50);
         assert_eq!(usage.total_tokens(), 150);
+    }
+
+    #[test]
+    fn legacy_generation_bounds_reject_before_mapping() {
+        for field in [
+            "temperature",
+            "top_p",
+            "presence_penalty",
+            "frequency_penalty",
+        ] {
+            let (low, high) = match field {
+                "temperature" => (0.0, 2.0),
+                "top_p" => (0.0, 1.0),
+                _ => (-2.0, 2.0),
+            };
+            for value in [
+                low - 0.1,
+                high + 0.1,
+                f32::NAN,
+                f32::INFINITY,
+                f32::NEG_INFINITY,
+            ] {
+                let mut request = ChatRequest::new("m");
+                match field {
+                    "temperature" => request.temperature = Some(value),
+                    "top_p" => request.top_p = Some(value),
+                    "presence_penalty" => request.presence_penalty = Some(value),
+                    _ => request.frequency_penalty = Some(value),
+                }
+                assert!(
+                    matches!(
+                        request.validate_legacy_sampling("ollama"),
+                        Err(crate::error::NxuskitError::InvalidRequest(_))
+                    ),
+                    "{field}={value}"
+                );
+            }
+        }
+        for value in [0, 1048577] {
+            let mut request = ChatRequest::new("m");
+            request.max_tokens = Some(value);
+            assert!(matches!(
+                request.validate_legacy_sampling("ollama"),
+                Err(crate::error::NxuskitError::InvalidRequest(_))
+            ));
+        }
+        for (temperature, top_p, penalty, max_tokens) in
+            [(0.0, 0.0, -2.0, 1), (2.0, 1.0, 2.0, 1048576)]
+        {
+            let mut request = ChatRequest::new("m");
+            request.temperature = Some(temperature);
+            request.top_p = Some(top_p);
+            request.presence_penalty = Some(penalty);
+            request.frequency_penalty = Some(penalty);
+            request.max_tokens = Some(max_tokens);
+            assert!(request.validate_legacy_sampling("ollama").is_ok());
+        }
+        assert!(
+            ChatRequest::new("m")
+                .validate_legacy_sampling("ollama")
+                .is_ok()
+        );
     }
 
     #[test]
@@ -1851,6 +2707,9 @@ mod tests {
 
         // Empty string thinking (treated as absent)
         let empty_thinking = StreamChunk {
+            raw_finish_reason: None,
+            provider_metadata: None,
+            terminal: false,
             delta: String::new(),
             thinking: Some(String::new()),
             finish_reason: None,
@@ -1881,6 +2740,9 @@ mod tests {
 
         // Empty thinking (treated as absent)
         let empty_thinking = StreamChunk {
+            raw_finish_reason: None,
+            provider_metadata: None,
+            terminal: false,
             delta: String::new(),
             thinking: Some(String::new()),
             finish_reason: None,
@@ -1946,6 +2808,9 @@ mod tests {
 
         // Empty thinking string treated as absent
         let empty_thinking = StreamChunk {
+            raw_finish_reason: None,
+            provider_metadata: None,
+            terminal: false,
             delta: "Hello".to_string(),
             thinking: Some(String::new()),
             finish_reason: None,

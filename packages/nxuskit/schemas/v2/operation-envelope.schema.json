@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nxus.systems/nxuskit/v2/operation-envelope.schema.json",
+  "title": "nxusKit v2 OperationEnvelope",
+  "type": "object",
+  "x-nxuskit-contract-version": "2.0-alpha",
+  "x-nxuskit-classification": "preview",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "operation_id",
+    "correlation_id",
+    "actor",
+    "capability_ref",
+    "side_effect",
+    "determinism",
+    "execution_policy",
+    "projection",
+    "audit",
+    "classification"
+  ],
+  "properties": {
+    "contract_version": { "const": "2.0-alpha" },
+    "operation_id": { "type": "string", "minLength": 1 },
+    "correlation_id": { "type": "string", "minLength": 1 },
+    "causality_id": { "type": "string", "minLength": 1 },
+    "actor": { "$ref": "#/$defs/actor_context" },
+    "capability_ref": { "$ref": "refs.schema.json#/$defs/capability_ref" },
+    "route_ref": { "$ref": "refs.schema.json#/$defs/route_ref" },
+    "input_refs": {
+      "type": "array",
+      "items": { "$ref": "refs.schema.json#/$defs/operation_ref" },
+      "default": []
+    },
+    "plan_refs": {
+      "type": "array",
+      "items": { "$ref": "refs.schema.json#/$defs/plan_ref" },
+      "default": []
+    },
+    "expected_output_schema_refs": {
+      "type": "array",
+      "items": { "$ref": "refs.schema.json#/$defs/schema_ref" },
+      "default": []
+    },
+    "side_effect": {
+      "enum": [
+        "read_only",
+        "writes_metadata",
+        "writes_artifact",
+        "invokes_external_service",
+        "protected_runtime"
+      ]
+    },
+    "determinism": {
+      "enum": [
+        "deterministic",
+        "bounded_non_deterministic",
+        "model_non_deterministic",
+        "unknown"
+      ]
+    },
+    "execution_policy": { "$ref": "#/$defs/execution_policy" },
+    "projection": { "$ref": "#/$defs/projection_metadata" },
+    "audit": { "$ref": "#/$defs/audit_metadata" },
+    "classification": { "$ref": "#/$defs/surface_classification" },
+    "metadata": {
+      "type": "object",
+      "description": "Reference-only metadata; bulk data, inline bodies, SQL text, persona content, and workflow-pack content are rejected by the Rust boundary validator."
+    }
+  },
+  "$defs": {
+    "surface_classification": {
+      "enum": [
+        "stable",
+        "preview",
+        "internal",
+        "pro_private",
+        "enterprise_private"
+      ]
+    },
+    "actor_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actor_id"],
+      "properties": {
+        "actor_id": { "type": "string", "minLength": 1 },
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "subject_kind": { "type": "string" },
+        "metadata": { "type": "object" }
+      }
+    },
+    "retry_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_attempts"],
+      "properties": {
+        "max_attempts": { "type": "integer", "minimum": 0 },
+        "retry_after_ms": { "type": "integer", "minimum": 0 },
+        "backoff_hint": { "type": "string" }
+      }
+    },
+    "budget_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_runtime_ms": { "type": "integer", "minimum": 0 },
+        "max_output_refs": { "type": "integer", "minimum": 0 },
+        "max_cost_units": { "type": "integer", "minimum": 0 },
+        "budget_tag": { "type": "string" }
+      }
+    },
+    "execution_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cancellable", "retry", "budget"],
+      "properties": {
+        "timeout_ms": { "type": "integer", "minimum": 0 },
+        "cancellable": { "type": "boolean" },
+        "cancellation_token": { "type": "string" },
+        "retry": { "$ref": "#/$defs/retry_policy" },
+        "idempotency_key": { "type": "string" },
+        "dedupe_key": { "type": "string" },
+        "causality_id": { "type": "string", "minLength": 1 },
+        "budget": { "$ref": "#/$defs/budget_policy" }
+      }
+    },
+    "projection_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["posture", "classification"],
+      "properties": {
+        "posture": {
+          "enum": [
+            "not_projected",
+            "projection_ready",
+            "projected",
+            "projection_blocked"
+          ]
+        },
+        "source_schema_refs": {
+          "type": "array",
+          "items": { "$ref": "refs.schema.json#/$defs/schema_ref" },
+          "default": []
+        },
+        "projected_schema_refs": {
+          "type": "array",
+          "items": { "$ref": "refs.schema.json#/$defs/schema_ref" },
+          "default": []
+        },
+        "generated_artifact_refs": {
+          "type": "array",
+          "items": { "$ref": "refs.schema.json#/$defs/artifact_ref" },
+          "default": []
+        },
+        "classification": { "$ref": "#/$defs/surface_classification" },
+        "metadata": { "type": "object" }
+      }
+    },
+    "audit_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actor", "classification"],
+      "properties": {
+        "submitted_at": { "type": "string" },
+        "actor": { "$ref": "#/$defs/actor_context" },
+        "reason": { "type": "string" },
+        "audit_ref": { "$ref": "refs.schema.json#/$defs/artifact_ref" },
+        "classification": { "$ref": "#/$defs/surface_classification" },
+        "metadata": { "type": "object" }
+      }
+    }
+  }
+}

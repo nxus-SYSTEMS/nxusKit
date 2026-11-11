@@ -50,6 +50,16 @@ type TokenInfo struct {
 	Edition *string `json:"edition"`
 	// DaysRemaining until token expiry (nil for deployment tokens)
 	DaysRemaining *int64 `json:"days_remaining"`
+	// SDKReleaseLine is the numeric SDK release line for a validated v2 deployment token.
+	SDKReleaseLine *uint32 `json:"sdk_release_line"`
+	// GrantRevision is the immutable grant revision for a validated v2 deployment token.
+	GrantRevision *uint32 `json:"grant_revision"`
+	// AuthorizationScope is the safe authorization scope for a validated v2 deployment token.
+	AuthorizationScope *string `json:"authorization_scope"`
+	// SigningKeyID is the ES256 key id that verified a validated v2 deployment token.
+	SigningKeyID *string `json:"signing_key_id"`
+	// TokenFingerprint is the SHA-256 fingerprint of a validated v2 deployment token.
+	TokenFingerprint *string `json:"token_fingerprint"`
 	// Error message if validation failed
 	Error *string `json:"error"`
 	// Result is the entitlement result code
@@ -78,8 +88,8 @@ func LicenseResolve(explicitKey string) (*LicenseResolution, error) {
 
 // LicenseValidate validates a license token JWT string.
 //
-// Performs RS384 signature verification, claim parsing, and type-specific
-// validation (expiry, machine binding, version ceiling).
+// Performs ES256 signature verification, claim parsing, and type-specific
+// validation (including strict DeploymentClaimsV2 for deployment tokens).
 func LicenseValidate(token string) (*TokenInfo, error) {
 	jsonStr, err := ffi.LicenseValidate(token)
 	if err != nil {

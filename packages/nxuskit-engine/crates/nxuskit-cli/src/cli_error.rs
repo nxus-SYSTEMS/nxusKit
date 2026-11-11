@@ -28,6 +28,30 @@ pub enum CliError {
     #[error("Provider error: {message}")]
     ProviderError { message: String },
 
+    #[error("Invalid request: {message}")]
+    InvalidRequest { message: String },
+
+    #[error("Unsupported capability: {message}")]
+    UnsupportedCapability { message: String },
+
+    #[error("Rate limited: {message}")]
+    RateLimited {
+        message: String,
+        retry_after_ms: Option<u64>,
+    },
+
+    /// Frozen Spec119 provider-call class: unavailable or unauthorized.
+    #[error("{message}")]
+    ProviderUnavailableOrUnauthorized { code: &'static str, message: String },
+
+    /// Frozen Spec119 provider-call class: timeout.
+    #[error("Timeout: {message}")]
+    ProviderTimeout { message: String },
+
+    /// Frozen Spec119 provider-call class: malformed transport or internal.
+    #[error("{message}")]
+    ProviderInternal { code: &'static str, message: String },
+
     #[error("Merge conflict at paths: {paths:?}")]
     MergeConflict { paths: Vec<String> },
 
@@ -108,6 +132,13 @@ impl CliError {
             // Exit 2: timeout
             Self::Timeout { .. } | Self::IdleTimeout => "timeout",
 
+            Self::InvalidRequest { .. } => "invalid_request",
+            Self::UnsupportedCapability { .. } => "unsupported_capability",
+            Self::RateLimited { .. } => "rate_limited",
+            Self::ProviderUnavailableOrUnauthorized { code, .. }
+            | Self::ProviderInternal { code, .. } => code,
+            Self::ProviderTimeout { .. } => "timeout",
+
             // Exit 3: auth_failed
             Self::AuthFailed { .. } => "auth_failed",
 
@@ -139,6 +170,13 @@ impl CliError {
             // Exit 3: auth
             Self::AuthFailed { .. } => 3,
 
+            // Frozen provider-call contract.
+            Self::InvalidRequest { .. } => 2,
+            Self::UnsupportedCapability { .. } => 3,
+            Self::ProviderUnavailableOrUnauthorized { .. } => 4,
+            Self::RateLimited { .. } | Self::ProviderTimeout { .. } => 5,
+            Self::ProviderInternal { .. } => 6,
+
             // Exit 4: entitlement
             Self::EntitlementRequired { .. } => 4,
 
@@ -160,6 +198,9 @@ impl CliError {
     /// Convert to a JSON error envelope for stderr output (FR-016).
     pub fn to_error_envelope(&self) -> ErrorEnvelope {
         let details: Option<serde_json::Value> = match self {
+            Self::RateLimited { retry_after_ms, .. } => {
+                retry_after_ms.map(|value| serde_json::json!({ "retry_after_ms": value }))
+            }
             Self::EntitlementRequired {
                 required_edition,
                 current_edition,
@@ -182,6 +223,110 @@ impl CliError {
             details,
             trace_id: new_trace_id().to_string(),
             timestamp: now_rfc3339(),
+        }
+    }
+
+    /// Preserve the canonical provider error taxonomy at the CLI boundary.
+    pub fn from_provider_error(error: nxuskit_engine::NxuskitError) -> Self {
+        use nxuskit_engine::NxuskitError;
+
+        match error {
+            NxuskitError::Authentication(message) => Self::ProviderUnavailableOrUnauthorized {
+                code: "authentication",
+                message,
+            },
+            NxuskitError::RateLimit { retry_after } => Self::RateLimited {
+                message: "provider rate limit exceeded".to_string(),
+                retry_after_ms: retry_after
+                    .map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)),
+            },
+            NxuskitError::InvalidRequest(message) => Self::InvalidRequest { message },
+            NxuskitError::UnsupportedCapability {
+                provider,
+                capability,
+            } => Self::UnsupportedCapability {
+                message: format!("{provider} does not support {capability}"),
+            },
+            NxuskitError::NotImplemented { feature } => {
+                Self::UnsupportedCapability { message: feature }
+            }
+            NxuskitError::Provider { status, message } if status == 401 || status == 403 => {
+                Self::ProviderUnavailableOrUnauthorized {
+                    code: "authentication",
+                    message,
+                }
+            }
+            NxuskitError::Provider {
+                status: 429,
+                message,
+            } => Self::RateLimited {
+                message,
+                retry_after_ms: None,
+            },
+            NxuskitError::Provider { status, message } if (400..500).contains(&status) => {
+                Self::InvalidRequest { message }
+            }
+            NxuskitError::Provider { message, .. } => Self::ProviderUnavailableOrUnauthorized {
+                code: "unavailable",
+                message,
+            },
+            NxuskitError::Network(error) if error.is_timeout() => Self::ProviderTimeout {
+                message: error.to_string(),
+            },
+            NxuskitError::Network(error) => Self::ProviderInternal {
+                code: "network",
+                message: error.to_string(),
+            },
+            other => Self::ProviderInternal {
+                code: "internal",
+                message: other.to_string(),
+            },
+        }
+    }
+
+    /// Preserve canonical discovery/provider-contract errors at the CLI boundary.
+    pub fn from_contract_error(error: nxuskit_engine::error::ProviderError) -> Self {
+        use nxuskit_engine::error::ProviderErrorCode;
+
+        match error.code {
+            ProviderErrorCode::InvalidRequest => Self::InvalidRequest {
+                message: error.message,
+            },
+            ProviderErrorCode::UnsupportedCapability => Self::UnsupportedCapability {
+                message: error.message,
+            },
+            ProviderErrorCode::Authentication
+            | ProviderErrorCode::Unauthorized
+            | ProviderErrorCode::Unavailable => Self::ProviderUnavailableOrUnauthorized {
+                code: match error.code {
+                    ProviderErrorCode::Authentication => "authentication",
+                    ProviderErrorCode::Unauthorized => "unauthorized",
+                    _ => "unavailable",
+                },
+                message: error.message,
+            },
+            ProviderErrorCode::RateLimited => Self::RateLimited {
+                message: error.message,
+                retry_after_ms: error.retry_after_ms,
+            },
+            ProviderErrorCode::Timeout => Self::ProviderTimeout {
+                message: error.message,
+            },
+            ProviderErrorCode::Cancelled => Self::ProviderTimeout {
+                message: error.message,
+            },
+            ProviderErrorCode::MalformedResponse => Self::ProviderInternal {
+                code: "malformed_response",
+                message: error.message,
+            },
+            ProviderErrorCode::Network => Self::ProviderInternal {
+                code: "network",
+                message: error.message,
+            },
+            ProviderErrorCode::Internal => Self::ProviderInternal {
+                code: "internal",
+                message: error.message,
+            },
         }
     }
 }

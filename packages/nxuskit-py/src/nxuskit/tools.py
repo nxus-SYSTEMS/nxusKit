@@ -42,8 +42,28 @@ class ToolDefinition:
             ),
         )
 
+    def validate(self) -> None:
+        """Validate the frozen canonical tool-definition request contract."""
+        from nxuskit.errors import ProviderError
+
+        if self.type != "function":
+            error = ProviderError("invalid tool definition: type must be 'function'")
+            error.code = "invalid_request"
+            raise error
+        if not isinstance(self.function.name, str) or not self.function.name:
+            error = ProviderError("invalid tool definition: function name must be nonempty")
+            error.code = "invalid_request"
+            raise error
+        if self.function.parameters is not None and not isinstance(self.function.parameters, dict):
+            error = ProviderError(
+                "invalid tool definition: function parameters must be a JSON object"
+            )
+            error.code = "invalid_request"
+            raise error
+
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dict for JSON encoding."""
+        self.validate()
         result: dict[str, Any] = {"type": self.type, "function": {"name": self.function.name}}
         if self.function.description is not None:
             result["function"]["description"] = self.function.description

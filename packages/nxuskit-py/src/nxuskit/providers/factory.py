@@ -1,6 +1,6 @@
 """Factory class for creating LLM provider instances.
 
-When ``use_ffi=True`` the factory returns an :class:`FFIProvider` backed by
+When ``use_ffi=True`` the factory returns a synchronous protocol adapter backed by
 the nxuskit C ABI shared library.  When ``use_ffi=False`` (the default) the
 factory returns the original Python-native HTTP providers.
 
@@ -11,8 +11,12 @@ all providers to C ABI routing without changing code.
 from __future__ import annotations
 
 import os
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
+if TYPE_CHECKING:
+    from nxuskit.provider import AsyncLLMProvider
+
+from nxuskit.provider import LLMProvider
 from nxuskit.providers.claude import ClaudeProvider
 from nxuskit.providers.fireworks import FireworksProvider
 from nxuskit.providers.groq import GroqProvider
@@ -26,7 +30,7 @@ from nxuskit.providers.together import TogetherProvider
 from nxuskit.providers.xai import XaiProvider
 
 # Type alias: factory methods return either native or FFI providers.
-AnyProvider = Any
+AnyProvider = LLMProvider
 
 
 def _should_use_ffi(use_ffi: Optional[bool]) -> bool:
@@ -46,12 +50,15 @@ def _make_ffi_provider(
     api_url: Optional[str] = None,
     timeout: float = 30.0,
     license_key: Optional[str] = None,
+    *,
+    declared_profile: Optional[str] = None,
 ) -> AnyProvider:
     """Create a provider via the nxuskit C ABI shared library.
 
     Lazy-imports the FFI module so cffi is only required when actually used.
     """
     from nxuskit._ffi_provider import create_ffi_provider
+    from nxuskit._ffi_sync_provider import SyncFFIProvider
 
     config: dict[str, Any] = {
         "provider_type": provider_type,
@@ -65,7 +72,12 @@ def _make_ffi_provider(
     if license_key is not None:
         config["license_key"] = license_key
 
-    return create_ffi_provider(config)
+    return SyncFFIProvider(
+        create_ffi_provider(config, declared_profile=declared_profile),
+        model,
+        provider_type,
+        declared_profile=declared_profile,
+    )
 
 
 class Provider:
@@ -78,6 +90,64 @@ class Provider:
     * ``False`` — use the native Python HTTP implementation (default).
     * ``None``  — fall back to ``NXUSKIT_USE_FFI`` environment variable.
     """
+
+    @staticmethod
+    def create_async(
+        provider_type: str,
+        model: str,
+        *,
+        api_key: Optional[str] = None,
+        api_url: Optional[str] = None,
+        timeout: float = 30.0,
+        max_in_flight: int = 4,
+        use_ffi: bool = True,
+        profile: Optional[str] = None,
+    ) -> "AsyncLLMProvider":
+        """Construct an async owner; existing calls retain FFI routing.
+
+        Explicit use_ffi=False selects the listed compatible native async profiles.
+        Other native profiles fail explicitly; no fallback or live-call guarantee.
+        """
+        if not use_ffi:
+            if provider_type not in (
+                "openai",
+                "openrouter",
+                "perplexity",
+                "groq",
+                "xai",
+                "fireworks",
+                "mistral",
+                "together",
+                "lmstudio",
+                "ollama",
+                "claude",
+            ):
+                raise ValueError(
+                    "native async currently supports only openai, openrouter, perplexity, "
+                    "groq, xai, fireworks, mistral, together, lmstudio, ollama, claude"
+                )
+            from nxuskit.providers.async_openai import NativeAsyncOpenAIProvider
+
+            return NativeAsyncOpenAIProvider(
+                model,
+                provider_type=provider_type,
+                api_key=api_key,
+                api_url=api_url,
+                timeout=timeout,
+                max_in_flight=max_in_flight,
+                profile=profile,
+            )
+        from nxuskit._ffi_async_provider import AsyncFFIProvider
+
+        return AsyncFFIProvider(
+            provider_type,
+            model,
+            api_key=api_key,
+            api_url=api_url,
+            timeout=timeout,
+            max_in_flight=max_in_flight,
+            declared_profile=profile,
+        )
 
     @staticmethod
     def claude(
@@ -134,16 +204,28 @@ class Provider:
         read_timeout: Optional[float] = None,
         use_ffi: Optional[bool] = None,
         license_key: Optional[str] = None,
+        *,
+        profile: Optional[str] = None,
     ) -> AnyProvider:
         """Create an Ollama provider instance."""
+        OllamaProvider._validate_profile(profile)
         if _should_use_ffi(use_ffi):
-            return _make_ffi_provider("ollama", model, None, api_url, timeout, license_key)
+            return _make_ffi_provider(
+                "ollama",
+                model,
+                None,
+                api_url,
+                timeout,
+                license_key,
+                declared_profile=profile,
+            )
         return OllamaProvider(
             model=model,
             api_url=api_url,
             timeout=timeout,
             connect_timeout=connect_timeout,
             read_timeout=read_timeout,
+            profile=profile,
         )
 
     @staticmethod

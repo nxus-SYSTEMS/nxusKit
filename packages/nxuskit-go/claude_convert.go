@@ -117,8 +117,18 @@ func convertThinkingModeToClaudeThinking(mode ThinkingMode) *claudeThinking {
 }
 
 // convertClaudeStopReason converts Anthropic stop_reason to FinishReason.
-func convertClaudeStopReason(reason string) FinishReason {
-	return ParseFinishReason(reason)
+func convertClaudeStopReason(reason string) *FinishReason {
+	if reason == "stop_sequence" {
+		parsed := FinishReasonStop
+		return &parsed
+	}
+	parsed := ParseFinishReason(reason)
+	switch parsed {
+	case FinishReasonStop, FinishReasonLength, FinishReasonContentFilter, FinishReasonToolCalls, FinishReasonError:
+		return &parsed
+	default:
+		return nil
+	}
 }
 
 // convertFromClaudeResponse converts an Anthropic response to ChatResponse.
@@ -153,8 +163,8 @@ func convertFromClaudeResponse(resp *claudeMessagesResponse) *ChatResponse {
 
 	// Set finish reason
 	if resp.StopReason != "" {
-		fr := convertClaudeStopReason(resp.StopReason)
-		cr.FinishReason = &fr
+		cr.RawFinishReason = &resp.StopReason
+		cr.FinishReason = convertClaudeStopReason(resp.StopReason)
 	}
 
 	// Set token usage
@@ -223,16 +233,20 @@ func parseClaudeErrorResponse(statusCode int, body []byte, providerName string) 
 		msg = fmt.Sprintf("HTTP %d", statusCode)
 	}
 
+	return claudeHTTPErrorForStatus(statusCode, msg, providerName, nil)
+}
+
+func claudeHTTPErrorForStatus(statusCode int, message, providerName string, err error) error {
 	switch statusCode {
 	case 401:
-		return NewAuthenticationError(providerName, msg, nil)
+		return NewAuthenticationError(providerName, message, err)
 	case 400:
-		return NewInvalidRequestError(providerName, msg, nil)
+		return NewInvalidRequestError(providerName, message, err)
 	case 429:
 		// TODO: Parse retry-after header if available
-		return NewRateLimitError(providerName, 0, nil)
+		return NewRateLimitError(providerName, 0, err)
 	default:
-		return NewProviderError(providerName, msg, statusCode, nil)
+		return NewProviderError(providerName, message, statusCode, err)
 	}
 }
 

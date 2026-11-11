@@ -1,0 +1,177 @@
+{
+  "artifact": "v2_projection_conformance_alpha",
+  "classification": "preview",
+  "contract_version": "2.0-alpha",
+  "fixture_hashes": {
+    "packages/nxuskit/tests/fixtures/contract_v2/negative/blob-payload.json": "sha256:7533628554c1c8379c0cc4b0e019e57bee53d1dd7b8df1cb19c6f51f2803bd00",
+    "packages/nxuskit/tests/fixtures/contract_v2/negative/bulk-rows.json": "sha256:1b8b9b82e67e1fe110d053f54d88cd4d32d8289c07d2f5262323dad9c795ac4e",
+    "packages/nxuskit/tests/fixtures/contract_v2/negative/file-body.json": "sha256:f0bf2db2d7537ac7fbc7d613b5c437f27b5a7d31d8376fe82db2943fbcc733f9",
+    "packages/nxuskit/tests/fixtures/contract_v2/negative/inline-sql.json": "sha256:e1cc69ec12798f98eb2d60ed7da593262790818aee064eb7fcef54bcc64d1b63",
+    "packages/nxuskit/tests/fixtures/contract_v2/negative/persona-content.json": "sha256:e730a4e26e92f633dc666ad7f2e733773b73d931a2243b901495ac896f038edd",
+    "packages/nxuskit/tests/fixtures/contract_v2/negative/record-batch.json": "sha256:3a23f02f3ce0021216e87ef62f78e912011d05f3ec0607483ba7a27b0c892f07",
+    "packages/nxuskit/tests/fixtures/contract_v2/negative/workflow-pack-content.json": "sha256:7bda2ac488b68c7f206b55a16f5eb09bdd9f12e1c5d46d514182bd61ac54b4ee",
+    "packages/nxuskit/tests/fixtures/contract_v2/positive/capability-catalog-entry.json": "sha256:07ec56ec8625f6e3755d29d4d8070302417f0bafc7e73d8a81916531a2b9f27e",
+    "packages/nxuskit/tests/fixtures/contract_v2/positive/operation-accepted.json": "sha256:a82f4b81e3814c413520080b6a02d9efbcd3a6c011807e0edfa29c7241ffd093",
+    "packages/nxuskit/tests/fixtures/contract_v2/positive/operation-envelope.json": "sha256:00e3360e77033c6edeff7571d36a453fd3d1d637c5a72aac331935b33b1626cb",
+    "packages/nxuskit/tests/fixtures/contract_v2/positive/operation-event.json": "sha256:f55af514df2e816b33b5ea785dc30cfd8c3ac65c1e68698c806eb4f8d7865717",
+    "packages/nxuskit/tests/fixtures/contract_v2/positive/operation-rejected-before-dispatch.json": "sha256:45ad48414ef97b988965d8b5af706384521208731ac309bbecacee7250d615de",
+    "packages/nxuskit/tests/fixtures/contract_v2/positive/operation-result.json": "sha256:f8cb35371aef695101a54365aad5b57e05aa6c7b7ca932c805104a1e7697cf49"
+  },
+  "generated": {
+    "python": "packages/nxuskit-projections/python/nxuskit_projection_alpha/v2_contracts.py",
+    "typescript": "packages/nxuskit-projections/typescript/src/v2_contracts.zod.ts"
+  },
+  "model_required_keys": {
+    "CapabilityCatalogEntry": [
+      "actor_scope",
+      "allowed_input_ref_kinds",
+      "allowed_output_ref_kinds",
+      "cancellable",
+      "capability_ref",
+      "classification",
+      "contract_version",
+      "cost",
+      "determinism",
+      "entitlement",
+      "health",
+      "input_schema_refs",
+      "locality",
+      "output_schema_refs",
+      "projection",
+      "readiness",
+      "route_kind",
+      "route_refs",
+      "side_effect",
+      "summary",
+      "tenant_scoped",
+      "tier",
+      "title",
+      "trust",
+      "vocabulary"
+    ],
+    "OperationAccepted": [
+      "classification",
+      "contract_version",
+      "correlation_id",
+      "operation_id",
+      "status"
+    ],
+    "OperationEnvelope": [
+      "actor",
+      "audit",
+      "capability_ref",
+      "causality_id",
+      "classification",
+      "contract_version",
+      "correlation_id",
+      "determinism",
+      "execution_policy",
+      "expected_output_schema_refs",
+      "input_refs",
+      "metadata",
+      "operation_id",
+      "plan_refs",
+      "projection",
+      "route_ref",
+      "side_effect"
+    ],
+    "OperationEvent": [
+      "causality_id",
+      "classification",
+      "contract_version",
+      "correlation_id",
+      "event_id",
+      "event_kind",
+      "message",
+      "occurred_at",
+      "operation_id",
+      "refs",
+      "status"
+    ],
+    "OperationResult": [
+      "classification",
+      "completed_at",
+      "contract_version",
+      "correlation_id",
+      "operation_id",
+      "output_refs",
+      "result_ref",
+      "status"
+    ]
+  },
+  "ref_required_keys": {
+    "ArtifactRef": [
+      "artifact_id",
+      "artifact_kind",
+      "classification",
+      "fingerprint",
+      "kind",
+      "locality",
+      "schema_ref",
+      "trust"
+    ],
+    "BatchRef": [
+      "batch_id",
+      "byte_size_hint",
+      "classification",
+      "kind",
+      "locality",
+      "row_count_hint",
+      "schema_ref",
+      "trust"
+    ],
+    "CapabilityRef": [
+      "capability_id",
+      "capability_version",
+      "classification"
+    ],
+    "FactSetRef": [
+      "classification",
+      "fact_set_id",
+      "kind",
+      "locality",
+      "schema_refs",
+      "trust"
+    ],
+    "PacketRef": [
+      "classification",
+      "kind",
+      "locality",
+      "packet_id",
+      "trust"
+    ],
+    "PlanRef": [
+      "classification",
+      "compatibility_posture",
+      "locality",
+      "plan_id",
+      "plan_kind",
+      "schema_ref",
+      "trust"
+    ],
+    "RouteRef": [
+      "classification",
+      "locality",
+      "route_id",
+      "route_label",
+      "trust"
+    ],
+    "SchemaRef": [
+      "classification",
+      "fingerprint",
+      "schema_id",
+      "schema_kind",
+      "schema_version",
+      "uri"
+    ]
+  },
+  "scope_locks": {
+    "gate_g": "locked",
+    "go_openapi_mcp_utcp": "locked",
+    "public_docs_finalization": "locked"
+  },
+  "source": {
+    "fixture_root": "packages/nxuskit/tests/fixtures/contract_v2",
+    "schema_cli": "nxuskit-cli contract-v2 schema emit"
+  }
+}

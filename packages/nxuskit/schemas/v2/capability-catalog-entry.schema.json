@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nxus.systems/nxuskit/v2/capability-catalog-entry.schema.json",
+  "title": "nxusKit v2 CapabilityCatalogEntry",
+  "type": "object",
+  "x-nxuskit-contract-version": "2.0-alpha",
+  "x-nxuskit-classification": "preview",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "capability_ref",
+    "title",
+    "summary",
+    "vocabulary",
+    "route_kind",
+    "locality",
+    "determinism",
+    "side_effect",
+    "cancellable",
+    "cost",
+    "tier",
+    "entitlement",
+    "tenant_scoped",
+    "trust",
+    "readiness",
+    "health",
+    "projection",
+    "classification"
+  ],
+  "properties": {
+    "contract_version": { "const": "2.0-alpha" },
+    "capability_ref": { "$ref": "refs.schema.json#/$defs/capability_ref" },
+    "title": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string" },
+    "vocabulary": {
+      "enum": [
+        "capability_catalog",
+        "sdk_implementation_catalog",
+        "reserved_graph_model"
+      ]
+    },
+    "input_schema_refs": {
+      "type": "array",
+      "items": { "$ref": "refs.schema.json#/$defs/schema_ref" },
+      "default": []
+    },
+    "output_schema_refs": {
+      "type": "array",
+      "items": { "$ref": "refs.schema.json#/$defs/schema_ref" },
+      "default": []
+    },
+    "route_refs": {
+      "type": "array",
+      "items": { "$ref": "refs.schema.json#/$defs/route_ref" },
+      "default": []
+    },
+    "route_kind": {
+      "enum": [
+        "local_adapter",
+        "remote_service",
+        "packaged_runtime",
+        "protected_runtime",
+        "disabled"
+      ]
+    },
+    "locality": { "enum": ["local", "remote", "hybrid", "packaged"] },
+    "determinism": {
+      "enum": [
+        "deterministic",
+        "bounded_non_deterministic",
+        "model_non_deterministic",
+        "unknown"
+      ]
+    },
+    "side_effect": {
+      "enum": [
+        "read_only",
+        "writes_metadata",
+        "writes_artifact",
+        "invokes_external_service",
+        "protected_runtime"
+      ]
+    },
+    "cancellable": { "type": "boolean" },
+    "cost": {
+      "enum": [
+        "free",
+        "metered",
+        "compute_bound",
+        "memory_bound",
+        "data_plane_bound",
+        "unknown"
+      ]
+    },
+    "tier": { "enum": ["community", "pro", "enterprise"] },
+    "entitlement": {
+      "enum": [
+        "community_allowed",
+        "pro_required",
+        "enterprise_required",
+        "disabled",
+        "unknown"
+      ]
+    },
+    "actor_scope": { "type": "string" },
+    "tenant_scoped": { "type": "boolean" },
+    "trust": {
+      "enum": [
+        "public_contract",
+        "internal_only",
+        "pro_private",
+        "enterprise_private"
+      ]
+    },
+    "readiness": { "enum": ["ready", "preview", "blocked", "experimental"] },
+    "health": { "enum": ["healthy", "degraded", "unavailable", "unknown"] },
+    "allowed_input_ref_kinds": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/allowed_ref_kind" },
+      "default": []
+    },
+    "allowed_output_ref_kinds": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/allowed_ref_kind" },
+      "default": []
+    },
+    "projection": {
+      "$ref": "operation-envelope.schema.json#/$defs/projection_metadata"
+    },
+    "audit": { "$ref": "operation-envelope.schema.json#/$defs/audit_metadata" },
+    "classification": { "$ref": "#/$defs/surface_classification" },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "allowed_ref_kind": {
+      "enum": ["artifact", "batch", "fact_set", "packet", "plan", "schema"]
+    },
+    "surface_classification": {
+      "enum": [
+        "stable",
+        "preview",
+        "internal",
+        "pro_private",
+        "enterprise_private"
+      ]
+    }
+  }
+}

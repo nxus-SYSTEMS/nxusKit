@@ -33,8 +33,7 @@ fn message_user_backward_compat() {
 
 #[test]
 fn message_with_image_url_produces_parts() {
-    let msg = nxuskit::Message::user("What is this?")
-        .with_image_url("https://example.com/img.jpg");
+    let msg = nxuskit::Message::user("What is this?").with_image_url("https://example.com/img.jpg");
     match &msg.content {
         nxuskit::MessageContent::Parts(parts) => {
             assert_eq!(parts.len(), 2, "should have text + image parts");
@@ -58,21 +57,18 @@ fn message_with_image_url_produces_parts() {
 
 #[test]
 fn message_with_image_base64_produces_base64_data() {
-    let msg =
-        nxuskit::Message::user("Describe").with_image_base64("abc123", "image/png");
+    let msg = nxuskit::Message::user("Describe").with_image_base64("abc123", "image/png");
     match &msg.content {
         nxuskit::MessageContent::Parts(parts) => {
             assert_eq!(parts.len(), 2);
             match &parts[1] {
-                nxuskit::ContentPart::Image { source } => {
-                    match &source.data {
-                        nxuskit::ImageData::Base64 { data, media_type } => {
-                            assert_eq!(data, "abc123");
-                            assert_eq!(media_type, "image/png");
-                        }
-                        _ => panic!("expected Base64 image data"),
+                nxuskit::ContentPart::Image { source } => match &source.data {
+                    nxuskit::ImageData::Base64 { data, media_type } => {
+                        assert_eq!(data, "abc123");
+                        assert_eq!(media_type, "image/png");
                     }
-                }
+                    _ => panic!("expected Base64 image data"),
+                },
                 _ => panic!("second part should be Image"),
             }
         }

@@ -3,17 +3,23 @@
 import base64
 import json
 from typing import Any, Iterator, List, Optional, Union
+from urllib.parse import urlsplit
 
+from nxuskit.errors import ProviderError
 from nxuskit.message import Message
+from nxuskit.providers._resource_bounds import NdjsonRecordFramer
 from nxuskit.providers.base import BaseProvider
 from nxuskit.tools import ToolDefinition
 from nxuskit.types import (
     ChatResponse,
     ImageSourceType,
+    LogprobsData,
     ModelInfo,
     ResponseFormat,
     StreamChunk,
+    StreamLogprobsDelta,
     TokenUsage,
+    _validate_request_controls,
 )
 
 
@@ -29,6 +35,8 @@ class OllamaProvider(BaseProvider):
         timeout: float = 30.0,
         connect_timeout: Optional[float] = None,
         read_timeout: Optional[float] = None,
+        *,
+        profile: Optional[str] = None,
     ):
         """Initialize Ollama provider."""
         if api_url is None:
@@ -42,6 +50,31 @@ class OllamaProvider(BaseProvider):
             connect_timeout=connect_timeout,
             read_timeout=read_timeout,
         )
+        self._validate_profile(profile)
+        self._profile = profile
+
+    @staticmethod
+    def _validate_profile(profile):
+        if profile not in (None, "ollama_local", "ollama_cloud_via_daemon"):
+            error = ProviderError("Invalid declared Ollama profile", provider="ollama")
+            error.code = "invalid_request"
+            raise error
+
+    def _endpoint_origin(self):
+        # Provenance only: strip userinfo, path, query and fragment. It never
+        # establishes where the model executed or whether a capability exists.
+        try:
+            url = urlsplit(self._api_url)
+            if url.scheme not in ("http", "https") or not url.hostname:
+                return None
+            host = url.hostname.lower()
+            if ":" in host:
+                host = f"[{host}]"
+            port = url.port
+            suffix = f":{port}" if port and port != {"http": 80, "https": 443}[url.scheme] else ""
+            return f"{url.scheme}://{host}{suffix}"
+        except ValueError:
+            return None
 
     @property
     def provider_name(self) -> str:
@@ -57,9 +90,18 @@ class OllamaProvider(BaseProvider):
         max_tokens: Optional[int] = None,
         top_p: Optional[float] = None,
         stop: Optional[Union[str, List[str]]] = None,
-        response_format: Optional[ResponseFormat] = None,
+        response_format: Optional[Union[ResponseFormat, dict[str, Any]]] = None,
         tools: Optional[List[ToolDefinition]] = None,
         tool_choice: Optional[Any] = None,
+        thinking: Optional[str] = None,
+        presence_penalty: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        top_k: Optional[int] = None,
+        min_p: Optional[float] = None,
+        logprobs: Optional[bool] = None,
+        top_logprobs: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> ChatResponse:
         """Send a chat request to Ollama."""
         effective_model = self._resolve_model(model)
@@ -73,6 +115,16 @@ class OllamaProvider(BaseProvider):
             stop=stop,
             response_format=response_format,
             tools=tools,
+            thinking=thinking,
+            tool_choice=tool_choice,
+            presence_penalty=presence_penalty,
+            frequency_penalty=frequency_penalty,
+            seed=seed,
+            top_k=top_k,
+            min_p=min_p,
+            logprobs=logprobs,
+            top_logprobs=top_logprobs,
+            reasoning_effort=reasoning_effort,
         )
         headers = self._build_headers()
 
@@ -81,9 +133,13 @@ class OllamaProvider(BaseProvider):
             url=f"{self._api_url}/api/chat",
             headers=headers,
             json_data=request_body,
+            stream=True,
         )
 
-        data = response.json()
+        try:
+            data = json.loads(self._read_response_bytes(response).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._request_error("malformed_response", "Malformed Ollama response")
         return self._parse_response(data, effective_model)
 
     def chat_stream(
@@ -95,9 +151,18 @@ class OllamaProvider(BaseProvider):
         max_tokens: Optional[int] = None,
         top_p: Optional[float] = None,
         stop: Optional[Union[str, List[str]]] = None,
-        response_format: Optional[ResponseFormat] = None,
+        response_format: Optional[Union[ResponseFormat, dict[str, Any]]] = None,
         tools: Optional[List[ToolDefinition]] = None,
         tool_choice: Optional[Any] = None,
+        thinking: Optional[str] = None,
+        presence_penalty: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        top_k: Optional[int] = None,
+        min_p: Optional[float] = None,
+        logprobs: Optional[bool] = None,
+        top_logprobs: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> Iterator[StreamChunk]:
         """Stream a chat response from Ollama."""
         effective_model = self._resolve_model(model)
@@ -111,6 +176,16 @@ class OllamaProvider(BaseProvider):
             stop=stop,
             response_format=response_format,
             tools=tools,
+            thinking=thinking,
+            tool_choice=tool_choice,
+            presence_penalty=presence_penalty,
+            frequency_penalty=frequency_penalty,
+            seed=seed,
+            top_k=top_k,
+            min_p=min_p,
+            logprobs=logprobs,
+            top_logprobs=top_logprobs,
+            reasoning_effort=reasoning_effort,
         )
         headers = self._build_headers()
 
@@ -122,19 +197,27 @@ class OllamaProvider(BaseProvider):
             stream=True,
         )
 
-        for line in response.iter_lines():
-            if not line:
-                continue
+        framer = NdjsonRecordFramer(provider="ollama")
 
-            line = line.decode("utf-8") if isinstance(line, bytes) else line
+        def records():
+            for transport_chunk in self._iter_stream_response_bytes(response, sse=False):
+                yield from framer.feed(transport_chunk)
+            yield from framer.finish()
 
-            try:
-                data = json.loads(line)
+        try:
+            for record in records():
+                try:
+                    data = json.loads(record.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    self._request_error("malformed_response", "Malformed Ollama stream record")
                 chunk = self._parse_stream_event(data, effective_model)
                 if chunk:
                     yield chunk
-            except json.JSONDecodeError:
-                continue
+                    if chunk.is_final():
+                        return
+            self._request_error("malformed_response", "Ollama stream ended before done")
+        finally:
+            response.close()
 
     def list_models(self) -> List[ModelInfo]:
         """List available models from Ollama."""
@@ -145,8 +228,9 @@ class OllamaProvider(BaseProvider):
                 url=f"{self._api_url}/api/tags",
                 headers=headers,
                 json_data={},
+                stream=True,
             )
-            data = response.json()
+            data = self._read_response_json(response)
             models = []
             for m in data.get("models", []):
                 details = m.get("details", {})
@@ -182,10 +266,49 @@ class OllamaProvider(BaseProvider):
         max_tokens: Optional[int] = None,
         top_p: Optional[float] = None,
         stop: Optional[Union[str, List[str]]] = None,
-        response_format: Optional[ResponseFormat] = None,
+        response_format: Optional[Union[ResponseFormat, dict[str, Any]]] = None,
         tools: Optional[List[ToolDefinition]] = None,
+        thinking: Optional[str] = None,
+        tool_choice: Optional[Any] = None,
+        presence_penalty: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        top_k: Optional[int] = None,
+        min_p: Optional[float] = None,
+        logprobs: Optional[bool] = None,
+        top_logprobs: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> dict:
         """Build request body for Ollama API."""
+        _validate_request_controls(
+            self.provider_name,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+            stop=stop,
+            presence_penalty=presence_penalty,
+            frequency_penalty=frequency_penalty,
+            seed=seed,
+            top_k=top_k,
+            min_p=min_p,
+            logprobs=logprobs,
+            top_logprobs=top_logprobs,
+            reasoning_effort=reasoning_effort,
+            thinking=thinking,
+        )
+        for name, value in (
+            ("presence_penalty", presence_penalty),
+            ("frequency_penalty", frequency_penalty),
+            ("reasoning_effort", reasoning_effort),
+        ):
+            if value is not None:
+                self._request_error(
+                    "unsupported_capability", f"unsupported request control: {name}"
+                )
+        if tool_choice is not None:
+            self._request_error("unsupported_capability", "tool_choice is not supported by Ollama")
+        if thinking not in (None, "omit", "auto", "enabled", "disabled"):
+            self._request_error("invalid_request", "Invalid thinking mode")
         formatted_messages = []
 
         for msg in messages:
@@ -214,16 +337,55 @@ class OllamaProvider(BaseProvider):
             "stream": stream,
         }
 
+        options = {}
         if temperature is not None:
-            request_body["temperature"] = temperature
+            options["temperature"] = temperature
         if max_tokens is not None:
-            request_body["num_predict"] = max_tokens
+            options["num_predict"] = max_tokens
         if top_p is not None:
-            request_body["top_p"] = top_p
+            options["top_p"] = top_p
+        if seed is not None:
+            options["seed"] = seed
+        if top_k is not None:
+            options["top_k"] = top_k
+        if min_p is not None:
+            options["min_p"] = min_p
         if stop is not None:
-            request_body["stop"] = stop if isinstance(stop, list) else [stop]
+            options["stop"] = stop if isinstance(stop, list) else [stop]
+        if options:
+            request_body["options"] = options
+        if logprobs is not None:
+            request_body["logprobs"] = logprobs
+        if top_logprobs is not None:
+            request_body["top_logprobs"] = top_logprobs
         if response_format == ResponseFormat.JSON:
             request_body["format"] = "json"
+        elif isinstance(response_format, dict):
+            kind = response_format.get("type")
+            if (
+                kind == "json_schema"
+                and set(response_format) == {"type", "schema"}
+                and isinstance(response_format["schema"], dict)
+            ):
+                request_body["format"] = response_format["schema"]
+            elif kind in ("json", "text") and set(response_format) == {"type"}:
+                if kind == "json":
+                    request_body["format"] = "json"
+            else:
+                self._request_error("invalid_request", "Invalid Ollama response format")
+        elif response_format not in (None, ResponseFormat.TEXT):
+            self._request_error("invalid_request", "Invalid Ollama response format")
+        if self._profile == "ollama_cloud_via_daemon" and "format" in request_body:
+            self._request_error(
+                "unsupported_capability", "Ollama Cloud structured output is unsupported"
+            )
+        if thinking in ("enabled", "disabled"):
+            request_body["think"] = thinking == "enabled"
+        elif thinking == "auto" and any(
+            token in effective_model.lower()
+            for token in ("qwen3", "deepseek-r1", "deepseek-v3", ":thinking")
+        ):
+            request_body["think"] = True
 
         # Ollama supports OpenAI-compatible tool format
         if tools:
@@ -231,8 +393,52 @@ class OllamaProvider(BaseProvider):
 
         return request_body
 
+    def _request_error(self, code, message):
+        error = ProviderError(message, provider="ollama", model=self._model)
+        error.code = code
+        raise error
+
+    @staticmethod
+    def _finish_reason(data):
+        if not data.get("done"):
+            return None, None
+        raw = data.get("done_reason")
+        return (
+            raw if raw in ("stop", "length", "tool_calls", "content_filter", "error") else None
+        ), raw
+
+    def _validate_response_fields(self, data):
+        if not isinstance(data, dict):
+            self._request_error("malformed_response", "Malformed Ollama response")
+        if "error" in data:
+            self._request_error("malformed_response", "Ollama response contains an error")
+        message = data.get("message", {})
+        if (
+            not isinstance(message, dict)
+            or type(data.get("done", False)) is not bool
+            or any(
+                data.get(key) is not None and not isinstance(data[key], str)
+                for key in ("model", "done_reason")
+            )
+            or (message.get("thinking") is not None and not isinstance(message["thinking"], str))
+            or ("content" in message and not isinstance(message["content"], str))
+            or (
+                message.get("tool_calls") is not None
+                and not isinstance(message["tool_calls"], list)
+            )
+            or (data.get("logprobs") is not None and not isinstance(data["logprobs"], list))
+            or any(
+                key in data and (type(data[key]) is not int or data[key] < 0)
+                for key in ("prompt_eval_count", "eval_count")
+            )
+        ):
+            self._request_error("malformed_response", "Malformed Ollama response")
+
     def _parse_response(self, data: dict, effective_model: str) -> ChatResponse:
         """Parse Ollama API response."""
+        self._validate_response_fields(data)
+        if data.get("done") is not True:
+            self._request_error("malformed_response", "Ollama response ended before done")
         content = None
 
         if "message" in data:
@@ -247,29 +453,51 @@ class OllamaProvider(BaseProvider):
         )
 
         # Ollama signals completion with "done": true
-        finish_reason = "stop" if data.get("done") else None
+        finish_reason, raw_finish_reason = self._finish_reason(data)
+        try:
+            logprobs = (
+                LogprobsData.from_dict({"content": data["logprobs"]})
+                if data.get("logprobs") is not None
+                else None
+            )
+        except (AttributeError, TypeError, ValueError):
+            self._request_error("malformed_response", "Malformed Ollama logprobs")
 
         return ChatResponse(
             content=content,
             usage=token_usage,
-            model=effective_model,
+            model=data.get("model") or effective_model,
             finish_reason=finish_reason,
+            raw_finish_reason=raw_finish_reason,
+            thinking=data.get("message", {}).get("thinking"),
+            tool_calls=data.get("message", {}).get("tool_calls"),
+            logprobs=logprobs,
+            provider="ollama",
+            declared_profile=self._profile,
+            endpoint_origin=self._endpoint_origin(),
         )
 
     def _parse_stream_event(self, data: dict, effective_model: str) -> Optional[StreamChunk]:
         """Parse a single stream event from Ollama."""
-        if "message" not in data:
-            return None
-
-        message = data["message"]
+        self._validate_response_fields(data)
+        message = data.get("message", {})
         content = message.get("content", "")
+        thinking = message.get("thinking")
+        tool_calls = message.get("tool_calls")
+        try:
+            logprobs = (
+                StreamLogprobsDelta.from_dict({"content": data["logprobs"]})
+                if data.get("logprobs") is not None
+                else None
+            )
+        except (AttributeError, TypeError, ValueError):
+            self._request_error("malformed_response", "Malformed Ollama logprobs")
         is_done = data.get("done", False)
 
-        if content or is_done:
+        if content or thinking or tool_calls or logprobs is not None or is_done:
             usage = None
-            finish_reason = None
+            finish_reason, raw_finish_reason = self._finish_reason(data)
             if is_done:
-                finish_reason = "stop"
                 prompt_eval = data.get("prompt_eval_count", 0)
                 eval_count = data.get("eval_count", 0)
                 if prompt_eval or eval_count:
@@ -280,8 +508,15 @@ class OllamaProvider(BaseProvider):
 
             return StreamChunk(
                 delta=content,
-                model=effective_model,
+                terminal=is_done,
+                model=data.get("model") or effective_model,
                 finish_reason=finish_reason,
+                raw_finish_reason=raw_finish_reason,
+                thinking=thinking,
+                tool_calls=tool_calls,
+                logprobs=logprobs,
+                declared_profile=self._profile,
+                endpoint_origin=self._endpoint_origin(),
                 usage=usage,
             )
 

@@ -4,8 +4,8 @@ package nxuskit
 
 import "testing"
 
-func TestExpectedNxuskitVersionReportsV105(t *testing.T) {
-	if ExpectedNxuskitVersion != "1.0.5" {
-		t.Fatalf("ExpectedNxuskitVersion = %q, want 1.0.5", ExpectedNxuskitVersion)
+func TestExpectedNxuskitVersionReportsV110(t *testing.T) {
+	if ExpectedNxuskitVersion != "2.0.0" {
+		t.Fatalf("ExpectedNxuskitVersion = %q, want 2.0.0", ExpectedNxuskitVersion)
 	}
 }

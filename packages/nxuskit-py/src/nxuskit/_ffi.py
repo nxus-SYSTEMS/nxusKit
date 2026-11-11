@@ -23,7 +23,7 @@ from pathlib import Path
 from cffi import FFI
 
 # Expected version — must match the linked nxuskit library.
-EXPECTED_VERSION = "1.0.5"
+EXPECTED_VERSION = "2.0.0"
 
 # ── cffi setup ────────────────────────────────────────────────
 
@@ -36,16 +36,43 @@ ffi.cdef("""
     typedef struct NxuskitProvider NxuskitProvider;
     typedef struct NxuskitResponse NxuskitResponse;
     typedef struct NxuskitStream NxuskitStream;
+    typedef struct NxuskitChatOperation NxuskitChatOperation;
+    typedef struct NxuskitStreamOperation NxuskitStreamOperation;
+    typedef struct NxuskitDiscovery NxuskitDiscovery;
+    typedef struct NxuskitDiscoveryOperation NxuskitDiscoveryOperation;
+    NxuskitDiscovery *nxuskit_discovery_create(const char *);
+    _Bool nxuskit_discovery_close(NxuskitDiscovery *);
+    void nxuskit_discovery_free(NxuskitDiscovery *);
+    NxuskitDiscoveryOperation *nxuskit_discovery_operation_start(NxuskitDiscovery *, uint32_t);
+    void nxuskit_discovery_operation_cancel(NxuskitDiscoveryOperation *);
+    _Bool nxuskit_discovery_operation_wait(NxuskitDiscoveryOperation *, uint32_t);
+    char *nxuskit_discovery_operation_result(NxuskitDiscoveryOperation *);
+    _Bool nxuskit_discovery_operation_free(NxuskitDiscoveryOperation *);
+    typedef int32_t (*NxuskitStreamOperationChunkCallback)(const char *, void *);
+    typedef void (*NxuskitStreamOperationDoneCallback)(int32_t, const char *, void *);
+    typedef void (*NxuskitChatAsyncCallback)(int32_t, NxuskitResponse *, const char *, void *);
 
     typedef int32_t (*NxuskitStreamCallback)(const char *chunk_json, void *user_data);
     typedef void (*NxuskitStreamDoneCallback)(const char *final_json, void *user_data);
 
     const char *nxuskit_version(void);
+    char *nxuskit_capabilities(void);
     NxuskitProvider *nxuskit_create_provider(const char *config_json);
     void nxuskit_free_provider(NxuskitProvider *provider);
     NxuskitResponse *nxuskit_chat(NxuskitProvider *provider, const char *request_json);
     const char *nxuskit_response_json(const NxuskitResponse *response);
     void nxuskit_free_response(NxuskitResponse *response);
+    NxuskitChatOperation *nxuskit_chat_operation_start(NxuskitProvider *, const char *, uint64_t, \
+NxuskitChatAsyncCallback, void *);
+    void nxuskit_chat_operation_cancel(NxuskitChatOperation *);
+    _Bool nxuskit_chat_operation_wait(NxuskitChatOperation *, uint32_t);
+    _Bool nxuskit_chat_operation_free(NxuskitChatOperation *);
+    NxuskitStreamOperation *nxuskit_stream_operation_start(
+        NxuskitProvider *, const char *, uint64_t,
+        NxuskitStreamOperationChunkCallback, NxuskitStreamOperationDoneCallback, void *);
+    void nxuskit_stream_operation_cancel(NxuskitStreamOperation *);
+    _Bool nxuskit_stream_operation_wait(NxuskitStreamOperation *, uint32_t);
+    _Bool nxuskit_stream_operation_free(NxuskitStreamOperation *);
     NxuskitStream *nxuskit_chat_stream(
         NxuskitProvider *provider,
         const char *request_json,
@@ -58,6 +85,7 @@ ffi.cdef("""
     char *nxuskit_list_models(NxuskitProvider *provider);
     const char *nxuskit_last_error(void);
     void nxuskit_free_string(char *ptr);
+    char *nxuskit_action_gate_preview_evaluate_json(const char *request_json);
 
     /* License functions (v0.9.1) */
     char *nxuskit_license_resolve(const char *explicit_key);

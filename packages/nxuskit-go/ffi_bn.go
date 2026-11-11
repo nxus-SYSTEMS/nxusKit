@@ -12,8 +12,9 @@ package nxuskit
 /*
 #cgo CFLAGS: -I${SRCDIR}/include
 #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/lib/darwin_arm64 -lnxuskit -lpthread -ldl -lm -framework CoreFoundation -framework Security -Wl,-rpath,${SRCDIR}/lib/darwin_arm64
+#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/lib/darwin_amd64 -lnxuskit -lpthread -ldl -lm -framework CoreFoundation -framework Security -Wl,-rpath,${SRCDIR}/lib/darwin_amd64
 #cgo linux,amd64 LDFLAGS: -L${SRCDIR}/lib/linux_amd64 -lnxuskit -lpthread -ldl -lm -Wl,-rpath,${SRCDIR}/lib/linux_amd64
-#cgo windows,amd64 LDFLAGS: -L${SRCDIR}/lib/windows_amd64 -lnxuskit -lws2_32 -luserenv -lbcrypt -lntdll
+#cgo windows,amd64 LDFLAGS: -L${SRCDIR}/lib/windows_amd64 -l:nxuskit.dll.lib -lws2_32 -luserenv -lbcrypt -lntdll
 
 #include "nxuskit.h"
 #include <stdlib.h>

@@ -235,7 +235,7 @@ pub fn anthropic() -> ProviderCapabilityRecord {
     let claude_test_module =
         "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/claude.rs::tests";
     let claude_message_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/claude.rs::tests::test_message_conversion";
-    let claude_sse_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/claude.rs::tests::test_sse_event_parsing";
+    let claude_tool_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/claude.rs::tests::claude_unary_json_and_tools_round_trip";
 
     let mut features = CapabilityFeatureSet::default();
 
@@ -251,11 +251,10 @@ pub fn anthropic() -> ProviderCapabilityRecord {
     features.structured_output.json_schema_strict = CapabilityStatus::Unsupported;
     features.structured_output.json_schema_best_effort = CapabilityStatus::Unsupported;
 
-    // Tool calling: documented but `ClaudeRequest` does not currently
-    // serialize `tools` / `tool_choice` — only `tool_use` finish-reason
-    // mapping is wired on the response side. Held at Recognized until
-    // Phase 4 (T035) ships request-side wiring.
-    features.tool_calling.function_calling = CapabilityStatus::Recognized;
+    // Tool calling: ordinary unary function calling is request/response mapped
+    // by the Claude adapter. Parallel and streaming tool calls remain
+    // recognized-only; hosted Anthropic tools remain governed separately by OD-2.
+    features.tool_calling.function_calling = CapabilityStatus::Supported;
     features.tool_calling.parallel_tool_calls = CapabilityStatus::Recognized;
     features.tool_calling.streaming_tool_calls = CapabilityStatus::Recognized;
     features.tool_calling.tool_choice_modes = vec!["auto".into(), "any".into(), "tool".into()];
@@ -283,7 +282,10 @@ pub fn anthropic() -> ProviderCapabilityRecord {
         "reasoning".into(),
         evidence(docs_thinking, claude_test_module),
     );
-    ev.insert("tool_calling".into(), evidence(docs_tools, claude_sse_test));
+    ev.insert(
+        "tool_calling".into(),
+        evidence(docs_tools, claude_tool_test),
+    );
     ev.insert(
         "modalities".into(),
         evidence(docs_tools, claude_message_test),
@@ -315,13 +317,12 @@ pub fn anthropic() -> ProviderCapabilityRecord {
 /// `StructuredOutputConfig` and `ToolCallConfig` through
 /// `MistralRequest` (`response_format`, `tools`, `tool_choice`,
 /// `parallel_tool_calls`), promoting the corresponding capability
-/// statuses to `Supported`. The legacy boolean
-/// `supports_json_schema: false` on the historical capability surface
-/// is preserved for backward compatibility but the typed path covers
-/// strict + named-schema modes faithfully. Streaming tool-call decoding
-/// stays `Recognized` until typed `ToolCallDelta` lands. Mistral Agents
-/// built-in tools (web search / code interpreter) are documented but
-/// provider-specific in v0.9.4 — held at `Recognized`.
+/// statuses to `Supported`. Typed and legacy JSON Schema plus ordinary
+/// unary function calling now share the provider wire and canonical response
+/// mapping. Streaming tool-call decoding stays `Recognized` until typed
+/// `ToolCallDelta` lands. Mistral Agents built-in tools (web search / code
+/// interpreter) are documented but provider-specific in v0.9.4 — held at
+/// `Recognized`.
 pub fn mistral() -> ProviderCapabilityRecord {
     let docs_function = "https://docs.mistral.ai/capabilities/function_calling/";
     let docs_json_mode = "https://docs.mistral.ai/capabilities/structured-output/json_mode/";
@@ -333,24 +334,23 @@ pub fn mistral() -> ProviderCapabilityRecord {
         "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/mistral.rs::tests";
     let mistral_caps_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/mistral.rs::tests::test_mistral_capabilities";
     let mistral_message_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/mistral.rs::tests::test_message_conversion";
-    let mistral_typed_structured_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/mistral.rs::tests::pro_tests::test_build_request_serializes_typed_structured_output_json_schema";
-    let mistral_typed_tools_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/mistral.rs::tests::pro_tests::test_build_request_serializes_typed_tools_and_tool_choice";
+    let mistral_schema_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/mistral.rs::tests::mistral_legacy_schema_and_tool_wire";
+    let mistral_tool_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/mistral.rs::tests::mistral_unary_tool_round_trip";
 
     let mut features = CapabilityFeatureSet::default();
 
-    // T036 wired typed StructuredOutputConfig through MistralRequest's
-    // response_format field via `openai_wire::response_format`; proven by
-    // the four `test_build_request_serializes_typed_*` adapter tests.
+    // Typed and legacy JSON Schema share the qualified Mistral
+    // OpenAI-compatible response_format wire shape.
     features.structured_output.json_mode = CapabilityStatus::Supported;
     features.structured_output.json_schema_strict = CapabilityStatus::Supported;
     features.structured_output.json_schema_best_effort = CapabilityStatus::Supported;
     features.structured_output.named_schemas = CapabilityStatus::Supported;
     features.structured_output.additionalprops_false = CapabilityStatus::Supported;
 
-    // T036 wired typed ToolCallConfig through MistralRequest's tools /
-    // tool_choice / parallel_tool_calls fields via `openai_wire::tools`
-    // and `openai_wire::tool_choice`. Streaming tool-call decoding is
-    // not yet wired through ToolCallDelta — held at Recognized.
+    // Typed and legacy unary function tools share the provider tools /
+    // tool_choice wire. Parallel tool-call request control remains Supported.
+    // Streaming tool-call decoding is not yet wired through ToolCallDelta —
+    // held at Recognized.
     features.tool_calling.function_calling = CapabilityStatus::Supported;
     features.tool_calling.parallel_tool_calls = CapabilityStatus::Supported;
     features.tool_calling.streaming_tool_calls = CapabilityStatus::Recognized;
@@ -372,7 +372,7 @@ pub fn mistral() -> ProviderCapabilityRecord {
     let mut ev: HashMap<String, CapabilityEvidence> = HashMap::new();
     ev.insert(
         "tool_calling".into(),
-        evidence(docs_function, mistral_typed_tools_test),
+        evidence(docs_function, mistral_tool_test),
     );
     ev.insert(
         "structured_output.json_mode".into(),
@@ -380,19 +380,19 @@ pub fn mistral() -> ProviderCapabilityRecord {
     );
     ev.insert(
         "structured_output.json_schema_strict".into(),
-        evidence(docs_json_schema, mistral_typed_structured_test),
+        evidence(docs_json_schema, mistral_schema_test),
     );
     ev.insert(
         "structured_output.json_schema_best_effort".into(),
-        evidence(docs_json_schema, mistral_typed_structured_test),
+        evidence(docs_json_schema, mistral_schema_test),
     );
     ev.insert(
         "structured_output.named_schemas".into(),
-        evidence(docs_json_schema, mistral_typed_structured_test),
+        evidence(docs_json_schema, mistral_schema_test),
     );
     ev.insert(
         "structured_output.additionalprops_false".into(),
-        evidence(docs_json_schema, mistral_typed_structured_test),
+        evidence(docs_json_schema, mistral_schema_test),
     );
     let mut hosted = evidence(docs_agents, mistral_test_module);
     hosted.notes = vec![
@@ -417,14 +417,13 @@ pub fn mistral() -> ProviderCapabilityRecord {
     }
 }
 
-/// Groq capability record. Phase 4 (T037) wired typed
-/// `StructuredOutputConfig` and `ToolCallConfig` through `GroqRequest`
-/// (`response_format`, `tools`, `tool_choice`, `parallel_tool_calls`),
-/// promoting the corresponding OpenAI-compatible statuses to `Supported`.
-/// The legacy boolean `supports_json_schema: false` remains preserved for
-/// backward compatibility. Compound systems (web search) and the
-/// reasoning-output field remain recognized/provider-specific rather than
-/// first-class v0.9.4 request fields. Logprobs are explicitly `Unsupported`.
+/// Groq capability record. Typed and legacy JSON Schema plus ordinary unary
+/// function calling are wired through `GroqRequest`; unary response tool calls
+/// preserve canonical tool-call finish semantics. Parallel tool-call request
+/// control remains supported, while streaming tool calls stay `Recognized`
+/// until the generic typed `ToolCallDelta` stream surface is implemented.
+/// Compound systems (web search) and the reasoning-output field remain
+/// recognized/provider-specific. Logprobs are explicitly `Unsupported`.
 pub fn groq() -> ProviderCapabilityRecord {
     let docs_struct_out = "https://console.groq.com/docs/structured-outputs";
     let docs_chat_api = "https://console.groq.com/docs/api-reference#chat-create";
@@ -433,22 +432,22 @@ pub fn groq() -> ProviderCapabilityRecord {
     let groq_test_module =
         "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/groq.rs::tests";
     let groq_message_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/groq.rs::tests::test_message_conversion_text_only";
-    let groq_typed_structured_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/groq.rs::tests::pro_tests::test_build_request_serializes_typed_structured_output_json_schema";
-    let groq_typed_tools_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/groq.rs::tests::pro_tests::test_build_request_serializes_typed_tools_and_tool_choice";
+    let groq_schema_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/groq.rs::tests::groq_legacy_schema_and_tool_wire";
+    let groq_tool_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/groq.rs::tests::groq_unary_tool_round_trip";
 
     let mut features = CapabilityFeatureSet::default();
 
-    // T037 wired typed StructuredOutputConfig through GroqRequest's
-    // response_format field via `openai_wire::response_format`.
+    // Typed and legacy schema requests share the qualified OpenAI-compatible
+    // response_format wire shape.
     features.structured_output.json_mode = CapabilityStatus::Supported;
     features.structured_output.json_schema_strict = CapabilityStatus::Supported;
     features.structured_output.json_schema_best_effort = CapabilityStatus::Supported;
     features.structured_output.named_schemas = CapabilityStatus::Supported;
     features.structured_output.additionalprops_false = CapabilityStatus::Supported;
 
-    // T037 wired typed ToolCallConfig through GroqRequest's tools /
-    // tool_choice / parallel_tool_calls fields. Streaming tool-call decoding
-    // is not yet wired through ToolCallDelta.
+    // Typed and legacy unary tools share the OpenAI-compatible tools /
+    // tool_choice wire. Streaming tool-call decoding is not yet wired through
+    // ToolCallDelta.
     features.tool_calling.function_calling = CapabilityStatus::Supported;
     features.tool_calling.parallel_tool_calls = CapabilityStatus::Supported;
     features.tool_calling.streaming_tool_calls = CapabilityStatus::Recognized;
@@ -474,11 +473,11 @@ pub fn groq() -> ProviderCapabilityRecord {
     let mut ev: HashMap<String, CapabilityEvidence> = HashMap::new();
     ev.insert(
         "structured_output".into(),
-        evidence(docs_struct_out, groq_typed_structured_test),
+        evidence(docs_struct_out, groq_schema_test),
     );
     ev.insert(
         "tool_calling".into(),
-        evidence(docs_chat_api, groq_typed_tools_test),
+        evidence(docs_chat_api, groq_tool_test),
     );
     let mut hosted = evidence(docs_compound, groq_test_module);
     hosted.notes = vec![
@@ -626,12 +625,11 @@ pub fn perplexity() -> ProviderCapabilityRecord {
     }
 }
 
-/// Together AI capability record. Phase 4 (T038) wired typed
-/// `StructuredOutputConfig` and `ToolCallConfig` through `TogetherRequest`
-/// (`response_format`, `tools`, `tool_choice`, `parallel_tool_calls`),
-/// promoting the OpenAI-compatible JSON Schema and function-calling
-/// surfaces used by the OD-1 fixture to `Supported`. Streaming tool calls
-/// remain recognized-only until typed `ToolCallDelta` decoding lands.
+/// Together AI capability record. Typed and legacy JSON Schema plus ordinary
+/// unary function calling share the Together OpenAI-compatible wire and
+/// canonical response mapping. Parallel tool-call request control remains
+/// Supported; named tool choice is not promoted by this record. Streaming
+/// tool calls remain recognized-only until typed `ToolCallDelta` decoding lands.
 pub fn together() -> ProviderCapabilityRecord {
     let docs_chat = "https://docs.together.ai/docs/chat-overview";
     let docs_json_mode = "https://docs.together.ai/docs/json-mode";
@@ -639,22 +637,22 @@ pub fn together() -> ProviderCapabilityRecord {
 
     let together_json_mode_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/together.rs::tests::pro_tests::test_build_request_with_json_mode";
     let together_vision_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/together.rs::tests::pro_tests::test_message_conversion_with_vision";
-    let together_typed_structured_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/together.rs::tests::pro_tests::test_build_request_serializes_typed_structured_output_json_schema";
-    let together_typed_tools_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/together.rs::tests::pro_tests::test_build_request_serializes_typed_tools_and_tool_choice";
+    let together_schema_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/together.rs::tests::together_legacy_schema_and_tool_wire";
+    let together_tool_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/together.rs::tests::together_unary_tool_round_trip";
 
     let mut features = CapabilityFeatureSet::default();
 
-    // T038 wired typed StructuredOutputConfig through TogetherRequest's
-    // response_format field via `openai_wire::response_format`.
+    // Typed and legacy JSON Schema share the qualified Together
+    // OpenAI-compatible response_format wire shape.
     features.structured_output.json_mode = CapabilityStatus::Supported;
     features.structured_output.json_schema_strict = CapabilityStatus::Supported;
     features.structured_output.json_schema_best_effort = CapabilityStatus::Supported;
     features.structured_output.named_schemas = CapabilityStatus::Supported;
     features.structured_output.additionalprops_false = CapabilityStatus::Supported;
 
-    // T038 wired typed ToolCallConfig through TogetherRequest's tools /
-    // tool_choice / parallel_tool_calls fields. Streaming tool-call decoding
-    // remains recognized-only.
+    // Typed and legacy unary function tools share the provider tools /
+    // tool_choice wire. Parallel tool-call request control remains Supported.
+    // Streaming tool-call decoding remains recognized-only.
     features.tool_calling.function_calling = CapabilityStatus::Supported;
     features.tool_calling.parallel_tool_calls = CapabilityStatus::Supported;
     features.tool_calling.streaming_tool_calls = CapabilityStatus::Recognized;
@@ -675,23 +673,23 @@ pub fn together() -> ProviderCapabilityRecord {
     );
     ev.insert(
         "structured_output.json_schema_strict".into(),
-        evidence(docs_json_mode, together_typed_structured_test),
+        evidence(docs_json_mode, together_schema_test),
     );
     ev.insert(
         "structured_output.json_schema_best_effort".into(),
-        evidence(docs_json_mode, together_typed_structured_test),
+        evidence(docs_json_mode, together_schema_test),
     );
     ev.insert(
         "structured_output.named_schemas".into(),
-        evidence(docs_json_mode, together_typed_structured_test),
+        evidence(docs_json_mode, together_schema_test),
     );
     ev.insert(
         "structured_output.additionalprops_false".into(),
-        evidence(docs_json_mode, together_typed_structured_test),
+        evidence(docs_json_mode, together_schema_test),
     );
     ev.insert(
         "tool_calling".into(),
-        evidence(docs_function, together_typed_tools_test),
+        evidence(docs_function, together_tool_test),
     );
     ev.insert(
         "modalities".into(),
@@ -711,12 +709,12 @@ pub fn together() -> ProviderCapabilityRecord {
 }
 
 /// OpenRouter capability record. OpenRouter routes OpenAI-compatible
-/// chat requests to a wide pool of upstream providers. Structured output,
-/// tool calling, and streaming tool-call passthrough are documented but
-/// model-dependent — held at `Recognized` until per-model fixture proof
-/// lands. Provider routing and `require_parameters` are documented control
-/// fields that require a typed routing carrier — `ProviderSpecific` in
-/// v0.9.4.
+/// chat requests to a wide pool of upstream providers. The adapter now
+/// preserves documented structured-output and unary function-tool pass-through
+/// wire shapes, but effective support is model-dependent, so these capabilities
+/// remain `Recognized` until per-model fixture proof lands. Streaming tool-call
+/// decoding remains recognized-only. Provider routing and `require_parameters`
+/// require a typed routing carrier — `ProviderSpecific` in v0.9.4.
 pub fn openrouter() -> ProviderCapabilityRecord {
     let docs_struct_out = "https://openrouter.ai/docs/features/structured-outputs";
     let docs_tools = "https://openrouter.ai/docs/features/tool-calling";
@@ -724,18 +722,19 @@ pub fn openrouter() -> ProviderCapabilityRecord {
 
     let openrouter_test_module =
         "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/openrouter.rs::tests";
-    let openrouter_caps_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/openrouter.rs::tests::test_openrouter_capabilities";
     let openrouter_message_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/openrouter.rs::tests::pro_tests::test_message_conversion";
+    let openrouter_schema_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/openrouter.rs::tests::openrouter_legacy_schema_and_tool_wire";
+    let openrouter_tool_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/openrouter.rs::tests::openrouter_unary_tool_round_trip";
 
     let mut features = CapabilityFeatureSet::default();
 
-    // Structured output: routed pass-through; documented but model-dependent.
+    // Structured output: adapter-mapped routed pass-through, still model-dependent.
     features.structured_output.json_mode = CapabilityStatus::Recognized;
     features.structured_output.json_schema_strict = CapabilityStatus::Recognized;
     features.structured_output.json_schema_best_effort = CapabilityStatus::Recognized;
     features.structured_output.named_schemas = CapabilityStatus::Recognized;
 
-    // Tool calling: routed pass-through, model-dependent; not adapter-fixture-tested.
+    // Tool calling: adapter-mapped routed pass-through, still model-dependent.
     features.tool_calling.function_calling = CapabilityStatus::Recognized;
     features.tool_calling.parallel_tool_calls = CapabilityStatus::Recognized;
     features.tool_calling.streaming_tool_calls = CapabilityStatus::Recognized;
@@ -761,11 +760,11 @@ pub fn openrouter() -> ProviderCapabilityRecord {
     let mut ev: HashMap<String, CapabilityEvidence> = HashMap::new();
     ev.insert(
         "structured_output".into(),
-        evidence(docs_struct_out, openrouter_caps_test),
+        evidence(docs_struct_out, openrouter_schema_test),
     );
     ev.insert(
         "tool_calling".into(),
-        evidence(docs_tools, openrouter_caps_test),
+        evidence(docs_tools, openrouter_tool_test),
     );
     let mut routing = evidence(docs_routing, openrouter_test_module);
     routing.notes = vec![
@@ -794,15 +793,12 @@ pub fn openrouter() -> ProviderCapabilityRecord {
     }
 }
 
-/// Ollama capability record. The native `format` field with a JSON Schema
-/// document is documented and adapter-mapped (see
-/// `test_ollama_format_json_schema_serialization` and
-/// `test_convert_response_format_json_schema`). Thinking/extended-reasoning
-/// is documented and exercised by the existing thinking-aware stream
-/// chunk tests. Embeddings and tool calling are documented but the
-/// shared SDK surface is deferred to FR-014 / Phase 4 — `Recognized`.
+/// Ollama capability record. The native `format` field with a JSON Schema,
+/// thinking, and logprobs/top-logprobs are documented and adapter-mapped.
+/// Function tools are also adapter-mapped but remain model-dependent
+/// `Recognized`; embeddings remain deferred to FR-014 / Phase 4.
 pub fn ollama() -> ProviderCapabilityRecord {
-    let docs_api = "https://github.com/ollama/ollama/blob/main/docs/api.md";
+    let docs_api = "https://docs.ollama.com/api/chat";
     let docs_struct_out = "https://ollama.com/blog/structured-outputs";
     let docs_thinking = "https://ollama.com/blog/thinking";
 
@@ -812,6 +808,7 @@ pub fn ollama() -> ProviderCapabilityRecord {
     let ollama_format_json_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/ollama.rs::tests::test_ollama_format_json_serialization";
     let ollama_thinking_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/ollama.rs::tests::test_ollama_message_with_thinking_deserialization";
     let ollama_message_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/ollama.rs::tests::test_message_conversion";
+    let ollama_logprobs_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/ollama.rs::tests::legacy_logprobs_and_tools_reach_ollama_wire";
 
     let mut features = CapabilityFeatureSet::default();
 
@@ -835,9 +832,9 @@ pub fn ollama() -> ProviderCapabilityRecord {
     // Embeddings — shared SDK surface decision pending (FR-014).
     features.modalities.embeddings = CapabilityStatus::Recognized;
 
-    // Logprobs: not part of the Ollama API.
-    features.logprobs.logprobs = CapabilityStatus::Unsupported;
-    features.logprobs.streaming_logprobs = CapabilityStatus::Unsupported;
+    // Logprobs: current /api/chat documents request and response logprobs.
+    features.logprobs.logprobs = CapabilityStatus::Supported;
+    features.logprobs.streaming_logprobs = CapabilityStatus::Supported;
 
     let mut ev: HashMap<String, CapabilityEvidence> = HashMap::new();
     ev.insert(
@@ -856,6 +853,7 @@ pub fn ollama() -> ProviderCapabilityRecord {
         "structured_output.json_schema_best_effort".into(),
         evidence(docs_struct_out, ollama_format_schema_test),
     );
+    ev.insert("logprobs".into(), evidence(docs_api, ollama_logprobs_test));
     ev.insert(
         "tool_calling".into(),
         evidence(docs_api, ollama_test_module),
@@ -874,11 +872,10 @@ pub fn ollama() -> ProviderCapabilityRecord {
     }
 }
 
-/// LM Studio capability record. The current adapter only wires model
-/// listing; structured output, tool calling, and vision are documented in
-/// LM Studio's OpenAI-compatible API but not adapter-fixture-tested in
-/// tree. Held conservatively at `Recognized` so the registry does not
-/// over-claim. Local MCP is documented but `Recognized` per OD-2 posture.
+/// LM Studio capability record. Slice 1 wires JSON-object response formatting
+/// and OpenAI-compatible multimodal message content. Slice 2 adds qualified
+/// JSON Schema and ordinary unary function calling with request/response
+/// fixtures. Parallel/streaming tool calls and Local MCP remain unpromoted.
 pub fn lmstudio() -> ProviderCapabilityRecord {
     let docs_api = "https://lmstudio.ai/docs/api/openai-api";
     let docs_struct_out = "https://lmstudio.ai/docs/api/structured-output";
@@ -886,45 +883,63 @@ pub fn lmstudio() -> ProviderCapabilityRecord {
 
     let lmstudio_test_module =
         "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/lmstudio.rs::tests";
-    let lmstudio_model_info_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/lmstudio.rs::tests::test_model_info_conversion";
+    let lmstudio_request_core_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/lmstudio.rs::tests::lmstudio_request_core_wire_preserves_supported_controls_and_vision";
+    let lmstudio_schema_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/lmstudio.rs::tests::lmstudio_typed_schema_wire";
+    let lmstudio_tool_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/lmstudio.rs::tests::lmstudio_unary_tool_round_trip";
 
     let mut features = CapabilityFeatureSet::default();
 
-    // OpenAI-compatible — structured output and tool calling exist on paper
-    // but the in-tree adapter does not exercise them. Stay Recognized.
-    features.structured_output.json_mode = CapabilityStatus::Recognized;
-    features.structured_output.json_schema_strict = CapabilityStatus::Recognized;
-    features.structured_output.json_schema_best_effort = CapabilityStatus::Recognized;
+    features.structured_output.json_mode = CapabilityStatus::Supported;
+    features.structured_output.json_schema_strict = CapabilityStatus::Supported;
+    features.structured_output.json_schema_best_effort = CapabilityStatus::Supported;
+    features.structured_output.named_schemas = CapabilityStatus::Supported;
+    features.structured_output.additionalprops_false = CapabilityStatus::Supported;
 
-    features.tool_calling.function_calling = CapabilityStatus::Recognized;
+    features.tool_calling.function_calling = CapabilityStatus::Supported;
+    features.tool_calling.parallel_tool_calls = CapabilityStatus::Recognized;
+    features.tool_calling.streaming_tool_calls = CapabilityStatus::Recognized;
+    features.tool_calling.tool_choice_modes = vec![
+        "auto".into(),
+        "none".into(),
+        "required".into(),
+        "named".into(),
+    ];
 
     // Local MCP: documented, OD-2 posture keeps it Recognized.
     features.hosted_tools.mcp_connector = CapabilityStatus::Recognized;
 
-    // Vision: model-dependent, not adapter-tested.
-    features.modalities.vision_input = CapabilityStatus::Recognized;
+    // Vision is adapter-mapped; actual model support remains model-dependent.
+    features.modalities.vision_input = CapabilityStatus::Supported;
 
     // Embeddings: OpenAI-compatible /v1/embeddings exists; not in-tree mapped.
     features.modalities.embeddings = CapabilityStatus::Recognized;
 
-    // Logprobs: not part of the LM Studio chat surface today.
+    // Logprobs: not part of the qualified LM Studio chat surface.
     features.logprobs.logprobs = CapabilityStatus::Unknown;
 
     let mut ev: HashMap<String, CapabilityEvidence> = HashMap::new();
     ev.insert(
-        "structured_output".into(),
-        evidence(docs_struct_out, lmstudio_test_module),
+        "structured_output.json_mode".into(),
+        evidence(docs_struct_out, lmstudio_request_core_test),
     );
+    for key in [
+        "structured_output.json_schema_strict",
+        "structured_output.json_schema_best_effort",
+        "structured_output.named_schemas",
+        "structured_output.additionalprops_false",
+    ] {
+        ev.insert(key.into(), evidence(docs_struct_out, lmstudio_schema_test));
+    }
     ev.insert(
-        "tool_calling".into(),
-        evidence(docs_tools, lmstudio_test_module),
+        "tool_calling.function_calling".into(),
+        evidence(docs_tools, lmstudio_tool_test),
     );
     let mut hosted = evidence(docs_tools, lmstudio_test_module);
     hosted.notes = vec!["Local MCP support is documented; held at Recognized per OD-2.".into()];
     ev.insert("hosted_tools".into(), hosted);
     ev.insert(
-        "modalities".into(),
-        evidence(docs_api, lmstudio_model_info_test),
+        "modalities.vision_input".into(),
+        evidence(docs_api, lmstudio_request_core_test),
     );
 
     ProviderCapabilityRecord {
@@ -939,10 +954,11 @@ pub fn lmstudio() -> ProviderCapabilityRecord {
     }
 }
 
-/// Fireworks AI capability record. JSON object mode and grammar-based
-/// structured output are documented and adapter-mapped (vision-aware
-/// message conversion + JSON-mode request shaping). Tool calling is
-/// documented but not adapter-fixture-tested in tree — `Recognized`.
+/// Fireworks AI capability record. JSON object + JSON Schema structured
+/// output and ordinary unary function calling are mapped through the
+/// OpenAI-compatible Chat Completions wire. Parallel tool calling remains
+/// model-dependent, and streaming tool calls remain `Recognized` until the
+/// typed ToolCallDelta stream surface is wired generically.
 pub fn fireworks() -> ProviderCapabilityRecord {
     let docs_chat = "https://docs.fireworks.ai/api-reference/post-chatcompletions";
     let docs_grammar =
@@ -950,19 +966,28 @@ pub fn fireworks() -> ProviderCapabilityRecord {
     let docs_struct_resp =
         "https://docs.fireworks.ai/structured-responses/structured-response-formatting";
 
-    let fireworks_test_module =
-        "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/fireworks.rs::tests";
-    let fireworks_caps_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/fireworks.rs::tests::test_fireworks_capabilities";
     let fireworks_json_mode_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/fireworks.rs::tests::pro_tests::test_build_request_with_json_mode";
+    let fireworks_schema_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/fireworks.rs::tests::fireworks_typed_schema_wire";
+    let fireworks_tool_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/fireworks.rs::tests::fireworks_unary_tool_round_trip";
     let fireworks_vision_test = "packages/nxuskit-engine/crates/nxuskit-engine/src/providers/fireworks.rs::tests::pro_tests::test_message_conversion_with_vision";
 
     let mut features = CapabilityFeatureSet::default();
 
     features.structured_output.json_mode = CapabilityStatus::Supported;
-    features.structured_output.json_schema_strict = CapabilityStatus::Recognized;
-    features.structured_output.json_schema_best_effort = CapabilityStatus::Recognized;
+    features.structured_output.json_schema_strict = CapabilityStatus::Supported;
+    features.structured_output.json_schema_best_effort = CapabilityStatus::Supported;
+    features.structured_output.named_schemas = CapabilityStatus::Supported;
+    features.structured_output.additionalprops_false = CapabilityStatus::Supported;
 
-    features.tool_calling.function_calling = CapabilityStatus::Recognized;
+    features.tool_calling.function_calling = CapabilityStatus::Supported;
+    features.tool_calling.parallel_tool_calls = CapabilityStatus::Recognized;
+    features.tool_calling.streaming_tool_calls = CapabilityStatus::Recognized;
+    features.tool_calling.tool_choice_modes = vec![
+        "auto".into(),
+        "none".into(),
+        "required".into(),
+        "named".into(),
+    ];
 
     features.modalities.vision_input = CapabilityStatus::Supported;
 
@@ -973,17 +998,17 @@ pub fn fireworks() -> ProviderCapabilityRecord {
         "structured_output.json_mode".into(),
         evidence(docs_struct_resp, fireworks_json_mode_test),
     );
+    for key in [
+        "structured_output.json_schema_strict",
+        "structured_output.json_schema_best_effort",
+        "structured_output.named_schemas",
+        "structured_output.additionalprops_false",
+    ] {
+        ev.insert(key.into(), evidence(docs_grammar, fireworks_schema_test));
+    }
     ev.insert(
-        "structured_output.json_schema_strict".into(),
-        evidence(docs_grammar, fireworks_caps_test),
-    );
-    ev.insert(
-        "structured_output.json_schema_best_effort".into(),
-        evidence(docs_grammar, fireworks_caps_test),
-    );
-    ev.insert(
-        "tool_calling".into(),
-        evidence(docs_chat, fireworks_test_module),
+        "tool_calling.function_calling".into(),
+        evidence(docs_chat, fireworks_tool_test),
     );
     ev.insert(
         "modalities".into(),

@@ -5,7 +5,9 @@ import json
 import os
 from typing import Any, Iterator, List, Optional, Union
 
+from nxuskit.errors import ProviderError
 from nxuskit.message import Message
+from nxuskit.providers._resource_bounds import SseEventFramer, sse_data_payload
 from nxuskit.providers.base import BaseProvider
 from nxuskit.tools import ToolCall, ToolDefinition
 from nxuskit.types import (
@@ -16,8 +18,25 @@ from nxuskit.types import (
     Role,
     StreamChunk,
     TokenUsage,
+    _validate_request_controls,
 )
 from nxuskit.vision import detect_image_type
+
+
+def _canonical_reason(raw):
+    if raw is not None and not isinstance(raw, str):
+        raise ProviderError("invalid stop_reason type", provider="claude")
+    return {
+        "end_turn": "stop",
+        "stop_sequence": "stop",
+        "stop": "stop",
+        "max_tokens": "length",
+        "length": "length",
+        "tool_use": "tool_calls",
+        "tool_calls": "tool_calls",
+        "content_filter": "content_filter",
+        "error": "error",
+    }.get(raw)
 
 
 class ClaudeProvider(BaseProvider):
@@ -57,9 +76,18 @@ class ClaudeProvider(BaseProvider):
         max_tokens: Optional[int] = None,
         top_p: Optional[float] = None,
         stop: Optional[Union[str, List[str]]] = None,
-        response_format: Optional[ResponseFormat] = None,
+        response_format: Optional[Union[ResponseFormat, dict[str, Any]]] = None,
         tools: Optional[List[ToolDefinition]] = None,
         tool_choice: Optional[Any] = None,
+        thinking: Optional[str] = None,
+        presence_penalty: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        top_k: Optional[int] = None,
+        min_p: Optional[float] = None,
+        logprobs: Optional[bool] = None,
+        top_logprobs: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> ChatResponse:
         """Send a chat request to Claude."""
         effective_model = self._resolve_model(model)
@@ -74,6 +102,15 @@ class ClaudeProvider(BaseProvider):
             response_format=response_format,
             tools=tools,
             tool_choice=tool_choice,
+            thinking=thinking,
+            presence_penalty=presence_penalty,
+            frequency_penalty=frequency_penalty,
+            seed=seed,
+            top_k=top_k,
+            min_p=min_p,
+            logprobs=logprobs,
+            top_logprobs=top_logprobs,
+            reasoning_effort=reasoning_effort,
         )
         headers = self._build_headers()
 
@@ -82,9 +119,10 @@ class ClaudeProvider(BaseProvider):
             url=f"{self._api_url}/v1/messages",
             headers=headers,
             json_data=request_body,
+            stream=True,
         )
 
-        data = response.json()
+        data = self._read_response_json(response)
         return self._parse_response(data, effective_model)
 
     def chat_stream(
@@ -96,9 +134,18 @@ class ClaudeProvider(BaseProvider):
         max_tokens: Optional[int] = None,
         top_p: Optional[float] = None,
         stop: Optional[Union[str, List[str]]] = None,
-        response_format: Optional[ResponseFormat] = None,
+        response_format: Optional[Union[ResponseFormat, dict[str, Any]]] = None,
         tools: Optional[List[ToolDefinition]] = None,
         tool_choice: Optional[Any] = None,
+        thinking: Optional[str] = None,
+        presence_penalty: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        top_k: Optional[int] = None,
+        min_p: Optional[float] = None,
+        logprobs: Optional[bool] = None,
+        top_logprobs: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> Iterator[StreamChunk]:
         """Stream a chat response from Claude."""
         effective_model = self._resolve_model(model)
@@ -113,6 +160,15 @@ class ClaudeProvider(BaseProvider):
             response_format=response_format,
             tools=tools,
             tool_choice=tool_choice,
+            thinking=thinking,
+            presence_penalty=presence_penalty,
+            frequency_penalty=frequency_penalty,
+            seed=seed,
+            top_k=top_k,
+            min_p=min_p,
+            logprobs=logprobs,
+            top_logprobs=top_logprobs,
+            reasoning_effort=reasoning_effort,
         )
         headers = self._build_headers()
 
@@ -124,24 +180,63 @@ class ClaudeProvider(BaseProvider):
             stream=True,
         )
 
-        for line in response.iter_lines():
-            if not line:
-                continue
-
-            line = line.decode("utf-8") if isinstance(line, bytes) else line
-
-            if line.startswith("data: "):
-                data_str = line[6:]
-                if data_str == "[DONE]":
-                    break
-
-                try:
-                    data = json.loads(data_str)
-                    chunk = self._parse_stream_event(data, effective_model)
-                    if chunk:
-                        yield chunk
-                except json.JSONDecodeError:
-                    continue
+        raw_reason = None
+        input_tokens = 0
+        output_tokens = 0
+        framer = SseEventFramer(provider="claude")
+        try:
+            for transport_chunk in self._iter_stream_response_bytes(response, sse=True):
+                for event_bytes in framer.feed(transport_chunk):
+                    data_str = sse_data_payload(event_bytes, provider="claude")
+                    if data_str is None:
+                        continue
+                    try:
+                        data = json.loads(data_str)
+                        if not isinstance(data, dict) or not isinstance(data.get("type"), str):
+                            raise ValueError("invalid Anthropic event envelope")
+                        if data["type"] == "error":
+                            raise ProviderError(
+                                "Anthropic stream returned an error", provider="claude"
+                            )
+                        if data["type"] == "message_start":
+                            message = data.get("message", {})
+                            if message.get("model") is not None and not isinstance(
+                                message["model"], str
+                            ):
+                                raise ValueError("invalid model type")
+                            effective_model = message.get("model") or effective_model
+                            usage = message.get("usage", {})
+                            input_tokens = usage.get("input_tokens", input_tokens)
+                            output_tokens = usage.get("output_tokens", output_tokens)
+                            continue
+                        if data["type"] == "message_stop":
+                            yield StreamChunk(
+                                delta="",
+                                model=effective_model,
+                                terminal=True,
+                                raw_finish_reason=raw_reason,
+                                finish_reason=_canonical_reason(raw_reason),
+                                usage=TokenUsage(
+                                    input_tokens=input_tokens, output_tokens=output_tokens
+                                ),
+                            )
+                            return
+                        chunk = self._parse_stream_event(data, effective_model)
+                        if chunk:
+                            if chunk.raw_finish_reason is not None:
+                                raw_reason = chunk.raw_finish_reason
+                            if chunk.usage is not None:
+                                output_tokens = chunk.usage.output_tokens
+                            chunk.finish_reason = None
+                            chunk.raw_finish_reason = None
+                            yield chunk
+                    except (json.JSONDecodeError, ValueError, TypeError, AttributeError) as error:
+                        raise ProviderError(
+                            f"Malformed Anthropic stream: {error}", provider="claude"
+                        ) from error
+            raise ProviderError("Anthropic stream ended before message_stop", provider="claude")
+        finally:
+            response.close()
 
     def list_models(self) -> List[ModelInfo]:
         """List available Claude models."""
@@ -152,8 +247,9 @@ class ClaudeProvider(BaseProvider):
                 url=f"{self._api_url}/v1/models",
                 headers=headers,
                 json_data={},
+                stream=True,
             )
-            data = response.json()
+            data = self._read_response_json(response)
             models = []
             for m in data.get("data", []):
                 models.append(
@@ -192,11 +288,64 @@ class ClaudeProvider(BaseProvider):
         max_tokens: Optional[int] = None,
         top_p: Optional[float] = None,
         stop: Optional[Union[str, List[str]]] = None,
-        response_format: Optional[ResponseFormat] = None,
+        response_format: Optional[Union[ResponseFormat, dict[str, Any]]] = None,
         tools: Optional[List[ToolDefinition]] = None,
         tool_choice: Optional[Any] = None,
+        thinking: Optional[str] = None,
+        presence_penalty: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        top_k: Optional[int] = None,
+        min_p: Optional[float] = None,
+        logprobs: Optional[bool] = None,
+        top_logprobs: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> dict:
         """Build request body for Claude API."""
+        _validate_request_controls(
+            "claude",
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+            stop=stop,
+            presence_penalty=presence_penalty,
+            frequency_penalty=frequency_penalty,
+            seed=seed,
+            top_k=top_k,
+            min_p=min_p,
+            logprobs=logprobs,
+            top_logprobs=top_logprobs,
+            reasoning_effort=reasoning_effort,
+            thinking=thinking,
+        )
+        if isinstance(response_format, dict) and (
+            response_format.get("type") != "json_schema"
+            or not isinstance(response_format.get("schema"), dict)
+        ):
+            error = ProviderError("invalid request control: response_format", provider="claude")
+            error.code = "invalid_request"
+            raise error
+        for name, value in (
+            ("thinking", thinking),
+            ("presence_penalty", presence_penalty),
+            ("frequency_penalty", frequency_penalty),
+            ("seed", seed),
+            ("logprobs", logprobs),
+            ("top_logprobs", top_logprobs),
+            ("reasoning_effort", reasoning_effort),
+        ):
+            if value is not None:
+                error = ProviderError(f"unsupported request control: {name}", provider="claude")
+                error.code = "unsupported_capability"
+                raise error
+        if isinstance(response_format, dict) or (
+            stream and (bool(tools) or tool_choice is not None)
+        ):
+            error = ProviderError(
+                "unsupported Anthropic structured output or tool streaming", provider="claude"
+            )
+            error.code = "unsupported_capability"
+            raise error
         system_messages = [m for m in messages if m.role == Role.SYSTEM]
         other_messages = [m for m in messages if m.role != Role.SYSTEM]
 
@@ -276,6 +425,8 @@ class ClaudeProvider(BaseProvider):
 
         # Tool calling (Anthropic format)
         if tools:
+            for tool in tools:
+                tool.validate()
             request_body["tools"] = [
                 {
                     "name": t.function.name,
@@ -304,8 +455,11 @@ class ClaudeProvider(BaseProvider):
 
     def _parse_response(self, data: dict, effective_model: str) -> ChatResponse:
         """Parse Claude API response."""
+        if data.get("model") is not None and not isinstance(data["model"], str):
+            raise ProviderError("invalid model type", provider="claude")
         content = None
         tool_calls = None
+        thinking_parts = []
 
         if "content" in data and isinstance(data["content"], list):
             text_parts = []
@@ -313,6 +467,8 @@ class ClaudeProvider(BaseProvider):
             for block in data["content"]:
                 if block.get("type") == "text":
                     text_parts.append(block.get("text", ""))
+                elif block.get("type") == "thinking":
+                    thinking_parts.append(block.get("thinking", ""))
                 elif block.get("type") == "tool_use":
                     tc_list.append(
                         ToolCall(
@@ -342,8 +498,11 @@ class ClaudeProvider(BaseProvider):
         return ChatResponse(
             content=content,
             usage=token_usage,
-            model=effective_model,
-            finish_reason=data.get("stop_reason"),
+            model=data.get("model") or effective_model,
+            provider="claude",
+            thinking="\n".join(thinking_parts) if thinking_parts else None,
+            finish_reason=_canonical_reason(data.get("stop_reason")),
+            raw_finish_reason=data.get("stop_reason"),
             tool_calls=tool_calls,
         )
 
@@ -358,6 +517,10 @@ class ClaudeProvider(BaseProvider):
                     delta=delta_data.get("text", ""),
                     model=effective_model,
                 )
+            if delta_data.get("type") == "thinking_delta":
+                return StreamChunk(
+                    delta="", thinking=delta_data.get("thinking", ""), model=effective_model
+                )
 
         elif event_type == "message_delta":
             # Final event with stop reason and usage
@@ -371,7 +534,8 @@ class ClaudeProvider(BaseProvider):
             return StreamChunk(
                 delta="",
                 model=effective_model,
-                finish_reason=delta_data.get("stop_reason"),
+                finish_reason=_canonical_reason(delta_data.get("stop_reason")),
+                raw_finish_reason=delta_data.get("stop_reason"),
                 usage=usage,
             )
 

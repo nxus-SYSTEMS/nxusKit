@@ -6,13 +6,18 @@
 
 #![allow(clippy::missing_safety_doc)]
 
+pub mod action_gate_preview;
 pub mod auth;
 mod auth_metadata;
 pub mod auth_token;
 mod bn_sdk;
 pub mod catalog;
+mod chat_operation;
+pub use chat_operation::*;
 mod clips_session;
 pub mod device_auth;
+mod discovery;
+pub use discovery::*;
 pub mod entitlement;
 mod error;
 pub mod eula;
@@ -25,6 +30,8 @@ mod oauth_prework;
 pub mod plugin;
 mod provider;
 mod runtime;
+mod stream_operation;
+pub use stream_operation::*;
 mod solver_sdk;
 mod solver_session;
 #[cfg(test)]
@@ -38,7 +45,37 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
+use futures::FutureExt;
+
 use types::{NxuskitProvider, NxuskitResponse, NxuskitStream};
+
+/// Completion callback for `nxuskit_chat_async`.
+///
+/// An accepted operation invokes this exactly once on the `nxuskit_runtime_worker` thread.
+/// On success, `response` is caller-owned and must be freed with `nxuskit_free_response`.
+/// On failure, `response` is NULL and `error_json` is borrowed and valid only during the callback.
+pub type NxuskitChatAsyncCallback = Option<
+    unsafe extern "C" fn(
+        status: i32,
+        response: *mut NxuskitResponse,
+        error_json: *const c_char,
+        user_data: *mut std::ffi::c_void,
+    ),
+>;
+
+/// Completion callback for `nxuskit_list_models_async`.
+///
+/// An accepted operation invokes this exactly once on the `nxuskit_runtime_worker` thread.
+/// On success, `models_json` is caller-owned and must be freed with `nxuskit_free_string`.
+/// On failure, `models_json` is NULL and `error_json` is borrowed and valid only during the callback.
+pub type NxuskitListModelsAsyncCallback = Option<
+    unsafe extern "C" fn(
+        status: i32,
+        models_json: *mut c_char,
+        error_json: *const c_char,
+        user_data: *mut std::ffi::c_void,
+    ),
+>;
 
 // ── Version ────────────────────────────────────────────────────────
 
@@ -57,7 +94,7 @@ pub extern "C" fn nxuskit_version() -> *const c_char {
 
 /// ABI compatibility version (major.minor format).
 /// Static string — caller MUST NOT free.
-const ABI_VERSION: &CStr = c"1.0.0";
+const ABI_VERSION: &CStr = c"2.0.0";
 
 /// Edition constant from build script (defaults to "oss").
 const EDITION: &CStr =
@@ -92,6 +129,8 @@ struct Capabilities {
     sdk_version: &'static str,
     edition: &'static str,
     domains: CapabilityDomains,
+    adapter_capabilities:
+        std::collections::BTreeMap<&'static str, nxuskit_engine::types::ProviderCapabilities>,
 }
 
 #[derive(serde::Serialize)]
@@ -105,6 +144,54 @@ struct CapabilityDomains {
     local_mistralrs: bool,
 }
 
+#[cfg(test)]
+mod adapter_capability_tests {
+    #[test]
+    fn existing_capabilities_json_adds_static_adapter_declarations() {
+        let raw = super::nxuskit_capabilities();
+        assert!(!raw.is_null());
+        let value: serde_json::Value =
+            unsafe { serde_json::from_slice(std::ffi::CStr::from_ptr(raw).to_bytes()).unwrap() };
+        unsafe { super::nxuskit_free_string(raw) };
+        assert_eq!(value["abi_version"], "2.0.0");
+        assert_eq!(value["sdk_version"], env!("CARGO_PKG_VERSION"));
+        assert!(value["domains"]["llm"].as_bool().unwrap());
+        let catalog = value["adapter_capabilities"]
+            .as_object()
+            .expect("missing adapter declarations");
+        assert_eq!(catalog.len(), 11);
+        assert_eq!(
+            catalog.keys().map(String::as_str).collect::<Vec<_>>(),
+            vec![
+                "claude",
+                "fireworks",
+                "groq",
+                "lmstudio",
+                "mistral",
+                "ollama",
+                "openai",
+                "openrouter",
+                "perplexity",
+                "together",
+                "xai"
+            ]
+        );
+        assert_eq!(catalog["openai"]["supports_logprobs"], true);
+        assert_eq!(catalog["ollama"]["supports_logprobs"], true);
+        assert_eq!(catalog["ollama"]["supports_streaming_logprobs"], true);
+        assert_eq!(catalog["claude"]["supports_logprobs"], false);
+        assert_eq!(catalog["ollama"]["supports_json_schema"], true);
+        assert_eq!(catalog["groq"]["supports_json_schema"], true);
+        assert_eq!(catalog["mistral"]["supports_json_schema"], true);
+        assert_eq!(catalog["together"]["supports_json_schema"], true);
+        assert_eq!(catalog["openrouter"]["supports_json_schema"], true);
+        assert_eq!(catalog["ollama"]["supports_seed"], true);
+        assert_eq!(catalog["claude"]["supports_seed"], false);
+        assert_eq!(catalog["openai"]["max_logprobs"], 20);
+        assert_eq!(catalog["ollama"]["max_logprobs"], 20);
+    }
+}
+
 /// Returns a JSON string describing all compiled-in capabilities.
 ///
 /// Caller MUST free the returned pointer with `nxuskit_free_string()`.
@@ -115,9 +202,10 @@ pub extern "C" fn nxuskit_capabilities() -> *mut c_char {
     error::clear_last_error();
 
     let caps = Capabilities {
-        abi_version: "1.0.0",
+        abi_version: "2.0.0",
         sdk_version: env!("CARGO_PKG_VERSION"),
         edition: env!("NXUSKIT_EDITION"),
+        adapter_capabilities: nxuskit_engine::providers::adapter_capability_catalog(),
         domains: CapabilityDomains {
             llm: true,
             clips: true,
@@ -298,6 +386,11 @@ pub unsafe extern "C" fn nxuskit_license_validate(token_jwt: *const c_char) -> *
                 "token_type": validated.claims.token_type.to_string(),
                 "edition": validated.claims.edition,
                 "days_remaining": validated.claims.days_remaining(),
+                "sdk_release_line": validated.deployment_v2.as_ref().map(|v2| v2.sdk_release_line),
+                "grant_revision": validated.deployment_v2.as_ref().map(|v2| v2.grant_revision),
+                "authorization_scope": validated.deployment_v2.as_ref().map(|v2| &v2.authorization_scope),
+                "signing_key_id": validated.deployment_v2.as_ref().map(|v2| &v2.signing_key_id),
+                "token_fingerprint": validated.deployment_v2.as_ref().map(|v2| &v2.token_fingerprint),
                 "error": null,
                 "result": "granted",
             })
@@ -308,6 +401,12 @@ pub unsafe extern "C" fn nxuskit_license_validate(token_jwt: *const c_char) -> *
                 license::LicenseError::TrialSuspended => "trial_suspended",
                 license::LicenseError::MachineMismatch { .. } => "machine_mismatch",
                 license::LicenseError::VersionCeilingExceeded { .. } => "version_ceiling_exceeded",
+                license::LicenseError::IncompatibleReleaseLine { .. } => {
+                    "incompatible_release_line"
+                }
+                license::LicenseError::MissingDeploymentKeyId => "missing_deployment_key_id",
+                license::LicenseError::InvalidDeploymentClaims => "invalid_deployment_claims",
+                license::LicenseError::KeyError(_) => "key_error",
                 license::LicenseError::InvalidSignature => "invalid_signature",
                 license::LicenseError::InvalidAlgorithm(_) => "invalid_algorithm",
                 license::LicenseError::InvalidIssuer => "invalid_issuer",
@@ -318,6 +417,11 @@ pub unsafe extern "C" fn nxuskit_license_validate(token_jwt: *const c_char) -> *
                 "token_type": "unknown",
                 "edition": null,
                 "days_remaining": null,
+                "sdk_release_line": null,
+                "grant_revision": null,
+                "authorization_scope": null,
+                "signing_key_id": null,
+                "token_fingerprint": null,
                 "error": e.to_string(),
                 "result": result,
             })
@@ -770,11 +874,23 @@ pub unsafe extern "C" fn nxuskit_chat(
             }
         };
 
-        let request: nxuskit_engine::ChatRequest = match serde_json::from_str(json_str) {
-            Ok(r) => r,
+        let request_value: serde_json::Value = match serde_json::from_str(json_str) {
+            Ok(value) => value,
             Err(e) => {
                 error::set_last_error(
-                    "invalid_config",
+                    "invalid_request",
+                    &format!("Failed to parse ChatRequest JSON: {e}"),
+                    None,
+                );
+                return std::ptr::null_mut();
+            }
+        };
+        let thinking_mode_explicit = request_value.get("thinking_mode").is_some();
+        let request: nxuskit_engine::ChatRequest = match serde_json::from_value(request_value) {
+            Ok(request) => request,
+            Err(e) => {
+                error::set_last_error(
+                    "invalid_request",
                     &format!("Failed to parse ChatRequest JSON: {e}"),
                     None,
                 );
@@ -783,11 +899,25 @@ pub unsafe extern "C" fn nxuskit_chat(
         };
 
         let rt = runtime::get_runtime();
-        let chat_result = rt.block_on(provider_ref.inner().chat(&request));
+        let chat_result = provider_ref
+            .prepare_request(request, thinking_mode_explicit)
+            .and_then(|request| rt.block_on(provider_ref.inner().chat(&request)));
 
         match chat_result {
             Ok(response) => {
-                let json = match serde_json::to_string(&response) {
+                let mut value = match serde_json::to_value(&response) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        error::set_last_error(
+                            "internal_error",
+                            &format!("Failed to serialize response: {e}"),
+                            None,
+                        );
+                        return std::ptr::null_mut();
+                    }
+                };
+                provider_ref.decorate_response_value(&mut value);
+                let json = match serde_json::to_string(&value) {
                     Ok(j) => j,
                     Err(e) => {
                         error::set_last_error(
@@ -811,11 +941,24 @@ pub unsafe extern "C" fn nxuskit_chat(
                 }
             }
             Err(e) => {
-                let error_json = format!(
-                    r#"{{"content":"","model":"","provider":"","error":{{"error_type":"{}","message":"{}"}}}}"#,
-                    error_type_for(&e),
-                    error::escape_json_pub(&format!("{e}")),
-                );
+                let retry_after_ms = e
+                    .retry_after()
+                    .and_then(|duration| u64::try_from(duration.as_millis()).ok());
+                let mut error_value = serde_json::json!({
+                    "error_type": error_type_for(&e),
+                    "message": format!("{e}"),
+                });
+                if let Some(retry_after_ms) = retry_after_ms {
+                    error_value["retry_after_ms"] = serde_json::json!(retry_after_ms);
+                }
+                let error_json = serde_json::json!({
+                    "content": "",
+                    "model": "",
+                    "provider": "",
+                    "provider_id": provider_ref.provider_id(),
+                    "error": error_value,
+                })
+                .to_string();
                 match NxuskitResponse::from_json(error_json) {
                     Some(resp) => Box::into_raw(Box::new(resp)),
                     None => {
@@ -848,6 +991,191 @@ pub unsafe extern "C" fn nxuskit_free_response(response: *mut NxuskitResponse) {
             drop(unsafe { Box::from_raw(response) });
         }));
     }
+}
+
+#[unsafe(no_mangle)]
+/// Schedule a chat request on the shared runtime.
+///
+/// Returns 2 without scheduling when `provider`, `request_json`, or `callback` is NULL or the
+/// request is invalid. Returns 0 once accepted. The caller must not free `provider` until the
+/// callback returns and must keep `user_data` valid through that callback.
+pub unsafe extern "C" fn nxuskit_chat_async(
+    provider: *mut NxuskitProvider,
+    request_json: *const c_char,
+    callback: NxuskitChatAsyncCallback,
+    user_data: *mut std::ffi::c_void,
+) -> i32 {
+    catch_unwind(AssertUnwindSafe(|| unsafe {
+        schedule_chat_async(provider, request_json, callback, user_data)
+    }))
+    .unwrap_or_else(|_| {
+        error::set_last_error("internal_error", "Panic in nxuskit_chat_async", None);
+        6
+    })
+}
+
+unsafe fn schedule_chat_async(
+    provider: *mut NxuskitProvider,
+    request_json: *const c_char,
+    callback: NxuskitChatAsyncCallback,
+    user_data: *mut std::ffi::c_void,
+) -> i32 {
+    error::clear_last_error();
+    if provider.is_null() || request_json.is_null() || callback.is_none() {
+        error::set_last_error("invalid_argument", "async chat argument is NULL", None);
+        return 2;
+    }
+
+    let request_json = unsafe { CStr::from_ptr(request_json) };
+    let request_json = match request_json.to_str() {
+        Ok(json) => json,
+        Err(_) => {
+            error::set_last_error("invalid_argument", "request_json is not valid UTF-8", None);
+            return 2;
+        }
+    };
+    let request_value: serde_json::Value = match serde_json::from_str(request_json) {
+        Ok(value) => value,
+        Err(error) => {
+            error::set_last_error(
+                "invalid_argument",
+                &format!("Failed to parse ChatRequest JSON: {error}"),
+                None,
+            );
+            return 2;
+        }
+    };
+    let thinking_mode_explicit = request_value.get("thinking_mode").is_some();
+    let request: nxuskit_engine::ChatRequest = match serde_json::from_value(request_value) {
+        Ok(request) => request,
+        Err(error) => {
+            error::set_last_error(
+                "invalid_argument",
+                &format!("Failed to parse ChatRequest JSON: {error}"),
+                None,
+            );
+            return 2;
+        }
+    };
+
+    let provider = ProviderSend(provider);
+    let callback = ChatCallbackSend(callback.expect("callback was checked above"));
+    let user_data = UserDataSend(user_data);
+    let future = async move {
+        let provider = unsafe { &*provider.0 };
+        match AssertUnwindSafe(provider::chat_for_callback(
+            provider,
+            request,
+            thinking_mode_explicit,
+        ))
+        .catch_unwind()
+        .await
+        {
+            Ok(Ok(response)) => {
+                let response = Box::into_raw(Box::new(response));
+                unsafe {
+                    (callback.0)(0, response, std::ptr::null(), user_data.0);
+                }
+            }
+            Ok(Err(error)) => unsafe {
+                (callback.0)(
+                    error.status(),
+                    std::ptr::null_mut(),
+                    error.as_ptr(),
+                    user_data.0,
+                );
+            },
+            Err(_) => {
+                let error = error::AsyncCallbackError::internal(
+                    "Panic in nxuskit_chat_async runtime worker",
+                );
+                unsafe {
+                    (callback.0)(
+                        error.status(),
+                        std::ptr::null_mut(),
+                        error.as_ptr(),
+                        user_data.0,
+                    );
+                }
+            }
+        }
+    };
+    runtime::get_runtime().spawn(unsafe { send_future(future) });
+    0
+}
+
+#[unsafe(no_mangle)]
+/// Schedule model discovery on the shared runtime.
+///
+/// Returns 2 without scheduling when `provider` or `callback` is NULL. Returns 0 once accepted.
+/// The caller must not free `provider` until the callback returns and must keep `user_data` valid
+/// through that callback.
+pub unsafe extern "C" fn nxuskit_list_models_async(
+    provider: *mut NxuskitProvider,
+    callback: NxuskitListModelsAsyncCallback,
+    user_data: *mut std::ffi::c_void,
+) -> i32 {
+    catch_unwind(AssertUnwindSafe(|| unsafe {
+        schedule_list_models_async(provider, callback, user_data)
+    }))
+    .unwrap_or_else(|_| {
+        error::set_last_error("internal_error", "Panic in nxuskit_list_models_async", None);
+        6
+    })
+}
+
+unsafe fn schedule_list_models_async(
+    provider: *mut NxuskitProvider,
+    callback: NxuskitListModelsAsyncCallback,
+    user_data: *mut std::ffi::c_void,
+) -> i32 {
+    error::clear_last_error();
+    if provider.is_null() || callback.is_none() {
+        error::set_last_error(
+            "invalid_argument",
+            "async model-list argument is NULL",
+            None,
+        );
+        return 2;
+    }
+
+    let provider = ProviderSend(provider);
+    let callback = ListModelsCallbackSend(callback.expect("callback was checked above"));
+    let user_data = UserDataSend(user_data);
+    let future = async move {
+        let provider = unsafe { &*provider.0 };
+        match AssertUnwindSafe(provider::list_models_for_callback(provider))
+            .catch_unwind()
+            .await
+        {
+            Ok(Ok(models)) => unsafe {
+                (callback.0)(0, models.into_raw(), std::ptr::null(), user_data.0);
+            },
+            Ok(Err(error)) => unsafe {
+                (callback.0)(
+                    error.status(),
+                    std::ptr::null_mut(),
+                    error.as_ptr(),
+                    user_data.0,
+                );
+            },
+            Err(_) => {
+                let error = error::AsyncCallbackError::internal(
+                    "Panic in nxuskit_list_models_async runtime worker",
+                );
+                unsafe {
+                    (callback.0)(
+                        error.status(),
+                        std::ptr::null_mut(),
+                        error.as_ptr(),
+                        user_data.0,
+                    );
+                }
+            }
+        }
+    };
+    runtime::get_runtime().spawn(unsafe { send_future(future) });
+    0
 }
 
 // ── Streaming chat ─────────────────────────────────────────────────
@@ -892,18 +1220,39 @@ pub unsafe extern "C" fn nxuskit_chat_stream(
             }
         };
 
-        let request: nxuskit_engine::ChatRequest = match serde_json::from_str(json_str) {
-            Ok(r) => r,
+        let request_value: serde_json::Value = match serde_json::from_str(json_str) {
+            Ok(value) => value,
             Err(e) => {
                 error::set_last_error(
-                    "invalid_config",
+                    "invalid_request",
                     &format!("Failed to parse ChatRequest JSON: {e}"),
                     None,
                 );
                 return std::ptr::null_mut();
             }
         };
+        let thinking_mode_explicit = request_value.get("thinking_mode").is_some();
+        let request: nxuskit_engine::ChatRequest = match serde_json::from_value(request_value) {
+            Ok(request) => request,
+            Err(e) => {
+                error::set_last_error(
+                    "invalid_request",
+                    &format!("Failed to parse ChatRequest JSON: {e}"),
+                    None,
+                );
+                return std::ptr::null_mut();
+            }
+        };
+        let request = match provider_ref.prepare_request(request, thinking_mode_explicit) {
+            Ok(request) => request,
+            Err(e) => {
+                error::set_from_nxuskit_error(&e);
+                return std::ptr::null_mut();
+            }
+        };
 
+        let provider_id = provider_ref.provider_id().to_owned();
+        let declared_profile = provider_ref.declared_profile().map(str::to_owned);
         let ud = UserDataSend(user_data);
         let chunk_cb = ChunkCallbackSend(on_chunk);
         let done_cb = DoneCallbackSend(on_done);
@@ -941,7 +1290,14 @@ pub unsafe extern "C" fn nxuskit_chat_stream(
                                     let mut chunk_json = serde_json::json!({
                                         "delta": chunk.delta,
                                         "index": chunk_index,
+                                        "terminal": chunk.terminal,
                                     });
+                                    if let Some(raw) = &chunk.raw_finish_reason {
+                                        chunk_json["raw_finish_reason"] = serde_json::Value::String(raw.clone());
+                                    }
+                                    if let Some(metadata) = &chunk.provider_metadata {
+                                        chunk_json["provider_metadata"] = serde_json::Value::Object(metadata.clone());
+                                    }
                                     if let Some(thinking) = &chunk.thinking {
                                         chunk_json["thinking"] = serde_json::Value::String(thinking.clone());
                                     }
@@ -953,6 +1309,12 @@ pub unsafe extern "C" fn nxuskit_chat_stream(
                                     }
                                     if let Some(tc) = &chunk.tool_calls {
                                         chunk_json["tool_calls"] = serde_json::Value::Array(tc.clone());
+                                    }
+                                    chunk_json["provider_id"] =
+                                        serde_json::Value::String(provider_id.clone());
+                                    if let Some(profile) = &declared_profile {
+                                        chunk_json["declared_profile"] =
+                                            serde_json::Value::String(profile.clone());
                                     }
                                     chunk_index += 1;
                                     if let Ok(json_cstr) = CString::new(chunk_json.to_string()) {
@@ -969,7 +1331,7 @@ pub unsafe extern "C" fn nxuskit_chat_stream(
                                         "model": "",
                                         "provider": "",
                                         "error": {
-                                            "error_type": "provider_error",
+                                            "error_type": if error_type_for(&e) == "timeout" { "timeout" } else { "provider_error" },
                                             "message": format!("{e}"),
                                         },
                                     });
@@ -984,11 +1346,16 @@ pub unsafe extern "C" fn nxuskit_chat_stream(
                     }
                 }
 
-                let final_json = serde_json::json!({
+                let mut final_json = serde_json::json!({
                     "content": aggregated_content,
                     "model": "",
                     "provider": "",
+                    "provider_id": provider_id,
                 });
+                if let Some(profile) = &declared_profile {
+                    final_json["declared_profile"] =
+                        serde_json::Value::String(profile.clone());
+                }
                 if let Ok(json_cstr) = CString::new(final_json.to_string()) {
                     (done_cb.0)(json_cstr.as_ptr(), ud.0);
                 }
@@ -1749,6 +2116,21 @@ pub unsafe extern "C" fn nxuskit_free_string(ptr: *mut c_char) {
 struct UserDataSend(*mut std::ffi::c_void);
 unsafe impl Send for UserDataSend {}
 
+/// Wrapper for a caller-owned provider pointer crossing the runtime worker.
+/// Safety: The caller keeps the provider alive until the callback returns.
+struct ProviderSend(*mut NxuskitProvider);
+unsafe impl Send for ProviderSend {}
+
+struct ChatCallbackSend(
+    unsafe extern "C" fn(i32, *mut NxuskitResponse, *const c_char, *mut std::ffi::c_void),
+);
+unsafe impl Send for ChatCallbackSend {}
+
+struct ListModelsCallbackSend(
+    unsafe extern "C" fn(i32, *mut c_char, *const c_char, *mut std::ffi::c_void),
+);
+unsafe impl Send for ListModelsCallbackSend {}
+
 /// Wrapper for callback function pointers to assert Send.
 /// Function pointers are Send in Rust but the compiler can't prove it through type aliases.
 struct ChunkCallbackSend(NxuskitStreamCallback);
@@ -1780,13 +2162,17 @@ unsafe fn send_future<F: std::future::Future>(
 }
 
 fn error_type_for(err: &nxuskit_engine::NxuskitError) -> &'static str {
+    if matches!(err, nxuskit_engine::NxuskitError::Network(error) if error.is_timeout()) {
+        return "timeout";
+    }
     match err {
-        nxuskit_engine::NxuskitError::Configuration(_)
-        | nxuskit_engine::NxuskitError::InvalidRequest(_) => "invalid_config",
+        nxuskit_engine::NxuskitError::Configuration(_) => "invalid_config",
+        nxuskit_engine::NxuskitError::InvalidRequest(_) => "invalid_request",
         nxuskit_engine::NxuskitError::Authentication(_) => "authentication_failed",
         nxuskit_engine::NxuskitError::RateLimit { .. } => "rate_limited",
         nxuskit_engine::NxuskitError::Provider { .. } => "provider_error",
         nxuskit_engine::NxuskitError::Stream(_) => "provider_error",
+        nxuskit_engine::NxuskitError::UnsupportedCapability { .. } => "unsupported_capability",
         _ => "internal_error",
     }
 }

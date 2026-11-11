@@ -1,0 +1,39 @@
+{
+  "schema": "nxus-spec119-rust-discovery-fixtures/v1",
+  "assertion_marker": "SPEC119_RUST_DISCOVERY_ASSERTIONS=48",
+  "assertion_groups": {
+    "config_factory": ["D-CFG-01", "D-CFG-02", "D-CFG-03", "D-CFG-04", "D-CFG-05", "D-CFG-06", "D-CFG-07", "D-CFG-08"],
+    "route_auth": ["D-ROUTE-01", "D-ROUTE-02", "D-ROUTE-03", "D-ROUTE-04", "D-AUTH-01", "D-AUTH-02", "D-AUTH-03", "D-AUTH-04"],
+    "success_mapping": ["D-OPENAI-HEALTH", "D-OPENAI-ORDER", "D-OPENAI-FIELDS", "D-OLLAMA-HEALTH", "D-OLLAMA-ORDER", "D-OLLAMA-FIELDS", "D-EMPTY-OPENAI", "D-EMPTY-OLLAMA"],
+    "http_errors": ["D-HTTP-01", "D-HTTP-02", "D-HTTP-03", "D-HTTP-04", "D-HTTP-05", "D-HTTP-06", "D-HTTP-07", "D-HTTP-08"],
+    "malformed_redaction": ["D-BODY-01", "D-BODY-02", "D-BODY-03", "D-BODY-04", "D-BODY-05", "D-BODY-06", "D-BODY-07", "D-BODY-08"],
+    "lifecycle_isolation": ["D-LIFE-01", "D-LIFE-02", "D-LIFE-03", "D-LIFE-04", "D-LIFE-05", "D-LIFE-06", "D-LIFE-07", "D-LIFE-08"]
+  },
+  "routes": {
+    "openai_default": "/v1/models",
+    "openai_prefix": "/proxy/v1/models",
+    "ollama_default": "/api/tags",
+    "ollama_prefix": "/proxy/ollama/api/tags"
+  },
+  "authorization": {
+    "selector": "SPEC119_DISCOVERY_TOKEN",
+    "value": "fixture-secret",
+    "header": "Bearer fixture-secret"
+  },
+  "payloads": {
+    "openai_empty": {"data": []},
+    "openai_models": {"data": [{"id": "gpt-b", "created": 2, "owned_by": "openai"}, {"id": "gpt-a", "created": 1, "owned_by": "fixture"}]},
+    "ollama_empty": {"models": []},
+    "ollama_models": {"models": [{"name": "qwen3:8b", "size": 42, "digest": "sha256:abc", "modified_at": "2026-08-26T00:00:00Z"}, {"name": "llama3.2"}]}
+  },
+  "errors": {
+    "network": {"code": "network", "message": "Discovery request failed"},
+    "timeout": {"code": "timeout", "message": "Discovery request timed out"},
+    "authentication": {"code": "authentication", "message": "Discovery authentication failed"},
+    "rate_limited": {"code": "rate_limited", "message": "Discovery request rate limited"},
+    "unavailable": {"code": "unavailable", "message": "Discovery endpoint unavailable"},
+    "malformed_response": {"code": "malformed_response", "message": "Discovery response malformed"},
+    "internal": {"code": "internal", "message": "Discovery request failed internally"},
+    "closed": {"code": "unavailable", "message": "Discovery client is closed"}
+  }
+}

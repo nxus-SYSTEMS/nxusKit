@@ -20,7 +20,9 @@ const MAX_OVERHEAD_NS: u128 = 1_000_000; // 1ms per operation
 
 fn request_without_logprobs() -> ChatRequest {
     ChatRequest::new("gpt-5.4")
-        .with_message(Message::system("You are a concise release validation assistant."))
+        .with_message(Message::system(
+            "You are a concise release validation assistant.",
+        ))
         .with_message(Message::user(
             "Classify this SDK release artifact and summarize the risk.",
         ))
@@ -122,16 +124,12 @@ fn main() {
     }));
 
     let deserialize_plain = avg_nanos(measure(|| {
-        black_box(serde_json::from_str::<ChatResponse>(black_box(
-            &response_plain_json,
-        ))
-        .unwrap());
+        black_box(serde_json::from_str::<ChatResponse>(black_box(&response_plain_json)).unwrap());
     }));
     let deserialize_logprobs = avg_nanos(measure(|| {
-        black_box(serde_json::from_str::<ChatResponse>(black_box(
-            &response_logprobs_json,
-        ))
-        .unwrap());
+        black_box(
+            serde_json::from_str::<ChatResponse>(black_box(&response_logprobs_json)).unwrap(),
+        );
     }));
 
     assert_overhead(

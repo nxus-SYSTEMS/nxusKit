@@ -33,6 +33,10 @@ class PerplexityProvider(OpenAICompatibleProvider):
         """Get provider name."""
         return "perplexity"
 
+    def _api_endpoint(self, path: str) -> str:
+        """Perplexity endpoints are rooted directly at the configured base."""
+        return f"{self._api_url.rstrip('/')}{path}"
+
     def _build_headers(self) -> dict:
         """Build request headers for Perplexity API."""
         return {

@@ -1,6 +1,7 @@
 LIBRARY nxuskit.dll
 EXPORTS
     nxuskit_abi_version
+    nxuskit_action_gate_preview_evaluate_json
     nxuskit_auth_providers
     nxuskit_auth_remove_credential
     nxuskit_auth_resolve
@@ -41,7 +42,16 @@ EXPORTS
     nxuskit_cancel_stream
     nxuskit_capabilities
     nxuskit_chat
+    nxuskit_chat_async
+    nxuskit_chat_operation_start
+    nxuskit_chat_operation_cancel
+    nxuskit_chat_operation_wait
+    nxuskit_chat_operation_free
     nxuskit_chat_stream
+    nxuskit_stream_operation_start
+    nxuskit_stream_operation_cancel
+    nxuskit_stream_operation_wait
+    nxuskit_stream_operation_free
     nxuskit_completion
     nxuskit_completion_stream
     nxuskit_clips_agenda_clear
@@ -132,6 +142,7 @@ EXPORTS
     nxuskit_license_trial_issue
     nxuskit_license_validate
     nxuskit_list_models
+    nxuskit_list_models_async
     nxuskit_oauth_revoke
     nxuskit_oauth_start
     nxuskit_oauth_status
@@ -168,5 +179,13 @@ EXPORTS
     nxuskit_solver_status
     nxuskit_solver_variables
     nxuskit_version
+    nxuskit_discovery_create
+    nxuskit_discovery_close
+    nxuskit_discovery_free
+    nxuskit_discovery_operation_start
+    nxuskit_discovery_operation_cancel
+    nxuskit_discovery_operation_wait
+    nxuskit_discovery_operation_result
+    nxuskit_discovery_operation_free
     nxuskit_zen_evaluate
     nxuskit_zen_free_result

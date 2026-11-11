@@ -1,0 +1,338 @@
+{
+  "schema_version": "nxus-spec119-rust-provider-fixtures/v1",
+  "definition_revision": "312bb8b089e8429ae0449ba0491ba4ba126a56af",
+  "provider_oracles_sha256": "303d5c8eea2949e2cf209d7f85c951f14079368b5a0530bd8666ad33fcfec60c",
+  "qualification_matrix_sha256": "9532caa146142687ec8399ec5bbbabb227d1016b10da774a5bc98d75f4c5daf8",
+  "records": [
+    {
+      "id": "OLL-FORMAT-JSON",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": {"type": "json"}, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {"format": "json"},
+      "control_paths": ["format"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json OLL-FORMAT-JSON: Ollama POST /api/chat format accepts the literal json string; accepted adapter test test_ollama_format_json_serialization."
+    },
+    {
+      "id": "OLL-FORMAT-SCHEMA",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": {"type": "json_schema", "schema": {"type": "object", "properties": {"x": {"type": "integer"}}, "required": ["x"]}}, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {"format": {"type": "object", "properties": {"x": {"type": "integer"}}, "required": ["x"]}},
+      "control_paths": ["format"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json OLL-FORMAT-SCHEMA: Ollama POST /api/chat format accepts a JSON schema object directly; accepted adapter tests test_ollama_format_json_schema_serialization and test_convert_response_format_json_schema."
+    },
+    {
+      "id": "OLL-FORMAT-TEXT-OMIT",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": {"type": "text"}, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["format"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json OLL-FORMAT-TEXT-OMIT: accepted adapter test test_convert_response_format_text requires the format member to be absent."
+    },
+    {
+      "id": "OLL-FORMAT-WRAPPER-REJECT",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": {"type": "object", "name": "fact", "schema": {"type": "object"}, "strict": true}, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["format"],
+      "expected_error": "invalid_request",
+      "provenance": "provider-oracles-v1.json OLL-FORMAT-WRAPPER-REJECT: OpenAI-style type/name/schema/strict wrappers contradict the Ollama primary contract and accepted direct-schema serializer."
+    },
+    {
+      "id": "THINK-AUTO-MODEL",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": "qwen3:8b", "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": "auto", "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {"think": true},
+      "control_paths": ["think"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json THINK-AUTO-MODEL: accepted Ollama get_think_param auto behavior enables thinking for qwen3 models."
+    },
+    {
+      "id": "THINK-ENABLED",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": "enabled", "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {"think": true},
+      "control_paths": ["think"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json THINK-ENABLED: Ollama think accepts boolean true and returns separate thinking output."
+    },
+    {
+      "id": "THINK-DISABLED",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": "disabled", "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {"think": false},
+      "control_paths": ["think"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json THINK-DISABLED: Ollama think accepts boolean false; false must not be collapsed to omission."
+    },
+    {
+      "id": "THINK-INVALID",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": "sometimes", "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["think"],
+      "expected_error": "invalid_request",
+      "provenance": "provider-oracles-v1.json THINK-INVALID: the public facade permits only auto, enabled, disabled, or omission."
+    },
+    {
+      "id": "THINK-OMIT",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["think"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json THINK-OMIT: an absent thinking control remains absent for a non-thinking model."
+    },
+    {
+      "id": "TOP-K-POSITIVE",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": 37, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {"options": {"top_k": 37}},
+      "control_paths": ["options.top_k"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json TOP-K-POSITIVE: generation-control literal independently frozen for adapter parity."
+    },
+    {
+      "id": "TOP-K-NEGATIVE",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": 0, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["options.top_k"],
+      "expected_error": "invalid_request",
+      "provenance": "provider-oracles-v1.json TOP-K-NEGATIVE: top_k must be a positive integer."
+    },
+    {
+      "id": "TOP-K-OMIT",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["options.top_k"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json TOP-K-OMIT: unspecified generation controls must not be synthesized."
+    },
+    {
+      "id": "MIN-P-POSITIVE",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": 0.15, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {"options": {"min_p": 0.15}},
+      "control_paths": ["options.min_p"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json MIN-P-POSITIVE: generation-control literal independently frozen for adapter parity."
+    },
+    {
+      "id": "MIN-P-NEGATIVE",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": 1.1, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["options.min_p"],
+      "expected_error": "invalid_request",
+      "provenance": "provider-oracles-v1.json MIN-P-NEGATIVE: min_p is bounded to the inclusive 0 through 1 interval."
+    },
+    {
+      "id": "MIN-P-OMIT",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["options.min_p"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json MIN-P-OMIT: unspecified generation controls must not be synthesized."
+    },
+    {
+      "id": "SEED-POSITIVE",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": 42, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {"options": {"seed": 42}},
+      "control_paths": ["options.seed"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json SEED-POSITIVE: integer seed 42 is the cross-surface deterministic literal."
+    },
+    {
+      "id": "SEED-NEGATIVE",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": "42", "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["options.seed"],
+      "expected_error": "invalid_request",
+      "provenance": "provider-oracles-v1.json SEED-NEGATIVE: seed must be an integer, never a coerced string."
+    },
+    {
+      "id": "SEED-OMIT",
+      "anchor": "ollama_local",
+      "config": {"provider_id": "ollama_local", "model": "llama3.2", "endpoint": "http://localhost:11434", "auth_selector": null, "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["options.seed"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json SEED-OMIT: unspecified generation controls must not be synthesized."
+    },
+    {
+      "id": "PRESENCE-PENALTY-POSITIVE",
+      "anchor": "openai",
+      "config": {"provider_id": "openai", "model": "gpt-4.1", "endpoint": "https://api.openai.com/v1", "auth_selector": "OPENAI_API_KEY", "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": 0.4, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {"presence_penalty": 0.4},
+      "control_paths": ["presence_penalty"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json PRESENCE-PENALTY-POSITIVE: cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it."
+    },
+    {
+      "id": "PRESENCE-PENALTY-NEGATIVE",
+      "anchor": "openai",
+      "config": {"provider_id": "openai", "model": "gpt-4.1", "endpoint": "https://api.openai.com/v1", "auth_selector": "OPENAI_API_KEY", "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": 2.1, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["presence_penalty"],
+      "expected_error": "invalid_request",
+      "provenance": "provider-oracles-v1.json PRESENCE-PENALTY-NEGATIVE: presence_penalty is bounded to the inclusive -2 through 2 interval."
+    },
+    {
+      "id": "PRESENCE-PENALTY-OMIT",
+      "anchor": "openai",
+      "config": {"provider_id": "openai", "model": "gpt-4.1", "endpoint": "https://api.openai.com/v1", "auth_selector": "OPENAI_API_KEY", "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["presence_penalty"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json PRESENCE-PENALTY-OMIT: unspecified generation controls must not be synthesized."
+    },
+    {
+      "id": "FREQUENCY-PENALTY-POSITIVE",
+      "anchor": "openai",
+      "config": {"provider_id": "openai", "model": "gpt-4.1", "endpoint": "https://api.openai.com/v1", "auth_selector": "OPENAI_API_KEY", "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": -0.3, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {"frequency_penalty": -0.3},
+      "control_paths": ["frequency_penalty"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json FREQUENCY-PENALTY-POSITIVE: cross-provider facade literal; unsupported providers return unsupported_capability rather than silently dropping it."
+    },
+    {
+      "id": "FREQUENCY-PENALTY-NEGATIVE",
+      "anchor": "openai",
+      "config": {"provider_id": "openai", "model": "gpt-4.1", "endpoint": "https://api.openai.com/v1", "auth_selector": "OPENAI_API_KEY", "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": -2.1, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["frequency_penalty"],
+      "expected_error": "invalid_request",
+      "provenance": "provider-oracles-v1.json FREQUENCY-PENALTY-NEGATIVE: frequency_penalty is bounded to the inclusive -2 through 2 interval."
+    },
+    {
+      "id": "FREQUENCY-PENALTY-OMIT",
+      "anchor": "openai",
+      "config": {"provider_id": "openai", "model": "gpt-4.1", "endpoint": "https://api.openai.com/v1", "auth_selector": "OPENAI_API_KEY", "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["frequency_penalty"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json FREQUENCY-PENALTY-OMIT: unspecified generation controls must not be synthesized."
+    },
+    {
+      "id": "REASONING-EFFORT-POSITIVE",
+      "anchor": "openai",
+      "config": {"provider_id": "openai", "model": "gpt-4.1", "endpoint": "https://api.openai.com/v1", "auth_selector": "OPENAI_API_KEY", "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": "medium", "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {"reasoning_effort": "medium"},
+      "control_paths": ["reasoning_effort"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json REASONING-EFFORT-POSITIVE: the cross-provider literal is medium; provider capability controls admissibility."
+    },
+    {
+      "id": "REASONING-EFFORT-NEGATIVE",
+      "anchor": "openai",
+      "config": {"provider_id": "openai", "model": "gpt-4.1", "endpoint": "https://api.openai.com/v1", "auth_selector": "OPENAI_API_KEY", "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": "extreme", "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["reasoning_effort"],
+      "expected_error": "invalid_request",
+      "provenance": "provider-oracles-v1.json REASONING-EFFORT-NEGATIVE: reasoning effort permits only low, medium, high, or max."
+    },
+    {
+      "id": "REASONING-EFFORT-OMIT",
+      "anchor": "openai",
+      "config": {"provider_id": "openai", "model": "gpt-4.1", "endpoint": "https://api.openai.com/v1", "auth_selector": "OPENAI_API_KEY", "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["reasoning_effort"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json REASONING-EFFORT-OMIT: unspecified reasoning effort remains absent."
+    },
+    {
+      "id": "LOGPROBS-POSITIVE",
+      "anchor": "openai",
+      "config": {"provider_id": "openai", "model": "gpt-4.1", "endpoint": "https://api.openai.com/v1", "auth_selector": "OPENAI_API_KEY", "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": true, "top_logprobs": 5, "tools": []},
+      "expected_wire_fragment": {"logprobs": true, "top_logprobs": 5},
+      "control_paths": ["logprobs", "top_logprobs"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json LOGPROBS-POSITIVE: the literal requests log probabilities and five alternatives where capability permits."
+    },
+    {
+      "id": "LOGPROBS-NEGATIVE",
+      "anchor": "openai",
+      "config": {"provider_id": "openai", "model": "gpt-4.1", "endpoint": "https://api.openai.com/v1", "auth_selector": "OPENAI_API_KEY", "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": true, "top_logprobs": 21, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["logprobs", "top_logprobs"],
+      "expected_error": "invalid_request",
+      "provenance": "provider-oracles-v1.json LOGPROBS-NEGATIVE: top_logprobs is bounded to 20 by the accepted parameter adapter."
+    },
+    {
+      "id": "LOGPROBS-OMIT",
+      "anchor": "openai",
+      "config": {"provider_id": "openai", "model": "gpt-4.1", "endpoint": "https://api.openai.com/v1", "auth_selector": "OPENAI_API_KEY", "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["logprobs", "top_logprobs"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json LOGPROBS-OMIT: unspecified log probabilities remain absent."
+    },
+    {
+      "id": "TOOLS-POSITIVE",
+      "anchor": "openai",
+      "config": {"provider_id": "openai", "model": "gpt-4.1", "endpoint": "https://api.openai.com/v1", "auth_selector": "OPENAI_API_KEY", "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": [{"name": "emit_x", "description": "Return one integer", "parameters": {"type": "object", "properties": {"x": {"type": "integer"}}, "required": ["x"]}}]},
+      "expected_wire_fragment": {"tools": [{"type": "function", "function": {"name": "emit_x", "description": "Return one integer", "parameters": {"type": "object", "properties": {"x": {"type": "integer"}}, "required": ["x"]}}}]},
+      "control_paths": ["tools"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json TOOLS-POSITIVE: literal tool definition is independently specified rather than serialized by an adapter-derived oracle."
+    },
+    {
+      "id": "TOOLS-NEGATIVE",
+      "anchor": "openai",
+      "config": {"provider_id": "openai", "model": "gpt-4.1", "endpoint": "https://api.openai.com/v1", "auth_selector": "OPENAI_API_KEY", "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": [{"name": "", "description": null, "parameters": []}]},
+      "expected_wire_fragment": {},
+      "control_paths": ["tools"],
+      "expected_error": "invalid_request",
+      "provenance": "provider-oracles-v1.json TOOLS-NEGATIVE: tool names must be nonempty and parameters must be a JSON object schema."
+    },
+    {
+      "id": "TOOLS-OMIT",
+      "anchor": "openai",
+      "config": {"provider_id": "openai", "model": "gpt-4.1", "endpoint": "https://api.openai.com/v1", "auth_selector": "OPENAI_API_KEY", "transport": "auto", "connect_timeout_ms": 30000, "read_timeout_ms": 30000},
+      "request": {"messages": [{"role": "user", "content": "Hello"}], "model": null, "metadata": {}, "temperature": null, "max_tokens": null, "top_p": null, "top_k": null, "min_p": null, "seed": null, "stop": [], "presence_penalty": null, "frequency_penalty": null, "reasoning_effort": null, "response_format": null, "thinking": null, "logprobs": null, "top_logprobs": null, "tools": []},
+      "expected_wire_fragment": {},
+      "control_paths": ["tools"],
+      "expected_error": null,
+      "provenance": "provider-oracles-v1.json TOOLS-OMIT: unspecified tools remain absent."
+    }
+  ]
+}

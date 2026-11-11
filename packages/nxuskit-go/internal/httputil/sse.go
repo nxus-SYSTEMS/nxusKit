@@ -24,7 +24,7 @@ type SSEReader struct {
 // NewSSEReader creates a new SSE reader from the given reader.
 func NewSSEReader(r io.Reader) *SSEReader {
 	return &SSEReader{
-		scanner: bufio.NewScanner(r),
+		scanner: NewBoundedLineScanner(r),
 	}
 }
 
@@ -34,6 +34,7 @@ func NewSSEReader(r io.Reader) *SSEReader {
 func (r *SSEReader) Read() (*SSEEvent, error) {
 	event := &SSEEvent{}
 	hasData := false
+	var budget StreamEventBudget
 
 	for r.scanner.Scan() {
 		line := r.scanner.Text()
@@ -50,6 +51,13 @@ func (r *SSEReader) Read() (*SSEEvent, error) {
 		if strings.HasPrefix(line, "data:") {
 			data := strings.TrimPrefix(line, "data:")
 			data = strings.TrimPrefix(data, " ") // Optional space after colon
+			added := len(data)
+			if event.Data != "" {
+				added++
+			}
+			if err := budget.Add(added); err != nil {
+				return nil, err
+			}
 			if event.Data != "" {
 				event.Data += "\n" + data
 			} else {

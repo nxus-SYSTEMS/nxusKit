@@ -23,12 +23,95 @@ type openaiCompatConfig struct {
 
 var _ = openaiCompatConfig{} // silence unused warning
 
+func mergeProviderMetadata(current map[string]any, raw []byte, provider string) (map[string]any, error) {
+	var fields, usageFields []string
+	switch provider {
+	case "openrouter":
+		fields = []string{"id", "provider"}
+		usageFields = []string{"cost", "cost_details", "prompt_tokens_details", "completion_tokens_details"}
+	case "perplexity":
+		fields = []string{"citations", "search_results"}
+		usageFields = []string{"cost", "search_context_size", "citation_tokens", "num_search_queries", "reasoning_tokens"}
+	default:
+		return nil, nil
+	}
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.UseNumber()
+	var data map[string]any
+	if err := decoder.Decode(&data); err != nil {
+		return nil, NewProviderError(provider, "provider_metadata invalid JSON", 0, err)
+	}
+	if current == nil {
+		current = map[string]any{}
+	}
+	for _, name := range fields {
+		if value, ok := data[name]; ok {
+			current[name] = value
+		}
+	}
+	if value, ok := data["usage"]; ok {
+		if value == nil {
+			current["usage"] = nil
+		} else if usage, ok := value.(map[string]any); ok {
+			for _, name := range usageFields {
+				if value, ok := usage[name]; ok {
+					target, _ := current["usage"].(map[string]any)
+					if target == nil {
+						target = map[string]any{}
+						current["usage"] = target
+					}
+					target[name] = value
+				}
+			}
+		} else {
+			return nil, NewProviderError(provider, "provider_metadata usage must be object or null", 0, nil)
+		}
+	}
+	var depthOK func(any, int) bool
+	depthOK = func(value any, depth int) bool {
+		if depth > 16 {
+			return false
+		}
+		switch value := value.(type) {
+		case map[string]any:
+			for _, child := range value {
+				if !depthOK(child, depth+1) {
+					return false
+				}
+			}
+		case []any:
+			for _, child := range value {
+				if !depthOK(child, depth+1) {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	if !depthOK(current, 0) {
+		return nil, NewProviderError(provider, "provider_metadata depth exceeds 16", 0, nil)
+	}
+	encoded, err := json.Marshal(current)
+	if err != nil {
+		return nil, NewProviderError(provider, "provider_metadata invalid JSON", 0, err)
+	}
+	if len(encoded) > 65536 {
+		return nil, NewProviderError(provider, "provider_metadata compact UTF-8 bytes exceed 65536", 0, nil)
+	}
+	if len(current) == 0 {
+		return nil, nil
+	}
+	return current, nil
+}
+
 // buildOpenAIRequest creates an OpenAI API request from a ChatRequest.
 func buildOpenAIRequest(req *ChatRequest) *openaiChatRequest {
 	or := &openaiChatRequest{
-		Model:    req.Model,
-		Messages: convertToOpenAIMessages(req.Messages),
-		Stream:   req.Stream,
+		Model:       req.Model,
+		Messages:    convertToOpenAIMessages(req.Messages),
+		Stream:      req.Stream,
+		Logprobs:    req.Logprobs,
+		TopLogprobs: req.TopLogprobs,
 	}
 
 	if req.Temperature != nil {
@@ -135,6 +218,9 @@ func openaiCompatibleChat(
 	providerName string,
 	req *ChatRequest,
 ) (*ChatResponse, error) {
+	if err := validateGenerationControls(req, providerName); err != nil {
+		return nil, err
+	}
 	openaiReq := buildOpenAIRequest(req)
 
 	resp, err := client.PostJSON(ctx, "/chat/completions", openaiReq)
@@ -147,12 +233,28 @@ func openaiCompatibleChat(
 		return nil, handleOpenAICompatErrorResponse(resp, providerName)
 	}
 
+	var raw json.RawMessage
+	if err := decodeBoundedProviderResponse(resp, providerName, "failed to decode response", &raw); err != nil {
+		return nil, err
+	}
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &envelope); err != nil || envelope == nil {
+		return nil, NewProviderError(providerName, "invalid response envelope", 0, err)
+	}
+	if _, failed := envelope["error"]; failed {
+		return nil, NewProviderError(providerName, "provider returned an error envelope", 0, nil)
+	}
+	metadata, err := mergeProviderMetadata(nil, raw, providerName)
+	if err != nil {
+		return nil, err
+	}
 	var openaiResp openaiChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&openaiResp); err != nil {
+	if err := json.Unmarshal(raw, &openaiResp); err != nil {
 		return nil, NewProviderError(providerName, "failed to decode response", 0, err)
 	}
-
-	return convertFromOpenAIResponse(&openaiResp), nil
+	result := convertFromOpenAIResponse(&openaiResp)
+	result.ProviderMetadata = metadata
+	return result, nil
 }
 
 // openaiCompatibleChatStream handles streaming using OpenAI format.
@@ -169,6 +271,10 @@ func openaiCompatibleChatStream(
 		defer close(chunks)
 		defer close(errs)
 
+		if err := validateGenerationControls(req, providerName); err != nil {
+			errs <- err
+			return
+		}
 		streamReq := *req
 		streamReq.Stream = true
 		openaiReq := buildOpenAIRequest(&streamReq)
@@ -188,6 +294,8 @@ func openaiCompatibleChatStream(
 		// Parse SSE stream
 		reader := httputil.NewSSEReader(resp.Body)
 		var usage *TokenUsage
+		var rawFinishReason *string
+		var providerMetadata map[string]any
 
 		for {
 			select {
@@ -199,6 +307,7 @@ func openaiCompatibleChatStream(
 
 			event, err := reader.Read()
 			if err == io.EOF {
+				errs <- NewStreamError(providerName, "stream ended before [DONE]", nil)
 				return
 			}
 			if err != nil {
@@ -211,10 +320,31 @@ func openaiCompatibleChatStream(
 
 			// Check for [DONE] marker
 			if event.IsDone() {
+				final := StreamChunk{Terminal: true, RawFinishReason: rawFinishReason, FinishReason: convertOpenAIFinishReason(rawFinishReason), Usage: usage}
+				final.ProviderMetadata = providerMetadata
+				select {
+				case chunks <- final:
+				case <-ctx.Done():
+					errs <- ctx.Err()
+				}
 				return
 			}
 
 			// Parse the JSON chunk
+			var envelope map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(event.Data), &envelope); err != nil || envelope == nil {
+				errs <- NewStreamError(providerName, "invalid stream envelope", err)
+				return
+			}
+			if _, failed := envelope["error"]; failed {
+				errs <- NewStreamError(providerName, "provider returned a stream error", nil)
+				return
+			}
+			providerMetadata, err = mergeProviderMetadata(providerMetadata, []byte(event.Data), providerName)
+			if err != nil {
+				errs <- err
+				return
+			}
 			var streamResp openaiChatResponse
 			if err := json.Unmarshal([]byte(event.Data), &streamResp); err != nil {
 				errs <- NewStreamError(providerName, "failed to parse stream chunk", err)
@@ -229,9 +359,8 @@ func openaiCompatibleChatStream(
 				if choice.Delta != nil {
 					chunk.Delta = choice.Delta.Content
 				}
-				if choice.FinishReason != nil && *choice.FinishReason != "" {
-					fr := ParseFinishReason(*choice.FinishReason)
-					chunk.FinishReason = &fr
+				if choice.FinishReason != nil {
+					rawFinishReason = choice.FinishReason
 				}
 				// Decode streaming logprobs (FR-007: nil when provider doesn't emit).
 				chunk.Logprobs = decodeOAILogprobDelta(choice.Logprobs)
@@ -249,7 +378,12 @@ func openaiCompatibleChatStream(
 				chunk.Usage = usage
 			}
 
-			chunks <- chunk
+			select {
+			case chunks <- chunk:
+			case <-ctx.Done():
+				errs <- ctx.Err()
+				return
+			}
 		}
 	}()
 
@@ -273,8 +407,8 @@ func openaiCompatibleListModels(
 	}
 
 	var modelsResp openaiModelsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&modelsResp); err != nil {
-		return nil, NewProviderError(providerName, "failed to decode models response", 0, err)
+	if err := decodeBoundedProviderResponse(resp, providerName, "failed to decode models response", &modelsResp); err != nil {
+		return nil, err
 	}
 
 	models := make([]ModelInfo, len(modelsResp.Data))
@@ -323,7 +457,10 @@ func wrapOpenAICompatError(err error, providerName string) error {
 
 // handleOpenAICompatErrorResponse parses an error response.
 func handleOpenAICompatErrorResponse(resp *http.Response, providerName string) error {
-	body, _ := io.ReadAll(resp.Body)
+	body, readErr := httputil.ReadBoundedBody(resp.Body)
+	if readErr != nil {
+		return openAICompatHTTPError(resp, providerName, readErr.Error(), readErr)
+	}
 
 	var errResp openaiErrorResponse
 	if err := json.Unmarshal(body, &errResp); err != nil {
@@ -335,16 +472,20 @@ func handleOpenAICompatErrorResponse(resp *http.Response, providerName string) e
 		msg = fmt.Sprintf("HTTP %d", resp.StatusCode)
 	}
 
+	return openAICompatHTTPError(resp, providerName, msg, nil)
+}
+
+func openAICompatHTTPError(resp *http.Response, providerName, message string, err error) error {
 	switch resp.StatusCode {
 	case 401:
-		return NewAuthenticationError(providerName, msg, nil)
+		return NewAuthenticationError(providerName, message, err)
 	case 400:
-		return NewInvalidRequestError(providerName, msg, nil)
+		return NewInvalidRequestError(providerName, message, err)
 	case 429:
 		retryAfter := parseRetryAfterHeader(resp.Header.Get("Retry-After"))
-		return NewRateLimitError(providerName, retryAfter, nil)
+		return NewRateLimitError(providerName, retryAfter, err)
 	default:
-		return NewProviderError(providerName, msg, resp.StatusCode, nil)
+		return NewProviderError(providerName, message, resp.StatusCode, err)
 	}
 }
 

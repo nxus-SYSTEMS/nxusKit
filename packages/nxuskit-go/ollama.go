@@ -1,7 +1,6 @@
 package nxuskit
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/nxus-SYSTEMS/nxusKit/packages/nxuskit-go/internal/httputil"
 )
@@ -86,12 +86,20 @@ func (p *OllamaProvider) ProviderName() string {
 
 // Chat sends a chat completion request to Ollama.
 func (p *OllamaProvider) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
+	if err := validateOllamaSampling(req); err != nil {
+		return nil, err
+	}
+	format, err := convertOllamaResponseFormat(req.ResponseFormat)
+	if err != nil {
+		return nil, err
+	}
 	ollamaReq := &ollamaChatRequest{
 		Model:    req.Model,
 		Messages: convertToOllamaMessages(req.Messages),
 		Stream:   false,
 		Options:  convertOllamaOptions(req),
-		Think:    convertThinkingModeToOllama(req.ThinkingMode),
+		Think:    convertThinkingModeToOllama(req.ThinkingMode, req.Model),
+		Format:   format,
 	}
 
 	resp, err := p.client.PostJSON(ctx, "/api/chat", ollamaReq)
@@ -104,9 +112,16 @@ func (p *OllamaProvider) Chat(ctx context.Context, req *ChatRequest) (*ChatRespo
 		return nil, p.handleErrorResponse(resp)
 	}
 
-	var ollamaResp ollamaChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&ollamaResp); err != nil {
+	var raw json.RawMessage
+	if err := decodeBoundedProviderResponse(resp, ollamaProviderName, "failed to decode response", &raw); err != nil {
+		return nil, err
+	}
+	ollamaResp, err := decodeOllamaChatResponse(raw)
+	if err != nil {
 		return nil, NewProviderError(ollamaProviderName, "failed to decode response", 0, err)
+	}
+	if len(ollamaResp.Error) != 0 || !ollamaResp.Done {
+		return nil, NewProviderError(ollamaProviderName, "invalid or incomplete Ollama response", 0, nil)
 	}
 
 	return convertFromOllamaResponse(&ollamaResp), nil
@@ -120,13 +135,23 @@ func (p *OllamaProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 	go func() {
 		defer close(chunks)
 		defer close(errs)
+		if err := validateOllamaSampling(req); err != nil {
+			errs <- err
+			return
+		}
+		format, err := convertOllamaResponseFormat(req.ResponseFormat)
+		if err != nil {
+			errs <- err
+			return
+		}
 
 		ollamaReq := &ollamaChatRequest{
 			Model:    req.Model,
 			Messages: convertToOllamaMessages(req.Messages),
 			Stream:   true,
 			Options:  convertOllamaOptions(req),
-			Think:    convertThinkingModeToOllama(req.ThinkingMode),
+			Think:    convertThinkingModeToOllama(req.ThinkingMode, req.Model),
+			Format:   format,
 		}
 
 		resp, err := p.client.PostJSON(ctx, "/api/chat", ollamaReq)
@@ -141,8 +166,8 @@ func (p *OllamaProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 			return
 		}
 
-		// Ollama uses NDJSON (newline-delimited JSON) for streaming
-		scanner := bufio.NewScanner(resp.Body)
+		// Ollama uses NDJSON (newline-delimited JSON) for streaming.
+		scanner := httputil.NewBoundedLineScanner(resp.Body)
 		var usage *TokenUsage
 
 		for scanner.Scan() {
@@ -158,9 +183,13 @@ func (p *OllamaProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 				continue
 			}
 
-			var ollamaResp ollamaChatResponse
-			if err := json.Unmarshal([]byte(line), &ollamaResp); err != nil {
+			ollamaResp, err := decodeOllamaChatResponse([]byte(line))
+			if err != nil {
 				errs <- NewStreamError(ollamaProviderName, "failed to parse stream chunk", err)
+				return
+			}
+			if len(ollamaResp.Error) != 0 {
+				errs <- NewStreamError(ollamaProviderName, "Ollama response contains an error", nil)
 				return
 			}
 
@@ -169,14 +198,15 @@ func (p *OllamaProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 			}
 
 			// Handle thinking content
-			if ollamaResp.Thinking != "" {
-				chunk.Thinking = &ollamaResp.Thinking
+			if ollamaResp.Message.Thinking != "" {
+				chunk.Thinking = &ollamaResp.Message.Thinking
 			}
 
 			// Handle final chunk
 			if ollamaResp.Done {
-				reason := FinishReasonStop
-				chunk.FinishReason = &reason
+				chunk.Terminal = true
+				chunk.FinishReason = canonicalOllamaFinish(ollamaResp.DoneReason)
+				chunk.RawFinishReason = ollamaResp.DoneReason
 
 				if ollamaResp.EvalCount > 0 || ollamaResp.PromptEvalCount > 0 {
 					usage = &TokenUsage{
@@ -190,15 +220,37 @@ func (p *OllamaProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 				}
 			}
 
-			chunks <- chunk
+			select {
+			case chunks <- chunk:
+			case <-ctx.Done():
+				errs <- ctx.Err()
+				return
+			}
+			if ollamaResp.Done {
+				return
+			}
 		}
 
 		if err := scanner.Err(); err != nil {
 			errs <- NewStreamError(ollamaProviderName, "stream read error", err)
+			return
 		}
+		errs <- NewStreamError(ollamaProviderName, "stream ended before done", nil)
 	}()
 
 	return chunks, errs
+}
+
+func decodeOllamaChatResponse(data []byte) (ollamaChatResponse, error) {
+	var response ollamaChatResponse
+	if !utf8.Valid(data) {
+		return response, fmt.Errorf("Ollama response is not valid UTF-8")
+	}
+	err := json.Unmarshal(data, &response)
+	if err == nil && (response.PromptEvalCount < 0 || response.EvalCount < 0 || response.PromptEvalCount > int(^uint(0)>>1)-response.EvalCount) {
+		return response, fmt.Errorf("Malformed Ollama usage counts")
+	}
+	return response, err
 }
 
 // ListModels returns available models from the Ollama server.
@@ -214,8 +266,8 @@ func (p *OllamaProvider) ListModels(ctx context.Context) ([]ModelInfo, error) {
 	}
 
 	var tagsResp ollamaTagsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tagsResp); err != nil {
-		return nil, NewProviderError(ollamaProviderName, "failed to decode models response", 0, err)
+	if err := decodeBoundedProviderResponse(resp, ollamaProviderName, "failed to decode models response", &tagsResp); err != nil {
+		return nil, err
 	}
 
 	models := make([]ModelInfo, len(tagsResp.Models))
@@ -261,8 +313,12 @@ func (p *OllamaProvider) wrapError(err error) error {
 
 // handleErrorResponse parses an error response from Ollama.
 func (p *OllamaProvider) handleErrorResponse(resp *http.Response) error {
+	body, readErr := httputil.ReadBoundedBody(resp.Body)
+	if readErr != nil {
+		return NewProviderError(ollamaProviderName, readErr.Error(), resp.StatusCode, readErr)
+	}
 	var errResp ollamaErrorResponse
-	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+	if err := decodeProviderJSON(body, &errResp); err != nil {
 		return NewProviderError(ollamaProviderName, fmt.Sprintf("HTTP %d", resp.StatusCode), resp.StatusCode, nil)
 	}
 
@@ -333,8 +389,8 @@ func (p *OllamaProvider) GetModelCapabilities(ctx context.Context, model string)
 	}
 
 	var showResp ollamaShowResponse
-	if err := json.NewDecoder(resp.Body).Decode(&showResp); err != nil {
-		return ModelCapabilities{}, NewProviderError(ollamaProviderName, "failed to decode show response", 0, err)
+	if err := decodeBoundedProviderResponse(resp, ollamaProviderName, "failed to decode show response", &showResp); err != nil {
+		return ModelCapabilities{}, err
 	}
 
 	// Detect vision capability from model details

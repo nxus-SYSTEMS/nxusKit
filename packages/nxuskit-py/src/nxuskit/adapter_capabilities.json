@@ -1,0 +1,197 @@
+{
+  "adapter_capabilities": {
+    "claude": {
+      "max_logprobs": null,
+      "max_stop_sequences": 4,
+      "penalty_range": null,
+      "supports_frequency_penalty": false,
+      "supports_json_mode": false,
+      "supports_json_schema": false,
+      "supports_logprobs": false,
+      "supports_presence_penalty": false,
+      "supports_seed": false,
+      "supports_streaming": true,
+      "supports_streaming_logprobs": false,
+      "supports_system_messages": true,
+      "supports_vision": true
+    },
+    "fireworks": {
+      "max_logprobs": null,
+      "max_stop_sequences": 4,
+      "penalty_range": [
+        -2.0,
+        2.0
+      ],
+      "supports_frequency_penalty": true,
+      "supports_json_mode": true,
+      "supports_json_schema": true,
+      "supports_logprobs": false,
+      "supports_presence_penalty": true,
+      "supports_seed": true,
+      "supports_streaming": true,
+      "supports_streaming_logprobs": false,
+      "supports_system_messages": true,
+      "supports_vision": true
+    },
+    "groq": {
+      "max_logprobs": null,
+      "max_stop_sequences": 4,
+      "penalty_range": [
+        -2.0,
+        2.0
+      ],
+      "supports_frequency_penalty": true,
+      "supports_json_mode": true,
+      "supports_json_schema": true,
+      "supports_logprobs": false,
+      "supports_presence_penalty": true,
+      "supports_seed": true,
+      "supports_streaming": true,
+      "supports_streaming_logprobs": false,
+      "supports_system_messages": true,
+      "supports_vision": false
+    },
+    "lmstudio": {
+      "max_logprobs": null,
+      "max_stop_sequences": 4,
+      "penalty_range": [
+        -2.0,
+        2.0
+      ],
+      "supports_frequency_penalty": true,
+      "supports_json_mode": true,
+      "supports_json_schema": true,
+      "supports_logprobs": false,
+      "supports_presence_penalty": true,
+      "supports_seed": true,
+      "supports_streaming": true,
+      "supports_streaming_logprobs": false,
+      "supports_system_messages": true,
+      "supports_vision": true
+    },
+    "mistral": {
+      "max_logprobs": null,
+      "max_stop_sequences": 4,
+      "penalty_range": [
+        -2.0,
+        2.0
+      ],
+      "supports_frequency_penalty": true,
+      "supports_json_mode": true,
+      "supports_json_schema": true,
+      "supports_logprobs": false,
+      "supports_presence_penalty": true,
+      "supports_seed": true,
+      "supports_streaming": true,
+      "supports_streaming_logprobs": false,
+      "supports_system_messages": true,
+      "supports_vision": true
+    },
+    "ollama": {
+      "max_logprobs": 20,
+      "max_stop_sequences": null,
+      "penalty_range": null,
+      "supports_frequency_penalty": false,
+      "supports_json_mode": true,
+      "supports_json_schema": true,
+      "supports_logprobs": true,
+      "supports_presence_penalty": false,
+      "supports_seed": true,
+      "supports_streaming": true,
+      "supports_streaming_logprobs": true,
+      "supports_system_messages": true,
+      "supports_vision": true
+    },
+    "openai": {
+      "max_logprobs": 20,
+      "max_stop_sequences": 4,
+      "penalty_range": [
+        -2.0,
+        2.0
+      ],
+      "supports_frequency_penalty": true,
+      "supports_json_mode": true,
+      "supports_json_schema": true,
+      "supports_logprobs": true,
+      "supports_presence_penalty": true,
+      "supports_seed": true,
+      "supports_streaming": true,
+      "supports_streaming_logprobs": true,
+      "supports_system_messages": true,
+      "supports_vision": true
+    },
+    "openrouter": {
+      "max_logprobs": null,
+      "max_stop_sequences": 4,
+      "penalty_range": [
+        -2.0,
+        2.0
+      ],
+      "supports_frequency_penalty": true,
+      "supports_json_mode": true,
+      "supports_json_schema": true,
+      "supports_logprobs": false,
+      "supports_presence_penalty": true,
+      "supports_seed": true,
+      "supports_streaming": true,
+      "supports_streaming_logprobs": false,
+      "supports_system_messages": true,
+      "supports_vision": true
+    },
+    "perplexity": {
+      "max_logprobs": null,
+      "max_stop_sequences": null,
+      "penalty_range": [
+        0.0,
+        2.0
+      ],
+      "supports_frequency_penalty": true,
+      "supports_json_mode": false,
+      "supports_json_schema": false,
+      "supports_logprobs": false,
+      "supports_presence_penalty": true,
+      "supports_seed": false,
+      "supports_streaming": true,
+      "supports_streaming_logprobs": false,
+      "supports_system_messages": true,
+      "supports_vision": false
+    },
+    "together": {
+      "max_logprobs": null,
+      "max_stop_sequences": 4,
+      "penalty_range": [
+        -2.0,
+        2.0
+      ],
+      "supports_frequency_penalty": true,
+      "supports_json_mode": true,
+      "supports_json_schema": true,
+      "supports_logprobs": false,
+      "supports_presence_penalty": true,
+      "supports_seed": true,
+      "supports_streaming": true,
+      "supports_streaming_logprobs": false,
+      "supports_system_messages": true,
+      "supports_vision": true
+    },
+    "xai": {
+      "max_logprobs": null,
+      "max_stop_sequences": null,
+      "penalty_range": null,
+      "supports_frequency_penalty": false,
+      "supports_json_mode": true,
+      "supports_json_schema": true,
+      "supports_logprobs": false,
+      "supports_presence_penalty": false,
+      "supports_seed": false,
+      "supports_streaming": true,
+      "supports_streaming_logprobs": false,
+      "supports_system_messages": true,
+      "supports_vision": true
+    }
+  },
+  "declaration_kind": "static_adapter_support",
+  "schema_version": 1,
+  "sdk_version": "2.0.0",
+  "source_edition": "oss"
+}

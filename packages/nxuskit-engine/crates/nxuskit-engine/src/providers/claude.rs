@@ -11,7 +11,7 @@ use crate::{
     ChatRequest, ChatResponse, LLMProvider, Message, ModelInfo, Role, StreamChunk, TokenCount,
     TokenUsage,
     error::{NxuskitError, Result},
-    parameter_adapter::ParameterAdapter,
+    parameter_adapter::{AdaptedRequest, ParameterAdapter},
     token_estimator::{StreamingTokenAccumulator, TokenEstimator},
     types::{
         ContentPart, FinishReason, ImageData, InferenceMetadata, MessageContent,
@@ -21,6 +21,14 @@ use crate::{
 
 const CLAUDE_API_BASE: &str = "https://api.anthropic.com/v1";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
+
+fn claude_finish_reason(raw: &str) -> Option<FinishReason> {
+    if raw == "tool_use" {
+        Some(FinishReason::ToolCalls)
+    } else {
+        FinishReason::from_str_flexible(raw)
+    }
+}
 
 /// Claude provider for Anthropic's API
 #[derive(Clone)]
@@ -32,6 +40,31 @@ pub struct ClaudeProvider {
     connection_timeout: Duration,
     stream_read_timeout: Duration,
     total_timeout: Duration,
+}
+
+impl ClaudeProvider {
+    /// Static adapter declarations, not model or endpoint-effective support.
+    pub fn adapter_capabilities() -> ProviderCapabilities {
+        // Anthropic does not expose logprobs on either unary or streaming
+        // responses. Per FR-007, the streaming-logprobs flag stays `false`
+        // and the SSE handler MUST emit `logprobs: None` on every chunk —
+        // never phantom data.
+        ProviderCapabilities {
+            supports_system_messages: true,
+            supports_streaming: true,
+            supports_vision: true,
+            max_stop_sequences: Some(4),
+            supports_presence_penalty: false,
+            supports_frequency_penalty: false,
+            supports_seed: false,
+            supports_logprobs: false,
+            supports_streaming_logprobs: false,
+            supports_json_mode: false,
+            supports_json_schema: false,
+            penalty_range: None,
+            max_logprobs: None,
+        }
+    }
 }
 
 impl ClaudeProvider {
@@ -110,6 +143,318 @@ impl ClaudeProvider {
         }
 
         (system, claude_messages)
+    }
+    fn validate_request_surface(&self, request: &ChatRequest, streaming: bool) -> Result<()> {
+        request.validate_legacy_sampling(self.provider_name())?;
+
+        if let Some(stops) = request.stop.as_ref()
+            && (stops.len() > 4 || stops.iter().any(String::is_empty))
+        {
+            return Err(NxuskitError::InvalidRequest(
+                "Claude stop sequences must contain 0 to 4 nonempty strings".into(),
+            ));
+        }
+        if request.top_logprobs.is_some_and(|value| value > 20) {
+            return Err(NxuskitError::InvalidRequest(
+                "top_logprobs must be between 0 and 20".into(),
+            ));
+        }
+        if request
+            .reasoning_effort
+            .as_deref()
+            .is_some_and(|value| !matches!(value, "low" | "medium" | "high" | "max"))
+        {
+            return Err(NxuskitError::InvalidRequest(
+                "invalid reasoning_effort".into(),
+            ));
+        }
+
+        for (capability, present) in [
+            ("presence_penalty", request.presence_penalty.is_some()),
+            ("frequency_penalty", request.frequency_penalty.is_some()),
+            ("seed", request.seed.is_some()),
+            ("logprobs", request.logprobs.is_some()),
+            ("top_logprobs", request.top_logprobs.is_some()),
+            ("reasoning_effort", request.reasoning_effort.is_some()),
+        ] {
+            if present {
+                return Err(NxuskitError::unsupported_capability("claude", capability));
+            }
+        }
+
+        if !matches!(
+            request.thinking_mode,
+            crate::types::ThinkingMode::Auto | crate::types::ThinkingMode::Omit
+        ) {
+            return Err(NxuskitError::unsupported_capability("claude", "thinking"));
+        }
+
+        if let Some(crate::types::ResponseFormat::JsonSchema { schema }) =
+            request.response_format.as_ref()
+        {
+            if !schema.is_object() {
+                return Err(NxuskitError::InvalidRequest(
+                    "invalid response_format".into(),
+                ));
+            }
+            return Err(NxuskitError::unsupported_capability(
+                "claude",
+                "response_format",
+            ));
+        }
+
+        if let Some(config) = request.structured_output.as_ref() {
+            if config.validate_shape().is_err() {
+                return Err(NxuskitError::InvalidRequest(
+                    "invalid structured_output".into(),
+                ));
+            }
+            if matches!(
+                config.mode,
+                crate::capabilities::StructuredOutputMode::JsonSchema
+            ) {
+                return Err(NxuskitError::unsupported_capability(
+                    "claude",
+                    "structured_output",
+                ));
+            }
+        }
+
+        if let Some(config) = request.tool_call_config.as_ref() {
+            if config.validate_shape().is_err() {
+                return Err(NxuskitError::InvalidRequest(
+                    "invalid tool_call_config".into(),
+                ));
+            }
+            if config.parallel_tool_calls.is_some() {
+                return Err(NxuskitError::unsupported_capability(
+                    "claude",
+                    "parallel_tool_calls",
+                ));
+            }
+            if config.streaming_tool_calls.is_some() {
+                return Err(NxuskitError::unsupported_capability(
+                    "claude",
+                    "streaming_tool_calls",
+                ));
+            }
+        }
+        if streaming
+            && (request
+                .tools
+                .as_ref()
+                .is_some_and(|tools| !tools.is_empty())
+                || request.tool_choice.is_some()
+                || request.tool_call_config.is_some())
+        {
+            return Err(NxuskitError::unsupported_capability(
+                "claude",
+                "tool_streaming",
+            ));
+        }
+
+        if request.provider_options.is_some() {
+            return Err(NxuskitError::unsupported_capability(
+                "claude",
+                "provider_options",
+            ));
+        }
+        if request.openai_responses.is_some() {
+            return Err(NxuskitError::unsupported_capability(
+                "claude",
+                "openai_responses",
+            ));
+        }
+
+        Ok(())
+    }
+    fn json_object_requested(request: &ChatRequest) -> bool {
+        matches!(
+            request.response_format.as_ref(),
+            Some(crate::types::ResponseFormat::Json)
+        ) || matches!(
+            request.structured_output.as_ref().map(|config| config.mode),
+            Some(crate::capabilities::StructuredOutputMode::JsonObject)
+        )
+    }
+
+    fn append_json_instruction(system: Option<String>) -> Option<String> {
+        let instruction = "Respond with valid JSON only. Do not include any text before or after the JSON object.";
+        Some(match system {
+            Some(existing) if !existing.is_empty() => format!("{existing}\n\n{instruction}"),
+            _ => instruction.to_string(),
+        })
+    }
+
+    fn legacy_tool_to_anthropic(tool: &serde_json::Value) -> Result<serde_json::Value> {
+        let invalid = || NxuskitError::InvalidRequest("invalid tool definition".into());
+        let object = tool.as_object().ok_or_else(invalid)?;
+        if object.get("type").and_then(serde_json::Value::as_str) != Some("function") {
+            return Err(invalid());
+        }
+        let function = object
+            .get("function")
+            .and_then(serde_json::Value::as_object)
+            .ok_or_else(invalid)?;
+        let name = function
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .filter(|name| !name.is_empty())
+            .ok_or_else(invalid)?;
+        let input_schema = function
+            .get("parameters")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!({}));
+        if !input_schema.is_object() {
+            return Err(invalid());
+        }
+        let description = match function.get("description") {
+            None | Some(serde_json::Value::Null) => None,
+            Some(value) => Some(value.as_str().ok_or_else(invalid)?.to_string()),
+        };
+
+        let mut mapped = serde_json::Map::new();
+        mapped.insert("name".into(), serde_json::Value::String(name.to_string()));
+        if let Some(description) = description {
+            mapped.insert("description".into(), serde_json::Value::String(description));
+        }
+        mapped.insert("input_schema".into(), input_schema);
+        Ok(serde_json::Value::Object(mapped))
+    }
+
+    fn tool_choice_to_anthropic(
+        choice: Option<&serde_json::Value>,
+    ) -> Result<Option<serde_json::Value>> {
+        let Some(choice) = choice else {
+            return Ok(None);
+        };
+        if choice.is_null() {
+            return Ok(None);
+        }
+        let invalid = || NxuskitError::InvalidRequest("invalid tool_choice".into());
+        if let Some(value) = choice.as_str() {
+            return match value {
+                "auto" => Ok(Some(serde_json::json!({"type": "auto"}))),
+                "none" => Ok(None),
+                "required" => Ok(Some(serde_json::json!({"type": "any"}))),
+                _ => Err(invalid()),
+            };
+        }
+        let object = choice.as_object().ok_or_else(invalid)?;
+        if object.get("type").and_then(serde_json::Value::as_str) != Some("function") {
+            return Err(invalid());
+        }
+        let function = object
+            .get("function")
+            .and_then(serde_json::Value::as_object)
+            .ok_or_else(invalid)?;
+        let name = function
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .filter(|name| !name.is_empty())
+            .ok_or_else(invalid)?;
+        Ok(Some(serde_json::json!({"type": "tool", "name": name})))
+    }
+
+    fn build_tool_fields(
+        request: &ChatRequest,
+        warnings: &mut Vec<crate::types::ParameterWarning>,
+    ) -> Result<(Option<Vec<serde_json::Value>>, Option<serde_json::Value>)> {
+        if let Some(config) = request.tool_call_config.as_ref() {
+            let record = crate::capabilities::registry::find("anthropic").ok_or_else(|| {
+                NxuskitError::Configuration(
+                    "provider capability record not found: anthropic".into(),
+                )
+            })?;
+            match crate::capabilities::validate_request_against_record(
+                &record,
+                &crate::capabilities::FeatureRequest::tool_call(config.clone()),
+            ) {
+                crate::capabilities::ValidationOutcome::Allow => {}
+                crate::capabilities::ValidationOutcome::Warn { feature, reason } => {
+                    warnings.push(crate::types::ParameterWarning {
+                        parameter: feature.to_string(),
+                        message: reason,
+                        severity: crate::types::WarningSeverity::Warning,
+                    });
+                }
+                crate::capabilities::ValidationOutcome::Block { feature, reason } => {
+                    return Err(NxuskitError::InvalidRequest(format!("{feature}: {reason}")));
+                }
+            }
+
+            let wire_tools = crate::capabilities::openai_wire::tools_for(&record, config);
+            let tools = wire_tools
+                .as_array()
+                .map(|entries| {
+                    entries
+                        .iter()
+                        .map(Self::legacy_tool_to_anthropic)
+                        .collect::<Result<Vec<_>>>()
+                })
+                .transpose()?
+                .filter(|entries| !entries.is_empty());
+
+            let wire_choice = crate::capabilities::openai_wire::tool_choice_for(&record, config);
+            let tool_choice = Self::tool_choice_to_anthropic(Some(&wire_choice))?;
+            return Ok((tools, tool_choice));
+        }
+
+        let tools = request
+            .tools
+            .as_ref()
+            .map(|entries| {
+                entries
+                    .iter()
+                    .map(Self::legacy_tool_to_anthropic)
+                    .collect::<Result<Vec<_>>>()
+            })
+            .transpose()?
+            .filter(|entries| !entries.is_empty());
+        let tool_choice = Self::tool_choice_to_anthropic(request.tool_choice.as_ref())?;
+        Ok((tools, tool_choice))
+    }
+
+    fn build_request(
+        &self,
+        request: &ChatRequest,
+        streaming: bool,
+    ) -> Result<(ClaudeRequest, AdaptedRequest)> {
+        self.validate_request_surface(request, streaming)?;
+
+        let json_object_requested = Self::json_object_requested(request);
+        let mut request_for_adaptation = request.clone();
+        if matches!(
+            request_for_adaptation.response_format.as_ref(),
+            Some(crate::types::ResponseFormat::Json)
+        ) {
+            request_for_adaptation.response_format = None;
+        }
+
+        let capabilities = self.get_capabilities();
+        let mut adapted = ParameterAdapter::adapt(&request_for_adaptation, &capabilities);
+        let request_for_tools = adapted.request.clone();
+        let (tools, tool_choice) =
+            Self::build_tool_fields(&request_for_tools, &mut adapted.warnings)?;
+
+        let (mut system, messages) = self.convert_messages(&adapted.request.messages);
+        if json_object_requested {
+            system = Self::append_json_instruction(system);
+        }
+
+        let claude_request = ClaudeRequest {
+            model: adapted.request.model.clone(),
+            messages,
+            system,
+            max_tokens: adapted.request.max_tokens.unwrap_or(4096),
+            temperature: adapted.request.temperature,
+            top_p: adapted.request.top_p,
+            stop_sequences: adapted.request.stop.clone(),
+            tools,
+            tool_choice,
+            stream: streaming,
+        };
+        Ok((claude_request, adapted))
     }
 }
 
@@ -196,22 +541,7 @@ fn enrich_claude_model(info: &mut ModelInfo) {
 #[async_trait]
 impl LLMProvider for ClaudeProvider {
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse> {
-        // Adapt request to provider capabilities
-        let capabilities = self.get_capabilities();
-        let adapted = ParameterAdapter::adapt(request, &capabilities);
-        let adapted_request = &adapted.request;
-
-        let (system, messages) = self.convert_messages(&adapted_request.messages);
-
-        let claude_request = ClaudeRequest {
-            model: adapted_request.model.clone(),
-            messages,
-            system,
-            max_tokens: adapted_request.max_tokens.unwrap_or(4096),
-            temperature: adapted_request.temperature,
-            top_p: adapted_request.top_p,
-            stream: false,
-        };
+        let (claude_request, adapted) = self.build_request(request, false)?;
 
         let response = self
             .client
@@ -227,8 +557,7 @@ impl LLMProvider for ClaudeProvider {
         let status = response.status();
         if !status.is_success() {
             let retry_after = super::parse_retry_after(response.headers());
-            let error_text = response
-                .text()
+            let error_text = crate::provider::http::read_response_text_bounded(response)
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(match status.as_u16() {
@@ -238,10 +567,12 @@ impl LLMProvider for ClaudeProvider {
             });
         }
 
-        let claude_response: ClaudeResponse = response.json().await?;
+        let claude_response: ClaudeResponse =
+            crate::provider::http::read_response_json_bounded(response).await?;
 
         let mut text_parts = Vec::new();
         let mut thinking_parts = Vec::new();
+        let mut tool_calls = Vec::new();
         for block in claude_response.content {
             match block {
                 ContentBlock::Text { text } => text_parts.push(text),
@@ -249,6 +580,16 @@ impl LLMProvider for ClaudeProvider {
                     if !thinking.is_empty() {
                         thinking_parts.push(thinking);
                     }
+                }
+                ContentBlock::ToolUse { id, name, input } => {
+                    tool_calls.push(serde_json::json!({
+                        "id": id,
+                        "type": "function",
+                        "function": {
+                            "name": name,
+                            "arguments": serde_json::to_string(&input).unwrap_or_else(|_| "{}".into())
+                        }
+                    }));
                 }
                 ContentBlock::Unknown => {}
             }
@@ -269,15 +610,16 @@ impl LLMProvider for ClaudeProvider {
             TokenUsage::with_actual(actual_count, estimated_count),
         );
         response.provider = self.provider_name().to_string();
+        if !tool_calls.is_empty() {
+            response.tool_calls = Some(tool_calls);
+        }
 
         // Map Claude's stop_reason to our FinishReason
-        response.finish_reason = claude_response.stop_reason.as_deref().map(|sr| match sr {
-            "end_turn" | "stop_sequence" => FinishReason::Stop,
-            "max_tokens" => FinishReason::Length,
-            "tool_use" => FinishReason::ToolCalls,
-            "content_filter" => FinishReason::ContentFilter,
-            _ => FinishReason::Stop,
-        });
+        response.finish_reason = claude_response
+            .stop_reason
+            .as_deref()
+            .and_then(claude_finish_reason);
+        response.raw_finish_reason = claude_response.stop_reason;
 
         // Add parameter adaptation warnings
         response.warnings = adapted.warnings;
@@ -288,12 +630,15 @@ impl LLMProvider for ClaudeProvider {
         } else {
             Some(thinking_parts.join("\n"))
         };
-        response.inference_metadata =
-            InferenceMetadata::completed(response.finish_reason.unwrap_or(FinishReason::Stop))
-                .with_token_usage(response.usage.clone())
-                .with_provider_metadata(serde_json::json!({
-                    "provider": "claude"
-                }));
+        response.inference_metadata = InferenceMetadata {
+            is_complete: true,
+            finish_reason: response.finish_reason,
+            ..InferenceMetadata::default()
+        }
+        .with_token_usage(response.usage.clone())
+        .with_provider_metadata(serde_json::json!({
+            "provider": "claude"
+        }));
         if let Some(trace) = thinking_trace {
             response.inference_metadata.thinking_trace = Some(trace);
         }
@@ -305,17 +650,7 @@ impl LLMProvider for ClaudeProvider {
         &self,
         request: &ChatRequest,
     ) -> Result<Box<dyn Stream<Item = Result<StreamChunk>> + Send + Unpin>> {
-        let (system, messages) = self.convert_messages(&request.messages);
-
-        let claude_request = ClaudeRequest {
-            model: request.model.clone(),
-            messages,
-            system,
-            max_tokens: request.max_tokens.unwrap_or(4096),
-            temperature: request.temperature,
-            top_p: request.top_p,
-            stream: true,
-        };
+        let (claude_request, _adapted) = self.build_request(request, true)?;
 
         // Note: The client already has timeouts configured via build_http_client():
         // - connect_timeout: applies during TCP handshake
@@ -338,8 +673,7 @@ impl LLMProvider for ClaudeProvider {
         let status = response.status();
         if !status.is_success() {
             let retry_after = super::parse_retry_after(response.headers());
-            let error_text = response
-                .text()
+            let error_text = crate::provider::http::read_response_text_bounded(response)
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(match status.as_u16() {
@@ -350,107 +684,100 @@ impl LLMProvider for ClaudeProvider {
         }
 
         let stream = response.bytes_stream();
-        let mut buffer = String::new();
-
-        // Initialize token tracking outside stream! macro to avoid lifetime issues
-        let model = request.model.clone();
-        let estimator = TokenEstimator::for_model(&model);
+        let mut buffer = Vec::new();
+        let estimator = TokenEstimator::for_model(&request.model);
         let prompt_tokens = estimator.count_messages(&request.messages);
 
         let output_stream = stream! {
+            use super::openai::contract::{next_openai_sse_frame, OpenAiSseFrame};
             let mut stream = stream;
             let mut accumulator = StreamingTokenAccumulator::new(estimator, prompt_tokens);
-            let mut input_tokens_captured = false;
-
-            'stream_loop: while let Some(chunk) = stream.next().await {
-                match chunk {
-                    Ok(bytes) => {
-                        let text = String::from_utf8_lossy(&bytes);
-                        buffer.push_str(&text);
-
-                        // Process complete SSE events
-                        while let Some(pos) = buffer.find("\n\n") {
-                            let event = buffer[..pos].to_string();
-                            buffer = buffer[pos + 2..].to_string();
-
-                            // Parse SSE event which has format:
-                            // event: <event_type>
-                            // data: <json>
-                            let mut data_line = None;
-                            for line in event.lines() {
-                                if let Some(data) = line.strip_prefix("data: ") {
-                                    data_line = Some(data);
-                                    break;
+            let mut input_tokens = 0;
+            let mut output_tokens = 0;
+            let mut raw_reason = None;
+            loop {
+                match stream.next().await {
+                    Some(Ok(bytes)) => {
+                        let mut chunk_cursor =
+                            crate::provider::http::BoundedStreamChunkCursor::new(&bytes);
+                        loop {
+                            let has_more = match chunk_cursor.append_next(&mut buffer) {
+                                Ok(has_more) => has_more,
+                                Err(error) => { yield Err(NxuskitError::Stream(error.to_string())); return; }
+                            };
+                        while let Some(frame) = next_openai_sse_frame(&mut buffer) {
+                            let data = match frame {
+                                Ok(OpenAiSseFrame::Data(data)) => data,
+                                Ok(OpenAiSseFrame::Ignored) => continue,
+                                Ok(OpenAiSseFrame::Done) => {
+                                    yield Err(NxuskitError::Stream("Anthropic requires message_stop, not [DONE]".into()));
+                                    return;
                                 }
-                            }
-
-                            if let Some(data) = data_line {
-                                if data == "[DONE]" {
-                                    continue;
+                                Err(error) => { yield Err(NxuskitError::Stream(error.to_string())); return; }
+                            };
+                            let event: ClaudeStreamEvent = match serde_json::from_value(data) {
+                                Ok(event) => event,
+                                Err(error) => { yield Err(NxuskitError::Stream(error.to_string())); return; }
+                            };
+                            match event.event_type.as_str() {
+                                "error" => {
+                                    yield Err(NxuskitError::Stream(format!("Anthropic stream error: {:?}", event.error)));
+                                    return;
                                 }
-
-                                match serde_json::from_str::<ClaudeStreamEvent>(data) {
-                                    Ok(event) => {
-                                        match event.event_type.as_str() {
-                                            "message_start" => {
-                                                // Capture input_tokens from message_start event
-                                                if !input_tokens_captured
-                                                    && let Some(msg) = &event.message
-                                                    && let Some(usage) = &msg.usage
-                                                {
-                                                    accumulator.set_actual(
-                                                        TokenCount::new(usage.input_tokens, 0)
-                                                    );
-                                                    input_tokens_captured = true;
-                                                }
+                                "message_start" => {
+                                    if let Some(usage) = event.message.and_then(|m| m.usage) {
+                                        input_tokens = usage.input_tokens;
+                                        output_tokens = usage.output_tokens;
+                                        accumulator.set_actual(TokenCount::new(input_tokens, output_tokens));
+                                    }
+                                }
+                                "content_block_delta" => {
+                                    if let Some(delta) = event.delta {
+                                        let text = delta.text.unwrap_or_default();
+                                        if !text.is_empty() || delta.thinking.is_some() {
+                                            accumulator.add_chunk(&text);
+                                            if let Some(thinking) = delta.thinking.as_deref() {
+                                                accumulator.add_thinking_chunk(thinking);
                                             }
-                                            "content_block_delta" => {
-                                                if let Some(delta) = event.delta
-                                                    && let Some(text) = delta.text
-                                                {
-                                                    accumulator.add_chunk(&text);
-                                                    let usage = accumulator.running_total();
-                                                    let mut chunk = StreamChunk::new(text);
-                                                    chunk.usage = Some(usage);
-                                                    yield Ok(chunk);
-                                                }
-                                            }
-                                            "message_delta" => {
-                                                // Capture output_tokens from message_delta event
-                                                if let Some(msg) = &event.message
-                                                    && let Some(usage) = &msg.usage
-                                                {
-                                                    // Create actual counts combining captured input and current output
-                                                    accumulator.set_actual(
-                                                        TokenCount::new(usage.input_tokens, usage.output_tokens)
-                                                    );
-                                                }
-                                            }
-                                            "message_stop" => {
-                                                let final_usage = accumulator.finalize();
-                                                yield Ok(StreamChunk::final_chunk(
-                                                    crate::types::FinishReason::Stop,
-                                                    Some(final_usage),
-                                                ));
-                                                break 'stream_loop;
-                                            }
-                                            _ => {}
+                                            let mut chunk = StreamChunk::new(text);
+                                            chunk.thinking = delta.thinking;
+                                            chunk.usage = Some(accumulator.running_total());
+                                            yield Ok(chunk);
                                         }
                                     }
-                                    Err(e) => {
-                                        accumulator.mark_interrupted();
-                                        yield Err(NxuskitError::Stream(format!("Failed to parse stream event: {}", e)));
-                                        break 'stream_loop;
+                                }
+                                "message_delta" => {
+                                    if let Some(delta) = event.delta
+                                        && delta.stop_reason.is_some()
+                                    {
+                                        raw_reason = delta.stop_reason;
+                                    }
+                                    if let Some(usage) = event.usage {
+                                        if let Some(value) = usage.input_tokens { input_tokens = value; }
+                                        if let Some(value) = usage.output_tokens { output_tokens = value; }
+                                        accumulator.set_actual(TokenCount::new(input_tokens, output_tokens));
                                     }
                                 }
+                                "message_stop" => {
+                                    let mut chunk = StreamChunk::new(String::new());
+                                    chunk.terminal = true;
+                                    chunk.finish_reason = raw_reason.as_deref().and_then(claude_finish_reason);
+                                    chunk.raw_finish_reason = raw_reason;
+                                    chunk.usage = Some(accumulator.finalize());
+                                    yield Ok(chunk);
+                                    return;
+                                }
+                                "" => { yield Err(NxuskitError::Stream("Missing Anthropic event type".into())); return; }
+                                _ => {}
+                            }
+                        }
+                            if !has_more {
+                                break;
                             }
                         }
                     }
-                    Err(e) => {
-                        accumulator.mark_interrupted();
-                        yield Err(NxuskitError::Network(e));
-                        break 'stream_loop;
-                    }
+                    Some(Err(error)) => { yield Err(NxuskitError::Network(error)); return; }
+                    None => { yield Err(NxuskitError::Stream("Anthropic stream ended before message_stop".into())); return; }
                 }
             }
         };
@@ -505,14 +832,14 @@ impl LLMProvider for ClaudeProvider {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response
-                .text()
+            let error_text = crate::provider::http::read_response_text_bounded(response)
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(NxuskitError::provider(status.as_u16(), error_text));
         }
 
-        let models_response: ClaudeModelsResponse = response.json().await?;
+        let models_response: ClaudeModelsResponse =
+            crate::provider::http::read_response_json_bounded(response).await?;
 
         Ok(models_response
             .data
@@ -534,25 +861,7 @@ impl LLMProvider for ClaudeProvider {
     }
 
     fn get_capabilities(&self) -> ProviderCapabilities {
-        // Anthropic does not expose logprobs on either unary or streaming
-        // responses. Per FR-007, the streaming-logprobs flag stays `false`
-        // and the SSE handler MUST emit `logprobs: None` on every chunk —
-        // never phantom data.
-        ProviderCapabilities {
-            supports_system_messages: true,
-            supports_streaming: true,
-            supports_vision: true,
-            max_stop_sequences: Some(4),
-            supports_presence_penalty: false,
-            supports_frequency_penalty: false,
-            supports_seed: false,
-            supports_logprobs: false,
-            supports_streaming_logprobs: false,
-            supports_json_mode: false,
-            supports_json_schema: false,
-            penalty_range: None,
-            max_logprobs: None,
-        }
+        Self::adapter_capabilities()
     }
 }
 
@@ -696,6 +1005,12 @@ struct ClaudeRequest {
     temperature: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     top_p: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stop_sequences: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<serde_json::Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_choice: Option<serde_json::Value>,
     stream: bool,
 }
 
@@ -744,6 +1059,13 @@ enum ContentBlock {
         #[serde(default)]
         thinking: String,
     },
+    #[serde(rename = "tool_use")]
+    ToolUse {
+        id: String,
+        name: String,
+        #[serde(default)]
+        input: serde_json::Value,
+    },
     #[serde(other)]
     Unknown,
 }
@@ -762,12 +1084,26 @@ struct ClaudeStreamEvent {
     delta: Option<StreamDelta>,
     #[serde(default)]
     message: Option<ClaudeStreamMessage>,
+    #[serde(default)]
+    usage: Option<ClaudeStreamUsage>,
+    #[serde(default)]
+    error: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ClaudeStreamUsage {
+    input_tokens: Option<u32>,
+    output_tokens: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
 struct StreamDelta {
     #[serde(default)]
     text: Option<String>,
+    #[serde(default)]
+    thinking: Option<String>,
+    #[serde(default)]
+    stop_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -794,6 +1130,564 @@ struct ClaudeModelInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    async fn literal_claude_server(body: &str) -> (ClaudeProvider, std::thread::JoinHandle<()>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let body = body.to_owned();
+        let server = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut headers = Vec::new();
+            let mut byte = [0];
+            while !headers.ends_with(b"\r\n\r\n") {
+                socket.read_exact(&mut byte).unwrap();
+                headers.push(byte[0]);
+            }
+            let headers = String::from_utf8(headers).unwrap();
+            assert!(headers.starts_with("POST /messages HTTP/1.1"));
+            let length: usize = headers
+                .lines()
+                .find_map(|line| {
+                    let (k, v) = line.split_once(':')?;
+                    k.eq_ignore_ascii_case("content-length")
+                        .then(|| v.trim().parse().unwrap())
+                })
+                .unwrap();
+            socket.read_exact(&mut vec![0; length]).unwrap();
+            write!(socket,"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",body.len(),body).unwrap();
+        });
+        (
+            ClaudeProvider::builder()
+                .api_key("loopback")
+                .base_url(url)
+                .build()
+                .unwrap(),
+            server,
+        )
+    }
+
+    fn assert_claude_unsupported(request: &ChatRequest, streaming: bool, capability: &str) {
+        let provider = ClaudeProvider::builder().api_key("test").build().unwrap();
+        match provider.validate_request_surface(request, streaming) {
+            Err(NxuskitError::UnsupportedCapability {
+                provider,
+                capability: actual,
+            }) => {
+                assert_eq!(provider, "claude");
+                assert_eq!(actual, capability);
+            }
+            other => panic!("expected unsupported {capability}, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn claude_request_surface_rejects_explicit_unsupported_controls() {
+        let base = ChatRequest::new("claude-sonnet-4-5");
+
+        let mut request = base.clone();
+        request.presence_penalty = Some(0.4);
+        assert_claude_unsupported(&request, false, "presence_penalty");
+
+        let mut request = base.clone();
+        request.frequency_penalty = Some(-0.3);
+        assert_claude_unsupported(&request, false, "frequency_penalty");
+
+        let mut request = base.clone();
+        request.seed = Some(42);
+        assert_claude_unsupported(&request, false, "seed");
+
+        let mut request = base.clone();
+        request.logprobs = Some(true);
+        assert_claude_unsupported(&request, false, "logprobs");
+
+        let mut request = base.clone();
+        request.top_logprobs = Some(3);
+        assert_claude_unsupported(&request, false, "top_logprobs");
+
+        let mut request = base.clone();
+        request.reasoning_effort = Some("low".into());
+        assert_claude_unsupported(&request, false, "reasoning_effort");
+
+        let mut request = base.clone();
+        request.thinking_mode = crate::types::ThinkingMode::Enabled;
+        assert_claude_unsupported(&request, false, "thinking");
+
+        let mut request = base.clone();
+        request.response_format = Some(crate::types::ResponseFormat::JsonSchema {
+            schema: serde_json::json!({"type": "object"}),
+        });
+        assert_claude_unsupported(&request, false, "response_format");
+
+        let mut request = base.clone();
+        request.structured_output = Some(crate::capabilities::StructuredOutputConfig {
+            mode: crate::capabilities::StructuredOutputMode::JsonSchema,
+            schema: Some(serde_json::json!({"type": "object"})),
+            schema_name: Some("response".into()),
+            strict: Some(true),
+            schema_subset: None,
+        });
+        assert_claude_unsupported(&request, false, "structured_output");
+
+        let mut request = base.clone();
+        request.openai_responses = Some(crate::capabilities::OpenAIResponsesOptions::default());
+        assert_claude_unsupported(&request, false, "openai_responses");
+
+        let mut request = base;
+        request.tools = Some(vec![serde_json::json!({
+            "type": "function",
+            "function": {"name": "lookup", "parameters": {"type": "object"}}
+        })]);
+        assert_claude_unsupported(&request, true, "tool_streaming");
+    }
+
+    #[test]
+    fn claude_empty_tools_are_no_tools_for_streaming() {
+        let provider = ClaudeProvider::builder().api_key("test").build().unwrap();
+
+        let omitted = ChatRequest::new("claude-sonnet-4-5");
+        provider.validate_request_surface(&omitted, true).unwrap();
+
+        let mut empty = ChatRequest::new("claude-sonnet-4-5");
+        empty.tools = Some(vec![]);
+        provider.validate_request_surface(&empty, true).unwrap();
+        let (wire, _) = provider.build_request(&empty, true).unwrap();
+        let wire = serde_json::to_value(wire).unwrap();
+        assert!(
+            wire.get("tools").is_none(),
+            "empty tools must serialize as no tools: {wire}"
+        );
+
+        let mut nonempty = ChatRequest::new("claude-sonnet-4-5");
+        nonempty.tools = Some(vec![serde_json::json!({
+            "type": "function",
+            "function": {"name": "lookup", "parameters": {"type": "object"}}
+        })]);
+        assert!(matches!(
+            provider.validate_request_surface(&nonempty, true),
+            Err(NxuskitError::UnsupportedCapability { .. })
+        ));
+    }
+
+    #[test]
+    fn claude_request_surface_preserves_invalid_request_precedence() {
+        let provider = ClaudeProvider::builder().api_key("test").build().unwrap();
+
+        let mut request = ChatRequest::new("claude-sonnet-4-5");
+        request.stop = Some(vec![
+            "a".into(),
+            "b".into(),
+            "c".into(),
+            "d".into(),
+            "e".into(),
+        ]);
+        assert!(matches!(
+            provider.validate_request_surface(&request, false),
+            Err(NxuskitError::InvalidRequest(_))
+        ));
+
+        let mut request = ChatRequest::new("claude-sonnet-4-5");
+        request.stop = Some(vec!["".into()]);
+        assert!(matches!(
+            provider.validate_request_surface(&request, false),
+            Err(NxuskitError::InvalidRequest(_))
+        ));
+
+        let mut request = ChatRequest::new("claude-sonnet-4-5");
+        request.top_logprobs = Some(21);
+        assert!(matches!(
+            provider.validate_request_surface(&request, false),
+            Err(NxuskitError::InvalidRequest(_))
+        ));
+
+        let mut request = ChatRequest::new("claude-sonnet-4-5");
+        request.reasoning_effort = Some("invalid".into());
+        assert!(matches!(
+            provider.validate_request_surface(&request, false),
+            Err(NxuskitError::InvalidRequest(_))
+        ));
+
+        let mut request = ChatRequest::new("claude-sonnet-4-5");
+        request.response_format = Some(crate::types::ResponseFormat::JsonSchema {
+            schema: serde_json::json!([]),
+        });
+        assert!(matches!(
+            provider.validate_request_surface(&request, false),
+            Err(NxuskitError::InvalidRequest(_))
+        ));
+    }
+
+    #[test]
+    fn claude_legacy_tools_and_tool_choice_fail_closed_on_malformed_shapes() {
+        for tool in [
+            serde_json::json!({
+                "type": "not_function",
+                "function": {"name": "lookup", "parameters": {"type": "object"}}
+            }),
+            serde_json::json!({
+                "type": "function",
+                "function": {"name": "", "parameters": {"type": "object"}}
+            }),
+            serde_json::json!({
+                "type": "function",
+                "function": {"name": "lookup", "parameters": []}
+            }),
+        ] {
+            assert!(
+                matches!(
+                    ClaudeProvider::legacy_tool_to_anthropic(&tool),
+                    Err(NxuskitError::InvalidRequest(_))
+                ),
+                "malformed legacy tool must fail locally: {tool}"
+            );
+        }
+
+        for choice in [
+            serde_json::json!("sometimes"),
+            serde_json::json!({"type": "function"}),
+            serde_json::json!({"type": "function", "function": {"name": ""}}),
+            serde_json::json!({"type": "other", "function": {"name": "lookup"}}),
+        ] {
+            assert!(
+                matches!(
+                    ClaudeProvider::tool_choice_to_anthropic(Some(&choice)),
+                    Err(NxuskitError::InvalidRequest(_))
+                ),
+                "malformed legacy tool_choice must fail locally: {choice}"
+            );
+        }
+    }
+
+    #[test]
+    fn claude_stop_sequences_reach_production_wire_unary_and_streaming() {
+        let provider = ClaudeProvider::builder().api_key("test").build().unwrap();
+        let mut request = ChatRequest::new("claude-sonnet-4-5").with_message(Message::user("hi"));
+        request.stop = Some(vec!["END".into(), "DONE".into()]);
+
+        let (unary, _) = provider.build_request(&request, false).unwrap();
+        let unary = serde_json::to_value(unary).unwrap();
+        assert_eq!(unary["stop_sequences"], serde_json::json!(["END", "DONE"]));
+        assert_eq!(unary["stream"], false);
+
+        let (streaming, _) = provider.build_request(&request, true).unwrap();
+        let streaming = serde_json::to_value(streaming).unwrap();
+        assert_eq!(
+            streaming["stop_sequences"],
+            serde_json::json!(["END", "DONE"])
+        );
+        assert_eq!(streaming["stream"], true);
+    }
+
+    #[tokio::test]
+    async fn claude_unsupported_controls_reject_before_http() {
+        let provider = ClaudeProvider::builder()
+            .api_key("test")
+            .base_url("http://127.0.0.1:1")
+            .build()
+            .unwrap();
+
+        let mut unary = ChatRequest::new("claude-sonnet-4-5");
+        unary.seed = Some(42);
+        assert!(matches!(
+            provider.chat(&unary).await,
+            Err(NxuskitError::UnsupportedCapability {
+                ref provider,
+                ref capability,
+            }) if provider == "claude" && capability == "seed"
+        ));
+
+        let mut streaming = ChatRequest::new("claude-sonnet-4-5");
+        streaming.tools = Some(vec![serde_json::json!({
+            "type": "function",
+            "function": {"name": "lookup", "parameters": {"type": "object"}}
+        })]);
+        assert!(matches!(
+            provider.chat_stream(&streaming).await,
+            Err(NxuskitError::UnsupportedCapability {
+                ref provider,
+                ref capability,
+            }) if provider == "claude" && capability == "tool_streaming"
+        ));
+    }
+
+    #[tokio::test]
+    async fn claude_unary_json_and_tools_round_trip() {
+        let provider = ClaudeProvider::builder().api_key("test").build().unwrap();
+
+        let mut legacy = ChatRequest::new("claude-sonnet-4-5")
+            .with_message(Message::system("System rules"))
+            .with_message(Message::user("Return inventory."));
+        legacy.response_format = Some(crate::types::ResponseFormat::Json);
+        legacy.tools = Some(vec![serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "lookup",
+                "description": "Look up inventory",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"sku": {"type": "string"}}
+                }
+            }
+        })]);
+        legacy.tool_choice = Some(serde_json::json!("required"));
+
+        let (legacy_wire, _) = provider.build_request(&legacy, false).unwrap();
+        let legacy_wire = serde_json::to_value(legacy_wire).unwrap();
+        assert_eq!(
+            legacy_wire["system"],
+            "System rules\n\nRespond with valid JSON only. Do not include any text before or after the JSON object."
+        );
+        assert_eq!(
+            legacy_wire["tools"],
+            serde_json::json!([{
+                "name": "lookup",
+                "description": "Look up inventory",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"sku": {"type": "string"}}
+                }
+            }])
+        );
+        assert_eq!(
+            legacy_wire["tool_choice"],
+            serde_json::json!({"type": "any"})
+        );
+
+        let mut typed =
+            ChatRequest::new("claude-sonnet-4-5").with_message(Message::user("Return JSON."));
+        typed.structured_output = Some(crate::capabilities::StructuredOutputConfig {
+            mode: crate::capabilities::StructuredOutputMode::JsonObject,
+            schema: None,
+            schema_name: None,
+            strict: None,
+            schema_subset: None,
+        });
+        typed.tool_call_config = Some(crate::capabilities::ToolCallConfig {
+            tools: vec![
+                crate::capabilities::ToolDefinition {
+                    name: "web_search".into(),
+                    description: None,
+                    parameters: serde_json::json!({"type": "object"}),
+                    strict: None,
+                },
+                crate::capabilities::ToolDefinition {
+                    name: "search_inventory".into(),
+                    description: Some("Search inventory".into()),
+                    parameters: serde_json::json!({"type": "object"}),
+                    strict: None,
+                },
+            ],
+            tool_choice: crate::capabilities::ToolChoice::Named("search_inventory".into()),
+            parallel_tool_calls: None,
+            streaming_tool_calls: None,
+        });
+
+        let (typed_wire, typed_adapted) = provider.build_request(&typed, false).unwrap();
+        let typed_wire = serde_json::to_value(typed_wire).unwrap();
+        assert_eq!(
+            typed_wire["system"],
+            "Respond with valid JSON only. Do not include any text before or after the JSON object."
+        );
+        let tools = typed_wire["tools"]
+            .as_array()
+            .expect("Anthropic tools array");
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0]["name"], "search_inventory");
+        assert_eq!(
+            typed_wire["tool_choice"],
+            serde_json::json!({"type": "tool", "name": "search_inventory"})
+        );
+        assert!(typed_adapted.warnings.iter().any(|warning| {
+            warning.parameter == "tool_calling" && warning.message.contains("web_search")
+        }));
+
+        let body = r#"{"content":[{"type":"tool_use","id":"toolu_1","name":"lookup","input":{"sku":"A-1"}}],"model":"claude-sonnet-4-5","usage":{"input_tokens":3,"output_tokens":2},"stop_reason":"tool_use"}"#;
+        let (loopback, server) = literal_claude_server(body).await;
+        let response = loopback
+            .chat(&ChatRequest::new("claude-sonnet-4-5"))
+            .await
+            .unwrap();
+        server.join().unwrap();
+        assert_eq!(response.finish_reason, Some(FinishReason::ToolCalls));
+        assert_eq!(
+            response.tool_calls,
+            Some(vec![serde_json::json!({
+                "id": "toolu_1",
+                "type": "function",
+                "function": {
+                    "name": "lookup",
+                    "arguments": "{\"sku\":\"A-1\"}"
+                }
+            })])
+        );
+    }
+
+    #[test]
+    fn claude_typed_tool_hints_and_malformed_legacy_tools_fail_closed() {
+        let provider = ClaudeProvider::builder().api_key("test").build().unwrap();
+
+        for (parallel, streaming, capability) in [
+            (Some(false), None, "parallel_tool_calls"),
+            (None, Some(false), "streaming_tool_calls"),
+        ] {
+            let mut request = ChatRequest::new("claude-sonnet-4-5");
+            request.tool_call_config = Some(crate::capabilities::ToolCallConfig {
+                tools: vec![crate::capabilities::ToolDefinition {
+                    name: "lookup".into(),
+                    description: None,
+                    parameters: serde_json::json!({"type": "object"}),
+                    strict: None,
+                }],
+                tool_choice: crate::capabilities::ToolChoice::Auto,
+                parallel_tool_calls: parallel,
+                streaming_tool_calls: streaming,
+            });
+            assert!(matches!(
+                provider.validate_request_surface(&request, false),
+                Err(NxuskitError::UnsupportedCapability {
+                    provider: ref actual_provider,
+                    capability: ref actual_capability,
+                }) if actual_provider == "claude" && actual_capability == capability
+            ));
+        }
+
+        let mut malformed = ChatRequest::new("claude-sonnet-4-5");
+        malformed.tools = Some(vec![serde_json::json!({
+            "type": "function",
+            "function": {"name": "", "parameters": {}}
+        })]);
+        assert!(matches!(
+            provider.build_request(&malformed, false),
+            Err(NxuskitError::InvalidRequest(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn legacy_claude_terminal_errors_never_complete() {
+        for body in [
+            "",
+            "data: {broken}\n\n",
+            "data: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"busy\"}}\n\ndata: {\"type\":\"message_stop\"}\n\n",
+            "data: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"partial\"}}\n\n",
+        ] {
+            let (p, server) = literal_claude_server(body).await;
+            let all: Vec<_> = p
+                .chat_stream(&ChatRequest::new("claude"))
+                .await
+                .unwrap()
+                .collect()
+                .await;
+            server.join().unwrap();
+            assert_eq!(
+                all.iter().filter(|c| c.is_err()).count(),
+                1,
+                "{body}: {all:?}"
+            );
+            assert!(
+                !all.iter()
+                    .any(|c| c.as_ref().is_ok_and(StreamChunk::is_final)),
+                "{all:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn legacy_claude_terminal_raw_and_usage() {
+        let body = "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":7,\"output_tokens\":0}}}\r\n\r\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"hmm\"}}\r\n\r\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"vendor-new\"},\"usage\":{\"output_tokens\":3}}\r\n\r\ndata: {\"type\":\"message_stop\"}\r\n\r\ndata: {broken}\r\n\r\n";
+        let (p, server) = literal_claude_server(body).await;
+        let all: Vec<_> = p
+            .chat_stream(&ChatRequest::new("claude"))
+            .await
+            .unwrap()
+            .collect()
+            .await;
+        server.join().unwrap();
+        assert!(all.iter().all(Result::is_ok), "{all:?}");
+        let all: Vec<_> = all.into_iter().map(Result::unwrap).collect();
+        assert_eq!(all.iter().filter(|c| c.is_final()).count(), 1);
+        assert!(all.iter().any(|c| c.thinking.as_deref() == Some("hmm")));
+        let thinking_chunk = all.iter().find(|c| c.thinking.is_some()).unwrap();
+        assert!(
+            thinking_chunk
+                .usage
+                .as_ref()
+                .unwrap()
+                .estimated
+                .completion_tokens
+                > 0
+        );
+        let last = all.last().unwrap();
+        assert!(last.terminal);
+        assert_eq!(last.finish_reason, None);
+        assert_eq!(last.raw_finish_reason.as_deref(), Some("vendor-new"));
+        let usage = last.usage.as_ref().unwrap().actual.as_ref().unwrap();
+        assert_eq!(usage.prompt_tokens, 7);
+        assert_eq!(usage.completion_tokens, 3);
+    }
+
+    #[tokio::test]
+    async fn legacy_claude_reason_presence_and_usage_are_independent() {
+        // Literal wire cases: absence/null must preserve the earlier reason,
+        // while known/unknown present strings replace it. Usage is independent.
+        for (delta, raw, canonical) in [
+            ("", "end_turn", Some(FinishReason::Stop)),
+            (
+                ",\"delta\":{\"stop_reason\":null}",
+                "end_turn",
+                Some(FinishReason::Stop),
+            ),
+            (
+                ",\"delta\":{\"stop_reason\":\"max_tokens\"}",
+                "max_tokens",
+                Some(FinishReason::Length),
+            ),
+            (
+                ",\"delta\":{\"stop_reason\":\"vendor-new\"}",
+                "vendor-new",
+                None,
+            ),
+        ] {
+            let body = format!(
+                "data: {{\"type\":\"message_start\",\"message\":{{\"usage\":{{\"input_tokens\":7,\"output_tokens\":0}}}}}}\n\n\
+                 data: {{\"type\":\"message_delta\",\"delta\":{{\"stop_reason\":\"end_turn\"}}}}\n\n\
+                 data: {{\"type\":\"message_delta\"{delta},\"usage\":{{\"input_tokens\":11,\"output_tokens\":13}}}}\n\n\
+                 data: {{\"type\":\"message_stop\"}}\n\n"
+            );
+            let (provider, server) = literal_claude_server(&body).await;
+            // The server owns its response; the caller may release its buffer
+            // before any streaming request consumes that response.
+            drop(body);
+            let chunks: Vec<_> = provider
+                .chat_stream(&ChatRequest::new("claude"))
+                .await
+                .unwrap()
+                .collect()
+                .await;
+            server.join().unwrap();
+            let chunks: Vec<_> = chunks.into_iter().collect::<Result<Vec<_>>>().unwrap();
+            assert_eq!(chunks.iter().filter(|chunk| chunk.terminal).count(), 1);
+            let terminal = chunks.last().unwrap();
+            assert!(terminal.terminal);
+            assert_eq!(terminal.raw_finish_reason.as_deref(), Some(raw));
+            assert_eq!(terminal.finish_reason, canonical);
+            let usage = terminal.usage.as_ref().unwrap().actual.as_ref().unwrap();
+            assert_eq!(usage.prompt_tokens, 11);
+            assert_eq!(usage.completion_tokens, 13);
+        }
+    }
+
+    #[tokio::test]
+    async fn legacy_claude_unary_raw_truth() {
+        let (p,server)=literal_claude_server("{\"id\":\"msg\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"actual\",\"content\":[{\"type\":\"text\",\"text\":\"ok\"}],\"stop_reason\":\"vendor-new\",\"usage\":{\"input_tokens\":7,\"output_tokens\":3}}").await;
+        let response = p.chat(&ChatRequest::new("claude")).await.unwrap();
+        server.join().unwrap();
+        assert_eq!(response.raw_finish_reason.as_deref(), Some("vendor-new"));
+        assert_eq!(response.finish_reason, None);
+        assert_eq!(response.inference_metadata.finish_reason, None);
+    }
 
     #[test]
     fn test_builder_missing_api_key() {

@@ -189,6 +189,9 @@ pub const SINGLEFIELD_BITS: c_uint = NUMBER_BITS | LEXEME_BITS | ADDRESS_BITS | 
 /// Combined type mask: any value type
 pub const ANY_TYPE_BITS: c_uint = VOID_BIT | SINGLEFIELD_BITS | MULTIFIELD_BIT;
 
+/// AddUDF succeeded.
+pub const AUE_NO_ERROR: c_int = 0;
+
 // ============================================================================
 // Run Completion Reasons
 // ============================================================================
@@ -1130,13 +1133,13 @@ unsafe extern "C" {
         env: *mut Environment,
         name: *const c_char,
         return_types: *const c_char,
-        min_args: c_int,
-        max_args: c_int,
+        min_args: c_ushort,
+        max_args: c_ushort,
         arg_types: *const c_char,
         func: UserDefinedFunction,
         function_name: *const c_char,
         context: *mut c_void,
-    ) -> bool;
+    ) -> c_int;
 
     /// Get the first argument in a UDF
     pub fn UDFFirstArgument(context: *mut UDFContext, types: c_uint, value: *mut UDFValue) -> bool;
@@ -1160,6 +1163,27 @@ unsafe extern "C" {
 
     /// Throw an error in a UDF
     pub fn UDFThrowError(context: *mut UDFContext);
+
+    /// Return the user context pointer supplied to AddUDF.
+    #[link_name = "clips_udf_context_data"]
+    pub fn UDFContextData(context: *const UDFContext) -> *mut c_void;
+
+    /// Return the Nth UDF argument as a string or symbol.
+    #[link_name = "clips_udf_nth_argument_string"]
+    pub fn UDFNthArgumentString(context: *mut UDFContext, n: c_uint) -> *const c_char;
+
+    /// Set a UDF return value to a CLIPS string.
+    #[link_name = "clips_udf_set_string"]
+    pub fn UDFSetString(env: *mut Environment, value: *mut UDFValue, string: *const c_char);
+
+    /// Set a UDF return value to a multifield containing string fields.
+    #[link_name = "clips_udf_set_string_multifield"]
+    pub fn UDFSetStringMultifield(
+        env: *mut Environment,
+        value: *mut UDFValue,
+        items: *const *const c_char,
+        length: usize,
+    );
 
     // ========================================================================
     // Value Access Functions (wrapper functions for CLIPS macros)

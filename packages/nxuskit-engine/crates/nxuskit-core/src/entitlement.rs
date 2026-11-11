@@ -12,9 +12,113 @@
 //! can pass it to `check_entitlement` without changing the ABI surface.
 
 use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 
 use crate::license;
-use crate::license_types::TokenType;
+use crate::license_types::{DeploymentV2Metadata, TokenType};
+
+/// A release-line-scoped catalog projection consumed by a v2 deployment token.
+/// This is not an issuer claim schema.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeploymentCatalogV2 {
+    pub sdk_release_line: u32,
+    pub editions: HashMap<String, DeploymentCatalogEditionV2>,
+}
+
+/// Catalog facts for one edition in a v2 deployment-token resolution.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeploymentCatalogEditionV2 {
+    pub ordinary_capabilities: HashSet<String>,
+    pub separately_sold_capabilities: HashSet<String>,
+    pub limits: HashMap<String, serde_json::Value>,
+}
+
+/// Effective, non-secret v2 deployment entitlement facts.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DeploymentEntitlementV2 {
+    pub capabilities: HashSet<String>,
+    pub limits: HashMap<String, serde_json::Value>,
+}
+
+/// A failure to resolve a validated v2 deployment token against a catalog.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeploymentCatalogError {
+    ReleaseLineMismatch { catalog: u32, token: u32 },
+    UnknownEdition,
+    UnknownCapability,
+}
+
+impl std::fmt::Display for DeploymentCatalogError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ReleaseLineMismatch { .. } => {
+                write!(f, "deployment catalog release line mismatch")
+            }
+            Self::UnknownEdition => {
+                write!(f, "deployment catalog does not contain the token edition")
+            }
+            Self::UnknownCapability => write!(
+                f,
+                "deployment token references a capability absent from the catalog"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for DeploymentCatalogError {}
+
+/// Resolve validated v2 deployment facts against the current same-line catalog.
+///
+/// Ordinary catalog capabilities may grow within a major release line without
+/// reissuing the token. Signed grants are additive, separately sold
+/// capabilities remain unavailable unless granted, signed denials are applied
+/// last, and signed limits replace only the catalog keys they name.
+pub fn resolve_v2_deployment_entitlement(
+    catalog: &DeploymentCatalogV2,
+    edition: &str,
+    claims: &DeploymentV2Metadata,
+) -> Result<DeploymentEntitlementV2, DeploymentCatalogError> {
+    if catalog.sdk_release_line != claims.sdk_release_line {
+        return Err(DeploymentCatalogError::ReleaseLineMismatch {
+            catalog: catalog.sdk_release_line,
+            token: claims.sdk_release_line,
+        });
+    }
+
+    let edition_catalog = catalog
+        .editions
+        .get(edition)
+        .ok_or(DeploymentCatalogError::UnknownEdition)?;
+    let known_capabilities: HashSet<&str> = edition_catalog
+        .ordinary_capabilities
+        .iter()
+        .chain(edition_catalog.separately_sold_capabilities.iter())
+        .map(String::as_str)
+        .collect();
+    if claims
+        .capability_grants
+        .iter()
+        .chain(claims.capability_denials.iter())
+        .any(|capability| !known_capabilities.contains(capability.as_str()))
+    {
+        return Err(DeploymentCatalogError::UnknownCapability);
+    }
+
+    let mut capabilities = edition_catalog.ordinary_capabilities.clone();
+    capabilities.extend(claims.capability_grants.iter().cloned());
+    for capability in &claims.capability_denials {
+        capabilities.remove(capability);
+    }
+
+    let mut limits = edition_catalog.limits.clone();
+    limits.extend(claims.limits_override.clone());
+    Ok(DeploymentEntitlementV2 {
+        capabilities,
+        limits,
+    })
+}
 
 thread_local! {
     /// Thread-local cache of the license key set by `create_provider_from_json`.
@@ -126,6 +230,131 @@ fn is_feature_available(
     false
 }
 
+/// Build the v2 projection of the Product Catalog embedded in this SDK.
+///
+/// The issuer owns token serialization. The SDK maps its existing public
+/// feature domains to the accepted `cap.<domain>` vocabulary solely at this
+/// enforcement boundary. Every SDK-known higher-edition capability is marked
+/// separately sold for lower editions, so a valid explicit grant can add it
+/// while ordinary same-line catalog growth remains automatic.
+fn embedded_v2_deployment_catalog() -> DeploymentCatalogV2 {
+    use crate::catalog::catalog_features;
+
+    const EDITIONS: [&str; 3] = ["community", "pro", "enterprise"];
+    let all_capabilities: HashSet<String> = EDITIONS
+        .iter()
+        .flat_map(|edition| catalog_features(edition).iter())
+        .map(|domain| format!("cap.{domain}"))
+        .collect();
+
+    let editions = EDITIONS
+        .iter()
+        .map(|edition| {
+            let ordinary_capabilities: HashSet<String> = catalog_features(edition)
+                .iter()
+                .map(|domain| format!("cap.{domain}"))
+                .collect();
+            let separately_sold_capabilities = all_capabilities
+                .difference(&ordinary_capabilities)
+                .cloned()
+                .collect();
+            (
+                (*edition).to_string(),
+                DeploymentCatalogEditionV2 {
+                    ordinary_capabilities,
+                    separately_sold_capabilities,
+                    limits: HashMap::new(),
+                },
+            )
+        })
+        .collect();
+
+    DeploymentCatalogV2 {
+        sdk_release_line: 2,
+        editions,
+    }
+}
+
+/// Resolve a fully validated v2 policy against the embedded same-line catalog.
+/// A token that names an unknown edition or capability has no authority over
+/// any public product boundary.
+fn resolve_embedded_v2_policy(
+    metadata: &DeploymentV2Metadata,
+    edition: &str,
+) -> Option<DeploymentEntitlementV2> {
+    resolve_v2_deployment_entitlement(&embedded_v2_deployment_catalog(), edition, metadata).ok()
+}
+
+/// Return whether a validated v2 deployment policy authorizes a real SDK
+/// capability domain against the build-time embedded Product Catalog.
+fn v2_policy_allows_domain(metadata: &DeploymentV2Metadata, edition: &str, domain: &str) -> bool {
+    // A malformed fixed-limit block invalidates the whole signed v2 policy at
+    // every product boundary. Do not grant a capability merely because the
+    // separate limits lookup would later return a zero-capacity result.
+    if v2_fixed_limits(crate::catalog::catalog_limits(edition), metadata, edition).is_none() {
+        return false;
+    }
+    // The frozen v2 policy names solver.max_nodes, but the current solver
+    // session has no node-count limiter. Deny the only affected runtime
+    // boundary rather than silently accepting an unenforceable signed fact.
+    if domain == "solver" && metadata.limits_override.contains_key("solver.max_nodes") {
+        return false;
+    }
+    let capability = format!("cap.{domain}");
+    resolve_embedded_v2_policy(metadata, edition)
+        .is_some_and(|entitlement| entitlement.capabilities.contains(&capability))
+}
+
+/// Merge only known, narrowing v2 deployment limits into the existing SDK
+/// limit structure. A malformed, unknown, unlimited, or widening value has no
+/// authority; callers fail closed to a zero-capacity result instead.
+fn v2_fixed_limits(
+    base: crate::catalog::EditionLimits,
+    metadata: &DeploymentV2Metadata,
+    edition: &str,
+) -> Option<crate::catalog::EditionLimits> {
+    // Do not apply any fixed value unless the complete signed capability
+    // policy is valid for the embedded same-line catalog as well.
+    resolve_embedded_v2_policy(metadata, edition)?;
+    let mut limits = base;
+
+    for (name, value) in &metadata.limits_override {
+        let requested = value.as_u64()?;
+        let slot = match name.as_str() {
+            "max_sessions" => &mut limits.max_sessions,
+            "max_cached_rulebases" => &mut limits.max_cached_rulebases,
+            "max_rules_per_session" => &mut limits.max_rules_per_session,
+            "max_facts_per_session" => &mut limits.max_facts_per_session,
+            "max_bayesian_nodes" => &mut limits.max_bayesian_nodes,
+            "max_solver_constraints" => &mut limits.max_solver_constraints,
+            "seats" => &mut limits.seats,
+            // Solver access is rejected by v2_policy_allows_domain while no
+            // node-count limiter exists. Other domains can still consume
+            // their enforceable fixed limits without widening solver access.
+            "solver.max_nodes" => continue,
+            _ => return None,
+        };
+        if slot.is_some_and(|catalog_limit| requested > catalog_limit) {
+            return None;
+        }
+        *slot = Some(requested);
+    }
+
+    Some(limits)
+}
+
+fn fail_closed_limits() -> crate::catalog::EditionLimits {
+    crate::catalog::EditionLimits {
+        max_sessions: Some(0),
+        max_cached_rulebases: Some(0),
+        max_rules_per_session: Some(0),
+        max_facts_per_session: Some(0),
+        max_bayesian_nodes: Some(0),
+        max_solver_constraints: Some(0),
+        seats: Some(0),
+    }
+}
+
 // ── Entitlement Result ──────────────────────────────────────────────
 
 /// Entitlement check result codes (matches C ABI contract).
@@ -225,25 +454,37 @@ pub(crate) fn check_entitlement_detailed(
     let edition = current_edition();
     let required = required_edition(domain);
 
-    // OSS features are always granted regardless of token/edition
-    if required == Edition::Oss {
-        return EntitlementResult::Granted;
-    }
-
-    // Pro/Enterprise features require:
-    // 1. Binary capability: compile-time edition must include the feature code
-    if required > edition {
-        // Binary doesn't contain the code for this feature domain
+    // A deployment token can narrow an OSS capability, but it can never add
+    // code the current binary edition does not contain.
+    if required != Edition::Oss && required > edition {
         return EntitlementResult::FeatureUnavailable;
     }
 
-    // 2. Token authorization: a valid JWT token must grant access
-    //    The resolution chain uses `license_key` as the lowest-priority explicit param.
+    // A fully validated v2 deployment policy is authoritative for every
+    // public product boundary, including otherwise unconditional OSS domains.
+    // The resolution chain uses `license_key` as the lowest-priority explicit
+    // parameter.
     let resolution = license::resolve_token(license_key);
 
     if resolution.valid
         && let Some(ref claims) = resolution.claims
     {
+        if claims.token_type == TokenType::Deployment {
+            return match resolution.deployment_v2.as_ref() {
+                Some(metadata) if v2_policy_allows_domain(metadata, &claims.edition, domain) => {
+                    EntitlementResult::Granted
+                }
+                Some(_) => EntitlementResult::FeatureUnavailable,
+                None => EntitlementResult::LicenseInvalid,
+            };
+        }
+
+        // OSS features remain available without a deployment policy and under
+        // every unrelated legacy token family.
+        if required == Edition::Oss {
+            return EntitlementResult::Granted;
+        }
+
         // Map token type to edition grant
         let token_edition = match claims.token_type {
             TokenType::Trial
@@ -257,6 +498,11 @@ pub(crate) fn check_entitlement_detailed(
             return EntitlementResult::EditionInsufficient;
         }
 
+        return EntitlementResult::Granted;
+    }
+
+    // No token or an unrelated invalid token does not restrict OSS domains.
+    if required == Edition::Oss {
         return EntitlementResult::Granted;
     }
 
@@ -339,6 +585,13 @@ pub fn effective_limits(license_key: Option<&str>) -> crate::catalog::EditionLim
     if resolution.valid
         && let Some(ref claims) = resolution.claims
     {
+        if claims.token_type == TokenType::Deployment
+            && let Some(ref metadata) = resolution.deployment_v2
+        {
+            let base = catalog::catalog_limits(&claims.edition);
+            return v2_fixed_limits(base, metadata, &claims.edition)
+                .unwrap_or_else(fail_closed_limits);
+        }
         return catalog::catalog_limits(&claims.edition);
     }
 

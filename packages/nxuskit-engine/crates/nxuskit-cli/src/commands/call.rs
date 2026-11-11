@@ -59,15 +59,34 @@ pub struct CallInput {
     pub provider: Option<String>,
     pub system: Option<String>,
     pub messages: Option<Vec<serde_json::Value>>,
+    #[serde(default, alias = "tools")]
     pub tool_definitions: Option<Vec<serde_json::Value>>,
     pub max_tokens: Option<u32>,
     pub temperature: Option<f32>,
     pub stream: Option<bool>,
+    #[serde(default, alias = "base_url")]
+    pub endpoint: Option<String>,
+    #[serde(default)]
+    pub top_k: Option<i64>,
+    #[serde(default)]
+    pub min_p: Option<f64>,
+    #[serde(default)]
+    pub seed: Option<i64>,
+    #[serde(default)]
+    pub presence_penalty: Option<f32>,
+    #[serde(default)]
+    pub frequency_penalty: Option<f32>,
+    #[serde(default)]
+    pub logprobs: Option<bool>,
+    #[serde(default)]
+    pub top_logprobs: Option<u8>,
+    #[serde(default)]
+    pub reasoning_effort: Option<String>,
     #[serde(default)]
     pub tool_choice: Option<serde_json::Value>,
     #[serde(default)]
     pub response_format: Option<serde_json::Value>,
-    #[serde(default)]
+    #[serde(default, alias = "thinking")]
     pub thinking_mode: Option<String>,
 }
 
@@ -77,6 +96,9 @@ pub struct CallResult {
     pub content: String,
     pub model: String,
     pub provider: String,
+    pub provider_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_finish: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<serde_json::Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -95,15 +117,102 @@ pub struct CallInferenceMetadata {
     pub finish_reason: Option<String>,
 }
 
+/// Frozen Spec119 complete-output shell for the `call` command.
+///
+/// Kept local to the CLI while Action 7 is closing; A7-Q3 owns later
+/// consolidation of output/validation mechanics after semantics are frozen.
+fn write_call_complete_output(
+    format: crate::output::OutputFormat,
+    output_path: Option<&str>,
+    value: &serde_json::Value,
+) -> Result<(), CliError> {
+    use std::io::Write;
+
+    let serialized = match format {
+        crate::output::OutputFormat::Json => {
+            serde_json::to_string_pretty(value).map_err(|e| CliError::ParseError {
+                message: format!("Serialization failed: {e}"),
+            })?
+        }
+        crate::output::OutputFormat::Jsonl => {
+            serde_json::to_string(value).map_err(|e| CliError::ParseError {
+                message: format!("Serialization failed: {e}"),
+            })?
+        }
+        crate::output::OutputFormat::Yaml => {
+            serde_yaml_ng::to_string(value).map_err(|e| CliError::ParseError {
+                message: format!("YAML serialization failed: {e}"),
+            })?
+        }
+        crate::output::OutputFormat::Text | crate::output::OutputFormat::Human => {
+            serde_json::to_string_pretty(&value["response"]).map_err(|e| CliError::ParseError {
+                message: format!("Serialization failed: {e}"),
+            })?
+        }
+    };
+
+    match output_path {
+        Some(path) if path != "-" => {
+            std::fs::write(path, serialized).map_err(|e| CliError::ParseError {
+                message: format!("Failed to write '{path}': {e}"),
+            })
+        }
+        _ => {
+            let stdout = std::io::stdout();
+            let mut writer = stdout.lock();
+            writeln!(writer, "{serialized}").map_err(|e| CliError::ParseError {
+                message: format!("Write failed: {e}"),
+            })
+        }
+    }
+}
+
+fn call_descriptor(
+    provider_id: &str,
+    model: &str,
+    endpoint: Option<&str>,
+) -> Result<serde_json::Value, CliError> {
+    let endpoint_origin = if let Some(endpoint) = endpoint {
+        let config = nxuskit_engine::types::ProviderConfig {
+            provider_id: provider_id.to_string(),
+            model: model.to_string(),
+            endpoint: Some(endpoint.to_string()),
+            auth_selector: None,
+            transport: nxuskit_engine::types::ProviderTransportMode::Native,
+            connect_timeout_ms: 5_000,
+            read_timeout_ms: 5_000,
+        };
+        config
+            .endpoint_origin()
+            .map_err(CliError::from_contract_error)?
+    } else {
+        None
+    };
+
+    let locality = if matches!(provider_id, "ollama_local" | "lmstudio" | "lm-studio") {
+        "local"
+    } else {
+        "remote"
+    };
+
+    Ok(serde_json::json!({
+        "provider_id": provider_id,
+        "model": model,
+        "endpoint_origin": endpoint_origin,
+        "locality": locality,
+        "transport": "native",
+    }))
+}
+
 /// Parse a JSON value into a `ResponseFormat` enum variant.
 ///
 /// # Supported formats
 /// - `{"type":"text"}` → `ResponseFormat::Text`
-/// - `{"type":"json_object"}` → `ResponseFormat::Json`
+/// - `{"type":"json"}` or `{"type":"json_object"}` → `ResponseFormat::Json`
 /// - `{"type":"json_schema","schema":{...}}` → `ResponseFormat::JsonSchema { schema }`
 ///
 /// # Errors
-/// Returns `CliError::ParseError` for unknown type values or missing fields.
+/// Returns `CliError::InvalidRequest` for unknown type values or missing fields.
 pub fn parse_response_format(
     value: serde_json::Value,
 ) -> Result<nxuskit_engine::prelude::ResponseFormat, CliError> {
@@ -111,25 +220,25 @@ pub fn parse_response_format(
         value
             .get("type")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| CliError::ParseError {
+            .ok_or_else(|| CliError::InvalidRequest {
                 message: "response_format must have a \"type\" field".to_string(),
             })?;
     match type_str {
         "text" => Ok(nxuskit_engine::prelude::ResponseFormat::Text),
-        "json_object" => Ok(nxuskit_engine::prelude::ResponseFormat::Json),
+        "json" | "json_object" => Ok(nxuskit_engine::prelude::ResponseFormat::Json),
         "json_schema" => {
             let schema = value
                 .get("schema")
                 .cloned()
-                .ok_or_else(|| CliError::ParseError {
+                .ok_or_else(|| CliError::InvalidRequest {
                     message: "response_format type \"json_schema\" requires a \"schema\" field"
                         .to_string(),
                 })?;
             Ok(nxuskit_engine::prelude::ResponseFormat::JsonSchema { schema })
         }
-        other => Err(CliError::ParseError {
+        other => Err(CliError::InvalidRequest {
             message: format!(
-                "unknown response_format type: \"{other}\". Expected \"text\", \"json_object\", or \"json_schema\""
+                "unknown response_format type: \"{other}\". Expected \"text\", \"json\", \"json_object\", or \"json_schema\""
             ),
         }),
     }
@@ -144,19 +253,166 @@ pub fn parse_response_format(
 /// - `"omit"` → `ThinkingMode::Omit`
 ///
 /// # Errors
-/// Returns `CliError::ParseError` for unknown strings.
+/// Returns `CliError::InvalidRequest` for unknown strings.
 pub fn parse_thinking_mode(s: &str) -> Result<nxuskit_engine::prelude::ThinkingMode, CliError> {
     match s {
         "auto" => Ok(nxuskit_engine::prelude::ThinkingMode::Auto),
         "enabled" => Ok(nxuskit_engine::prelude::ThinkingMode::Enabled),
         "disabled" => Ok(nxuskit_engine::prelude::ThinkingMode::Disabled),
         "omit" => Ok(nxuskit_engine::prelude::ThinkingMode::Omit),
-        other => Err(CliError::ParseError {
+        other => Err(CliError::InvalidRequest {
             message: format!(
                 "unknown thinking_mode: \"{other}\". Expected \"auto\", \"enabled\", \"disabled\", or \"omit\""
             ),
         }),
     }
+}
+
+fn prepare_cli_request(
+    provider_id: &str,
+    mut request: nxuskit_engine::prelude::ChatRequest,
+    thinking_mode_explicit: bool,
+) -> Result<nxuskit_engine::prelude::ChatRequest, CliError> {
+    use nxuskit_engine::prelude::ThinkingMode;
+
+    for (name, value) in [
+        ("presence_penalty", request.presence_penalty),
+        ("frequency_penalty", request.frequency_penalty),
+    ] {
+        if value.is_some_and(|value| !value.is_finite() || !(-2.0..=2.0).contains(&value)) {
+            return Err(CliError::InvalidRequest {
+                message: format!("{name} must be finite and between -2 and 2"),
+            });
+        }
+    }
+    if request
+        .top_k
+        .is_some_and(|value| !(1..=2_147_483_647).contains(&value))
+    {
+        return Err(CliError::InvalidRequest {
+            message: "top_k must be between 1 and 2147483647".to_string(),
+        });
+    }
+    if request
+        .min_p
+        .is_some_and(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
+    {
+        return Err(CliError::InvalidRequest {
+            message: "min_p must be finite and between 0 and 1".to_string(),
+        });
+    }
+    if request.top_logprobs.is_some_and(|value| value > 20) {
+        return Err(CliError::InvalidRequest {
+            message: "top_logprobs must be between 0 and 20".to_string(),
+        });
+    }
+    if let Some(effort) = request.reasoning_effort.as_deref()
+        && !matches!(effort, "low" | "medium" | "high" | "max")
+    {
+        return Err(CliError::InvalidRequest {
+            message: "reasoning_effort must be one of low, medium, high, or max".to_string(),
+        });
+    }
+    if let Some(tools) = request.tools.as_ref() {
+        for tool in tools {
+            let object = tool.as_object().ok_or_else(|| CliError::InvalidRequest {
+                message: "tool definitions must be JSON objects".to_string(),
+            })?;
+            let function = object
+                .get("function")
+                .and_then(serde_json::Value::as_object)
+                .unwrap_or(object);
+            let name = function
+                .get("name")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default();
+            if name.trim().is_empty() {
+                return Err(CliError::InvalidRequest {
+                    message: "tool names must be nonempty".to_string(),
+                });
+            }
+            if function
+                .get("parameters")
+                .is_some_and(|value| !value.is_object())
+            {
+                return Err(CliError::InvalidRequest {
+                    message: "tool parameters must be a JSON object".to_string(),
+                });
+            }
+            if object
+                .get("type")
+                .is_some_and(|value| value.as_str() != Some("function"))
+            {
+                return Err(CliError::InvalidRequest {
+                    message: "tool type must be function".to_string(),
+                });
+            }
+        }
+    }
+
+    // Frozen empty-tools semantics: omission and an explicit empty list are
+    // the same no-tools request state.
+    if request.tools.as_ref().is_some_and(|tools| tools.is_empty()) {
+        request.tools = None;
+    }
+
+    // Frozen Spec119 input tools are canonical flat definitions; provider
+    // wires use the function wrapper for every profile, including Ollama.
+    if let Some(tools) = request.tools.as_mut() {
+        for tool in tools {
+            if tool.get("function").is_some() {
+                continue;
+            }
+            let Some(object) = tool.as_object() else {
+                continue;
+            };
+            let mut function = serde_json::Map::new();
+            for key in ["name", "description", "parameters", "strict"] {
+                if let Some(value) = object.get(key) {
+                    function.insert(key.to_string(), value.clone());
+                }
+            }
+            *tool = serde_json::json!({
+                "type": "function",
+                "function": serde_json::Value::Object(function),
+            });
+        }
+    }
+
+    let is_ollama = matches!(
+        provider_id,
+        "ollama" | "ollama_local" | "ollama_cloud_via_daemon"
+    );
+    if is_ollama {
+        if request.presence_penalty.is_some() || request.frequency_penalty.is_some() {
+            return Err(CliError::UnsupportedCapability {
+                message: format!("{provider_id} does not support penalties"),
+            });
+        }
+        if request.reasoning_effort.is_some() {
+            return Err(CliError::UnsupportedCapability {
+                message: format!("{provider_id} does not support reasoning_effort"),
+            });
+        }
+    } else {
+        if request.top_k.is_some() {
+            return Err(CliError::UnsupportedCapability {
+                message: format!("{provider_id} does not support top_k"),
+            });
+        }
+        if request.min_p.is_some() {
+            return Err(CliError::UnsupportedCapability {
+                message: format!("{provider_id} does not support min_p"),
+            });
+        }
+        if thinking_mode_explicit && request.thinking_mode != ThinkingMode::Omit {
+            return Err(CliError::UnsupportedCapability {
+                message: format!("{provider_id} does not support thinking"),
+            });
+        }
+    }
+
+    Ok(request)
 }
 
 /// Parse a JSON array of message objects into `Vec<Message>`.
@@ -292,7 +548,7 @@ pub async fn run_call(args: CallArgs) -> Result<(), CliError> {
     let (raw_input, _replayed_from) = detect_replay(&raw_input);
 
     let call_input: CallInput =
-        serde_json::from_str(&raw_input).map_err(|e| CliError::ParseError {
+        serde_json::from_str(&raw_input).map_err(|e| CliError::InvalidRequest {
             message: format!("Invalid call input JSON: {e}"),
         })?;
 
@@ -315,11 +571,6 @@ pub async fn run_call(args: CallArgs) -> Result<(), CliError> {
     } else {
         std::env::var("NXUSKIT_PROVIDER").unwrap_or_else(|_| provider_name.to_string())
     };
-
-    let provider_impl =
-        crate::create_provider(&provider_name).map_err(|e| CliError::ProviderError {
-            message: format!("{e}"),
-        })?;
 
     let model_name = args
         .model
@@ -351,6 +602,15 @@ pub async fn run_call(args: CallArgs) -> Result<(), CliError> {
         request = request.with_max_tokens(tokens);
     }
 
+    request.top_k = call_input.top_k;
+    request.min_p = call_input.min_p;
+    request.seed = call_input.seed;
+    request.presence_penalty = call_input.presence_penalty;
+    request.frequency_penalty = call_input.frequency_penalty;
+    request.logprobs = call_input.logprobs;
+    request.top_logprobs = call_input.top_logprobs;
+    request.reasoning_effort = call_input.reasoning_effort.clone();
+
     // T026: Propagate tool definitions
     if let Some(tool_defs) = &call_input.tool_definitions {
         request.tools = Some(tool_defs.clone());
@@ -367,9 +627,12 @@ pub async fn run_call(args: CallArgs) -> Result<(), CliError> {
     }
 
     // T021: Forward thinking_mode
+    let thinking_mode_explicit = call_input.thinking_mode.is_some();
     if let Some(ref tm) = call_input.thinking_mode {
         request = request.with_thinking_mode(parse_thinking_mode(tm)?);
     }
+
+    request = prepare_cli_request(&provider_name, request, thinking_mode_explicit)?;
 
     // T036: Handle --image-url flag
     if let Some(ref url) = args.image_url {
@@ -441,6 +704,17 @@ pub async fn run_call(args: CallArgs) -> Result<(), CliError> {
         append_image_part(&mut request, image_part);
     }
 
+    // Construct the provider only after request parsing/validation so malformed
+    // requests fail independently of credentials/provider construction.
+    let provider_impl = crate::create_provider_with_base_url(
+        &provider_name,
+        call_input.endpoint.as_deref(),
+        Some(model_name),
+    )
+    .map_err(|e| CliError::ProviderError {
+        message: format!("{e}"),
+    })?;
+
     let trace = TraceFields::new("call", &raw_input, Some(&provider_name), Some(model_name));
 
     let should_stream = args.stream || call_input.stream.unwrap_or(false);
@@ -449,63 +723,139 @@ pub async fn run_call(args: CallArgs) -> Result<(), CliError> {
     if should_stream {
         use crate::output::JsonlEvent;
 
-        let mut stream =
-            provider_impl
-                .chat_stream(&request)
-                .await
-                .map_err(|e| CliError::ProviderError {
-                    message: format!("{e}"),
-                })?;
+        let mut stream = provider_impl
+            .chat_stream(&request)
+            .await
+            .map_err(CliError::from_provider_error)?;
 
         let timeout_duration = std::time::Duration::from_secs(30);
         let mut full_content = String::new();
+        let mut pending_content: Option<String> = None;
+        let mut terminal_content = String::new();
+        let mut terminal_finish: Option<String> = None;
+        let mut terminal_raw_finish: Option<String> = None;
+        let mut terminal_usage: Option<nxuskit_engine::types::TokenUsage> = None;
+        let mut terminal_seen = false;
+
+        writer.write_jsonl_event(&JsonlEvent {
+            event_type: "start".to_string(),
+            data: serde_json::json!({}),
+            trace_id: None,
+        })?;
 
         loop {
             match tokio::time::timeout(timeout_duration, stream.next()).await {
                 Ok(Some(Ok(chunk))) => {
-                    if !chunk.delta.is_empty() {
-                        full_content.push_str(&chunk.delta);
-                        let event = JsonlEvent {
-                            event_type: "chunk".to_string(),
-                            data: serde_json::json!({ "content": chunk.delta }),
-                            trace_id: Some(trace.trace_id.clone()),
-                        };
-                        writer.write_jsonl_event(&event)?;
-                    }
                     if chunk.is_final() {
+                        if !chunk.delta.is_empty() {
+                            if let Some(previous) = pending_content.take() {
+                                full_content.push_str(&previous);
+                                writer.write_jsonl_event(&JsonlEvent {
+                                    event_type: "content".to_string(),
+                                    data: serde_json::json!({ "delta": previous }),
+                                    trace_id: None,
+                                })?;
+                            }
+                            terminal_content = chunk.delta.clone();
+                            full_content.push_str(&chunk.delta);
+                        } else {
+                            terminal_content = pending_content.take().unwrap_or_default();
+                            full_content.push_str(&terminal_content);
+                        }
+                        if let Some(thinking) = chunk.thinking.as_ref()
+                            && !thinking.is_empty()
+                        {
+                            if let Some(previous) = pending_content.take() {
+                                full_content.push_str(&previous);
+                                writer.write_jsonl_event(&JsonlEvent {
+                                    event_type: "content".to_string(),
+                                    data: serde_json::json!({ "delta": previous }),
+                                    trace_id: None,
+                                })?;
+                            }
+                            writer.write_jsonl_event(&JsonlEvent {
+                                event_type: "thinking".to_string(),
+                                data: serde_json::json!({ "delta": thinking }),
+                                trace_id: None,
+                            })?;
+                        }
+                        terminal_finish = chunk
+                            .finish_reason
+                            .as_ref()
+                            .map(|reason| reason.as_str().to_string());
+                        terminal_raw_finish = chunk.raw_finish_reason.clone();
+                        terminal_usage = chunk.usage.clone().or(terminal_usage);
+                        terminal_seen = true;
                         break;
                     }
+
+                    if !chunk.delta.is_empty()
+                        && let Some(previous) = pending_content.replace(chunk.delta.clone())
+                    {
+                        full_content.push_str(&previous);
+                        writer.write_jsonl_event(&JsonlEvent {
+                            event_type: "content".to_string(),
+                            data: serde_json::json!({ "delta": previous }),
+                            trace_id: None,
+                        })?;
+                    }
+                    if let Some(thinking) = chunk.thinking.as_ref()
+                        && !thinking.is_empty()
+                    {
+                        if let Some(previous) = pending_content.take() {
+                            full_content.push_str(&previous);
+                            writer.write_jsonl_event(&JsonlEvent {
+                                event_type: "content".to_string(),
+                                data: serde_json::json!({ "delta": previous }),
+                                trace_id: None,
+                            })?;
+                        }
+                        writer.write_jsonl_event(&JsonlEvent {
+                            event_type: "thinking".to_string(),
+                            data: serde_json::json!({ "delta": thinking }),
+                            trace_id: None,
+                        })?;
+                    }
+                    if chunk.usage.is_some() {
+                        terminal_usage = chunk.usage.clone();
+                    }
                 }
-                Ok(Some(Err(e))) => {
-                    return Err(CliError::ProviderError {
-                        message: format!("{e}"),
-                    });
-                }
+                Ok(Some(Err(e))) => return Err(CliError::from_provider_error(e)),
                 Ok(None) => break,
                 Err(_) => return Err(CliError::IdleTimeout),
             }
         }
 
-        // Emit summary event
-        let summary = JsonlEvent {
-            event_type: "summary".to_string(),
+        if !terminal_seen {
+            return Err(CliError::ProviderError {
+                message: "provider stream ended without a terminal event".to_string(),
+            });
+        }
+
+        let usage = terminal_usage.as_ref().map(|usage| {
+            let best = usage.best_available();
+            serde_json::json!({
+                "prompt": best.prompt_tokens,
+                "completion": best.completion_tokens,
+                "total": best.total(),
+            })
+        });
+        writer.write_jsonl_event(&JsonlEvent {
+            event_type: "complete".to_string(),
             data: serde_json::json!({
-                "content": full_content,
-                "model": model_name,
-                "provider": provider_name,
-                "finish_reason": "stop",
+                "content": terminal_content,
+                "canonical_finish": terminal_finish,
+                "raw_finish": terminal_raw_finish,
+                "usage": usage,
             }),
-            trace_id: Some(trace.trace_id.clone()),
-        };
-        writer.write_jsonl_event(&summary)?;
+            trace_id: None,
+        })?;
     } else {
         let start = std::time::Instant::now();
         let response = provider_impl
             .chat(&request)
             .await
-            .map_err(|e| CliError::ProviderError {
-                message: format!("{e}"),
-            })?;
+            .map_err(CliError::from_provider_error)?;
         let elapsed = start.elapsed().as_secs_f64() * 1000.0;
 
         let best_usage = response.usage.best_available();
@@ -530,32 +880,47 @@ pub async fn run_call(args: CallArgs) -> Result<(), CliError> {
             )
         };
 
+        let canonical_finish = response
+            .finish_reason
+            .as_ref()
+            .map(|reason| reason.as_str().to_string());
         let result = CallResult {
             content: response.content.clone(),
             model: response.model.clone(),
             provider: provider_name.to_string(),
+            provider_id: provider_name.to_string(),
+            raw_finish: response.raw_finish_reason.clone(),
             tool_calls: response.tool_calls.clone(),
             tool_definitions_count: tool_defs_count,
             inference_metadata: CallInferenceMetadata {
                 model: response.model.clone(),
                 provider: provider_name.to_string(),
-                finish_reason: response.finish_reason.as_ref().map(|r| format!("{:?}", r)),
+                finish_reason: canonical_finish.clone(),
             },
             warnings,
         };
 
-        writer.write_response(
-            result,
-            trace,
-            Some(usage),
-            Some(
-                response
-                    .finish_reason
-                    .map(|r| format!("{:?}", r))
-                    .unwrap_or_else(|| "stop".to_string()),
-            ),
-            Some(elapsed),
-        )?;
+        let complete_output = serde_json::json!({
+            "trace_id": trace.trace_id,
+            "timestamp": trace.timestamp,
+            "request_hash": trace.request_hash,
+            "request_metadata": trace.request_metadata,
+            "descriptor": call_descriptor(
+                &provider_name,
+                &response.model,
+                call_input.endpoint.as_deref(),
+            )?,
+            "response": result,
+            "usage": {
+                "prompt": usage.input_tokens,
+                "completion": usage.output_tokens,
+                "total": usage.total_tokens,
+            },
+            "canonical_finish": canonical_finish,
+            "raw_finish": response.raw_finish_reason,
+            "elapsed_ms": elapsed,
+        });
+        write_call_complete_output(format, args.output.as_deref(), &complete_output)?;
     }
 
     Ok(())
@@ -653,6 +1018,16 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn test_parse_response_format_json_canonical_literal() {
+        let val = serde_json::json!({"type": "json"});
+        let result = parse_response_format(val).unwrap();
+        assert!(matches!(
+            result,
+            nxuskit_engine::prelude::ResponseFormat::Json
+        ));
+    }
+
     // ── T011: parse_response_format json_schema ──────────────────────
     #[test]
     fn test_parse_response_format_json_schema() {
@@ -672,13 +1047,13 @@ mod tests {
         let val = serde_json::json!({"type": "unknown"});
         let err = parse_response_format(val).unwrap_err();
         match err {
-            CliError::ParseError { message } => {
+            CliError::InvalidRequest { message } => {
                 assert!(
                     message.contains("unknown"),
                     "message should mention unknown type: {message}"
                 );
             }
-            other => panic!("expected ParseError, got {:?}", other),
+            other => panic!("expected InvalidRequest, got {:?}", other),
         }
     }
 
@@ -723,17 +1098,46 @@ mod tests {
     fn test_parse_thinking_mode_invalid() {
         let err = parse_thinking_mode("turbo").unwrap_err();
         match err {
-            CliError::ParseError { message } => {
+            CliError::InvalidRequest { message } => {
                 assert!(
                     message.contains("turbo"),
                     "message should mention the invalid value: {message}"
                 );
             }
-            other => panic!("expected ParseError, got {:?}", other),
+            other => panic!("expected InvalidRequest, got {:?}", other),
         }
     }
 
     // ── T024: parse_messages simple text ─────────────────────────────
+    #[test]
+    fn test_empty_tools_three_state_cli_r48b() {
+        let omitted = nxuskit_engine::prelude::ChatRequest::new("m");
+        let omitted = prepare_cli_request("ollama_local", omitted, false).unwrap();
+        assert!(omitted.tools.is_none());
+
+        let mut empty = nxuskit_engine::prelude::ChatRequest::new("m");
+        empty.tools = Some(vec![]);
+        let empty = prepare_cli_request("ollama_local", empty, false).unwrap();
+        assert!(empty.tools.is_none());
+
+        let mut nonempty = nxuskit_engine::prelude::ChatRequest::new("m");
+        nonempty.tools = Some(vec![serde_json::json!({
+            "name": "lookup",
+            "parameters": {"type": "object"}
+        })]);
+        let nonempty = prepare_cli_request("ollama_local", nonempty, false).unwrap();
+        assert_eq!(
+            nonempty.tools,
+            Some(vec![serde_json::json!({
+                "type": "function",
+                "function": {
+                    "name": "lookup",
+                    "parameters": {"type": "object"}
+                }
+            })])
+        );
+    }
+
     #[test]
     fn test_parse_messages_simple_text() {
         use nxuskit_engine::types::MessageContent;

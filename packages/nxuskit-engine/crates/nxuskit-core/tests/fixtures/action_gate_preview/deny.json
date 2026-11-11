@@ -1,0 +1,17 @@
+{
+  "request": {
+    "schema_version": "nxuskit-action-gate-preview/request/v1", "request_ref": "request.synthetic.deny", "case_ref": "synthetic.case.deny",
+    "action": {"kind": "account_export", "action_ref": "action.synthetic.deny.account_export", "public_projection_requested": false, "runtime_provider_claim_requested": false, "unbounded_file_or_network_access_requested": false},
+    "actor_context": {"actor_ref": "synthetic.actor.deny", "context_ref": "synthetic.context.deny", "local_synthetic_context": true, "contains_secret_material": false, "contains_customer_or_production_data": false},
+    "consequence": {"kind": "account_export", "consequence_ref": "consequence.synthetic.deny.export", "exports_sensitive_data": true, "material_effect": false, "requires_review": false},
+    "policy": {"policy_ref": "policy.synthetic.deny", "low_consequence_action_allowed": false, "sensitive_export_allowed": false, "material_effect_requires_review": false, "public_projection_allowed": false},
+    "evidence": {"evidence_refs": ["evidence.synthetic.deny.action", "evidence.synthetic.deny.actor_context", "evidence.synthetic.deny.policy"], "required_evidence_refs": ["evidence.synthetic.deny.action", "evidence.synthetic.deny.actor_context", "evidence.synthetic.deny.policy"], "receipt_ready_refs": ["receipt.synthetic.deny.agent_action_gate.ready"], "gate_ready_refs": ["gate.synthetic.deny.agent_action_gate"]}
+  },
+  "expected_result": {
+    "schema_version": "nxuskit-action-gate-preview/result/v1", "preview": true, "case_ref": "synthetic.case.deny", "policy_family": "d1_support_playbook", "decision": "deny", "status": "decision_derived", "derived_from_typed_facts": true,
+    "decision_labels": ["d1_account_export_requires_separate_authority"], "denial_labels": ["account_export_public_or_private_provider_authority_missing"], "blocker_labels": [], "handoff_labels": [],
+    "evidence_ready_refs": ["evidence.synthetic.deny.action", "evidence.synthetic.deny.actor_context", "evidence.synthetic.deny.policy"], "receipt_ready_refs": ["receipt.synthetic.deny.agent_action_gate.ready"], "gate_ready_refs": ["gate.synthetic.deny.agent_action_gate"], "review_handoff_ref": null,
+    "closed_gate_labels": ["callbacks_webhooks_managed_queues_closed", "customer_or_production_data_closed", "downstream_publication_closed", "durable_persistence_and_store_write_closed", "live_licensing_and_product_catalog_closed", "material_support_compliance_security_claims_closed", "provider_runtime_and_external_io_closed", "public_projection_closed", "public_sdk_api_schema_cli_wrapper_prelude_closed", "release_package_and_public_artifact_closed", "w561_plus_continuation_closed"],
+    "action_execution_authorized": false, "public_projection_authorized": false, "provider_runtime_authorized": false, "customer_or_production_data_authorized": false, "release_or_package_authorized": false, "downstream_publication_authorized": false
+  }
+}

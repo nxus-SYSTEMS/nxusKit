@@ -4,6 +4,7 @@
 name = "limit-hitting-example"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.94"
 publish = false
 
 [[bin]]
@@ -15,4 +16,4 @@ name = "rule_limit"
 path = "src/rule_limit.rs"
 
 [dependencies]
-nxuskit = { path = "../../../packages/nxuskit" }
+nxuskit = { path = "../../rust" }

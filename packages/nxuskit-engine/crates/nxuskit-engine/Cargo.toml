@@ -43,7 +43,7 @@ base64 = { workspace = true }
 infer = { workspace = true }
 
 # MCP support
-rmcp = { version = "0.16" }
+rmcp = { version = "1.4", features = ["client"] }
 
 # Token estimation (optional)
 tiktoken-rs = { version = "0.9.1", optional = true }
@@ -52,6 +52,8 @@ tiktoken-rs = { version = "0.9.1", optional = true }
 llama-cpp-2 = { version = "0.1.135", optional = true }
 encoding_rs = { version = "0.8", optional = true }
 mistralrs = { version = "0.7", optional = true }
+
+# Z3 constraint satisfaction solver (optional, feature-gated)
 
 # Z3 context pool dispatch
 crossbeam-channel = "0.5"
@@ -66,8 +68,15 @@ uuid = { version = "1.21", features = ["v4", "serde"] }
 sha2 = { workspace = true }
 log = { workspace = true }
 
+# Feature 106 (v1.1.0 RC): the internal `runner` module accepts and
+# returns public v1.1 DTOs from the `nxuskit` wrapper crate. The wrapper
+# is a sibling DTO-only crate (workspace-excluded); using it here keeps
+# the runner's trait surface free of `ProviderChannel` / `ToolCatalog`
+# / `RequestEnvelope` / `ResultEnvelope` types per FR-047 / FR-048.
+nxuskit = { path = "../../../nxuskit" }
+
 # Pipeline infrastructure
-serde_yaml = { package = "serde_yaml_ng", version = "0.10" }
+serde_yaml = { package = "serde_yaml_bw", version = "=2.5.8" }
 petgraph = "0.8"
 strsim = "0.11"
 
@@ -77,7 +86,7 @@ heck = "0.5"
 
 # MIDI/MusicXML parsing (for riffer example)
 midly = "0.5"
-quick-xml = { version = "0.39", features = ["serialize"] }
+quick-xml = { version = "0.41", features = ["serialize"] }
 clap = { version = "4.5", features = ["derive"] }
 rand = "0.10"
 
@@ -96,10 +105,6 @@ mockito = { workspace = true }
 wiremock = { workspace = true }
 tempfile = "3.20"
 criterion = { version = "0.8", features = ["html_reports"] }
-
-[target.'cfg(not(target_os = "windows"))'.dev-dependencies]
-# pprof is Linux/macOS only — enable flamegraph profiling in benchmarks
-pprof = { version = "0.15", features = ["criterion", "flamegraph"] }
 
 [[bench]]
 name = "bn_bench"

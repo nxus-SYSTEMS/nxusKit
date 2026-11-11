@@ -1,0 +1,39 @@
+{
+  "contract_version": "1.1",
+  "id": "v11-orchestration",
+  "nodes": [
+    {
+      "id": "collect",
+      "kind": "provider",
+      "provider_ref": "loopback",
+      "model_ref": "echo",
+      "posture": "declaration_only"
+    },
+    {
+      "id": "rules",
+      "kind": "rules_provider",
+      "capability_ref": "rule_eval.generic",
+      "posture": "declaration_only"
+    },
+    {
+      "id": "review",
+      "kind": "convergence",
+      "posture": "declaration_only"
+    }
+  ],
+  "edges": [
+    {
+      "from": "collect",
+      "to": "rules",
+      "kind": "data"
+    },
+    {
+      "from": "rules",
+      "to": "review",
+      "kind": "control"
+    }
+  ],
+  "metadata": {
+    "public_note": "declaration-only orchestration fixture"
+  }
+}

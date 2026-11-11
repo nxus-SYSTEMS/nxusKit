@@ -170,13 +170,14 @@ func TestConvertClaudeStopReason(t *testing.T) {
 		expected FinishReason
 	}{
 		{"end_turn", FinishReasonStop},
+		{"stop_sequence", FinishReasonStop},
 		{"max_tokens", FinishReasonLength},
 		{"stop", FinishReasonStop},
 	}
 
 	for _, tt := range tests {
 		result := convertClaudeStopReason(tt.input)
-		if result != tt.expected {
+		if result == nil || *result != tt.expected {
 			t.Errorf("for '%s': expected %v, got %v", tt.input, tt.expected, result)
 		}
 	}

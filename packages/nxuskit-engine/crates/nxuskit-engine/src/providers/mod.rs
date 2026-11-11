@@ -44,6 +44,12 @@ pub(crate) mod candidate;
 pub mod clips;
 pub mod mcp;
 
+// Spec 119 Sprint 1D: crate-private discovery protocol backends. Not
+// re-exported; `crate::discovery` owns the public discovery surface.
+pub(crate) mod lmstudio_discovery;
+pub(crate) mod ollama_discovery;
+pub(crate) mod openai_discovery;
+
 // Feature-gated providers: new inference backends
 #[cfg(any(feature = "provider-local-llama", feature = "provider-local-mistralrs"))]
 pub mod local;
@@ -65,6 +71,24 @@ pub use openrouter::OpenRouterProvider;
 pub use perplexity::PerplexityProvider;
 pub use together::TogetherProvider;
 pub use xai::XaiProvider;
+
+/// Static adapter declarations. No provider construction or endpoint/model probing.
+pub fn adapter_capability_catalog()
+-> std::collections::BTreeMap<&'static str, crate::types::ProviderCapabilities> {
+    std::collections::BTreeMap::from([
+        ("claude", ClaudeProvider::adapter_capabilities()),
+        ("openai", OpenAIProvider::adapter_capabilities()),
+        ("ollama", OllamaProvider::adapter_capabilities()),
+        ("groq", GroqProvider::adapter_capabilities()),
+        ("xai", XaiProvider::adapter_capabilities()),
+        ("fireworks", FireworksProvider::adapter_capabilities()),
+        ("mistral", MistralProvider::adapter_capabilities()),
+        ("together", TogetherProvider::adapter_capabilities()),
+        ("openrouter", OpenRouterProvider::adapter_capabilities()),
+        ("perplexity", PerplexityProvider::adapter_capabilities()),
+        ("lmstudio", LmStudioProvider::adapter_capabilities()),
+    ])
+}
 
 pub use bayesian::{BayesianProvider, BayesianProviderBuilder};
 pub use clips::ClipsProvider;
@@ -192,6 +216,14 @@ pub fn parse_retry_after(headers: &HeaderMap) -> Option<Duration> {
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.trim().parse::<u64>().ok())
         .map(Duration::from_secs)
+}
+
+/// Clamps a provider `Duration` into the `1..=300000` millisecond bound
+/// required by `ProviderConfig::validate` (Spec 119 Sprint 1B facade
+/// anchors).
+pub(crate) fn duration_to_provider_timeout_ms(duration: Duration) -> u32 {
+    let millis = duration.as_millis().min(300_000);
+    (millis as u32).max(1)
 }
 
 #[cfg(test)]

@@ -1,0 +1,612 @@
+{
+  "_meta": {
+    "authority": "provider-oracles-v1.json + qualification-matrix-v1.json",
+    "candidate": "a52459aed1995642d50cfb0ccc27e9a1f8ce0759",
+    "definition_revision": "f81fdc9a03012b4c664cfd20f4fa8413d34462c7",
+    "expected_values_source": "hand-authored accepted oracle; never production adapter output",
+    "fixture_kind": "error_mapping",
+    "provider_oracles_sha256": "ae3941015b4ae0957e18ce24d8e4388ab5ff12beb6b334a610b628575d60bd06",
+    "qualification_matrix_sha256": "ce1a8cd22dee5d1c507e4711f0974456e3b499a8a9186f3c9410a77b5b46650a",
+    "schema_version": "nxus-spec119-python-provider-fixtures/v1"
+  },
+  "claude": {
+    "cases": [
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited",
+          "retry_after_ms": 2000
+        },
+        "id": "ERROR-RATE-LIMIT-WITH-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping for provider-supplied metadata: simulated HTTP 429 Retry-After: 2 normalizes to 2000 milliseconds. It is not a timeout, latency target, default, or automatic-retry instruction.",
+        "request_patch": {
+          "fixture": "http-429",
+          "provider_response": {
+            "headers": {
+              "Retry-After": "2"
+            },
+            "status": 429
+          }
+        }
+      },
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited"
+        },
+        "id": "ERROR-RATE-LIMIT-NO-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping when a provider supplies no retry metadata; retry_after_ms is omitted and the SDK does not invent a default.",
+        "request_patch": {
+          "fixture": "http-429-no-retry",
+          "provider_response": {
+            "headers": {},
+            "status": 429
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "claude"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/errors.json#/claude",
+    "oracle_case_ids": [
+      "ERROR-RATE-LIMIT-WITH-RETRY",
+      "ERROR-RATE-LIMIT-NO-RETRY"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_claude_provider.py plus provider-oracles-v1.json"
+  },
+  "fireworks": {
+    "cases": [
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited",
+          "retry_after_ms": 2000
+        },
+        "id": "ERROR-RATE-LIMIT-WITH-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping for provider-supplied metadata: simulated HTTP 429 Retry-After: 2 normalizes to 2000 milliseconds. It is not a timeout, latency target, default, or automatic-retry instruction.",
+        "request_patch": {
+          "fixture": "http-429",
+          "provider_response": {
+            "headers": {
+              "Retry-After": "2"
+            },
+            "status": 429
+          }
+        }
+      },
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited"
+        },
+        "id": "ERROR-RATE-LIMIT-NO-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping when a provider supplies no retry metadata; retry_after_ms is omitted and the SDK does not invent a default.",
+        "request_patch": {
+          "fixture": "http-429-no-retry",
+          "provider_response": {
+            "headers": {},
+            "status": 429
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "fireworks"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/errors.json#/fireworks",
+    "oracle_case_ids": [
+      "ERROR-RATE-LIMIT-WITH-RETRY",
+      "ERROR-RATE-LIMIT-NO-RETRY"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_fireworks_provider.py plus provider-oracles-v1.json"
+  },
+  "groq": {
+    "cases": [
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited",
+          "retry_after_ms": 2000
+        },
+        "id": "ERROR-RATE-LIMIT-WITH-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping for provider-supplied metadata: simulated HTTP 429 Retry-After: 2 normalizes to 2000 milliseconds. It is not a timeout, latency target, default, or automatic-retry instruction.",
+        "request_patch": {
+          "fixture": "http-429",
+          "provider_response": {
+            "headers": {
+              "Retry-After": "2"
+            },
+            "status": 429
+          }
+        }
+      },
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited"
+        },
+        "id": "ERROR-RATE-LIMIT-NO-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping when a provider supplies no retry metadata; retry_after_ms is omitted and the SDK does not invent a default.",
+        "request_patch": {
+          "fixture": "http-429-no-retry",
+          "provider_response": {
+            "headers": {},
+            "status": 429
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "groq"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/errors.json#/groq",
+    "oracle_case_ids": [
+      "ERROR-RATE-LIMIT-WITH-RETRY",
+      "ERROR-RATE-LIMIT-NO-RETRY"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_groq_provider.py plus provider-oracles-v1.json"
+  },
+  "lmstudio": {
+    "cases": [
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited",
+          "retry_after_ms": 2000
+        },
+        "id": "ERROR-RATE-LIMIT-WITH-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping for provider-supplied metadata: simulated HTTP 429 Retry-After: 2 normalizes to 2000 milliseconds. It is not a timeout, latency target, default, or automatic-retry instruction.",
+        "request_patch": {
+          "fixture": "http-429",
+          "provider_response": {
+            "headers": {
+              "Retry-After": "2"
+            },
+            "status": 429
+          }
+        }
+      },
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited"
+        },
+        "id": "ERROR-RATE-LIMIT-NO-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping when a provider supplies no retry metadata; retry_after_ms is omitted and the SDK does not invent a default.",
+        "request_patch": {
+          "fixture": "http-429-no-retry",
+          "provider_response": {
+            "headers": {},
+            "status": 429
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "lmstudio"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/errors.json#/lmstudio",
+    "oracle_case_ids": [
+      "ERROR-RATE-LIMIT-WITH-RETRY",
+      "ERROR-RATE-LIMIT-NO-RETRY"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_lmstudio_provider.py plus provider-oracles-v1.json"
+  },
+  "mistral": {
+    "cases": [
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited",
+          "retry_after_ms": 2000
+        },
+        "id": "ERROR-RATE-LIMIT-WITH-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping for provider-supplied metadata: simulated HTTP 429 Retry-After: 2 normalizes to 2000 milliseconds. It is not a timeout, latency target, default, or automatic-retry instruction.",
+        "request_patch": {
+          "fixture": "http-429",
+          "provider_response": {
+            "headers": {
+              "Retry-After": "2"
+            },
+            "status": 429
+          }
+        }
+      },
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited"
+        },
+        "id": "ERROR-RATE-LIMIT-NO-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping when a provider supplies no retry metadata; retry_after_ms is omitted and the SDK does not invent a default.",
+        "request_patch": {
+          "fixture": "http-429-no-retry",
+          "provider_response": {
+            "headers": {},
+            "status": 429
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "mistral"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/errors.json#/mistral",
+    "oracle_case_ids": [
+      "ERROR-RATE-LIMIT-WITH-RETRY",
+      "ERROR-RATE-LIMIT-NO-RETRY"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_mistral_provider.py plus provider-oracles-v1.json"
+  },
+  "ollama_cloud_via_daemon": {
+    "cases": [
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited",
+          "retry_after_ms": 2000
+        },
+        "id": "ERROR-RATE-LIMIT-WITH-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping for provider-supplied metadata: simulated HTTP 429 Retry-After: 2 normalizes to 2000 milliseconds. It is not a timeout, latency target, default, or automatic-retry instruction.",
+        "request_patch": {
+          "fixture": "http-429",
+          "provider_response": {
+            "headers": {
+              "Retry-After": "2"
+            },
+            "status": 429
+          }
+        }
+      },
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited"
+        },
+        "id": "ERROR-RATE-LIMIT-NO-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping when a provider supplies no retry metadata; retry_after_ms is omitted and the SDK does not invent a default.",
+        "request_patch": {
+          "fixture": "http-429-no-retry",
+          "provider_response": {
+            "headers": {},
+            "status": 429
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "ollama_cloud_via_daemon"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/errors.json#/ollama_cloud_via_daemon",
+    "oracle_case_ids": [
+      "ERROR-RATE-LIMIT-WITH-RETRY",
+      "ERROR-RATE-LIMIT-NO-RETRY"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_ollama_provider.py plus provider-oracles-v1.json"
+  },
+  "ollama_local": {
+    "cases": [
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited",
+          "retry_after_ms": 2000
+        },
+        "id": "ERROR-RATE-LIMIT-WITH-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping for provider-supplied metadata: simulated HTTP 429 Retry-After: 2 normalizes to 2000 milliseconds. It is not a timeout, latency target, default, or automatic-retry instruction.",
+        "request_patch": {
+          "fixture": "http-429",
+          "provider_response": {
+            "headers": {
+              "Retry-After": "2"
+            },
+            "status": 429
+          }
+        }
+      },
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited"
+        },
+        "id": "ERROR-RATE-LIMIT-NO-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping when a provider supplies no retry metadata; retry_after_ms is omitted and the SDK does not invent a default.",
+        "request_patch": {
+          "fixture": "http-429-no-retry",
+          "provider_response": {
+            "headers": {},
+            "status": 429
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "ollama_local"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/errors.json#/ollama_local",
+    "oracle_case_ids": [
+      "ERROR-RATE-LIMIT-WITH-RETRY",
+      "ERROR-RATE-LIMIT-NO-RETRY"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_ollama_provider.py plus provider-oracles-v1.json"
+  },
+  "openai": {
+    "cases": [
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited",
+          "retry_after_ms": 2000
+        },
+        "id": "ERROR-RATE-LIMIT-WITH-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping for provider-supplied metadata: simulated HTTP 429 Retry-After: 2 normalizes to 2000 milliseconds. It is not a timeout, latency target, default, or automatic-retry instruction.",
+        "request_patch": {
+          "fixture": "http-429",
+          "provider_response": {
+            "headers": {
+              "Retry-After": "2"
+            },
+            "status": 429
+          }
+        }
+      },
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited"
+        },
+        "id": "ERROR-RATE-LIMIT-NO-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping when a provider supplies no retry metadata; retry_after_ms is omitted and the SDK does not invent a default.",
+        "request_patch": {
+          "fixture": "http-429-no-retry",
+          "provider_response": {
+            "headers": {},
+            "status": 429
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "openai"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/errors.json#/openai",
+    "oracle_case_ids": [
+      "ERROR-RATE-LIMIT-WITH-RETRY",
+      "ERROR-RATE-LIMIT-NO-RETRY"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_openai_provider.py plus provider-oracles-v1.json"
+  },
+  "openrouter": {
+    "cases": [
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited",
+          "retry_after_ms": 2000
+        },
+        "id": "ERROR-RATE-LIMIT-WITH-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping for provider-supplied metadata: simulated HTTP 429 Retry-After: 2 normalizes to 2000 milliseconds. It is not a timeout, latency target, default, or automatic-retry instruction.",
+        "request_patch": {
+          "fixture": "http-429",
+          "provider_response": {
+            "headers": {
+              "Retry-After": "2"
+            },
+            "status": 429
+          }
+        }
+      },
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited"
+        },
+        "id": "ERROR-RATE-LIMIT-NO-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping when a provider supplies no retry metadata; retry_after_ms is omitted and the SDK does not invent a default.",
+        "request_patch": {
+          "fixture": "http-429-no-retry",
+          "provider_response": {
+            "headers": {},
+            "status": 429
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "openrouter"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/errors.json#/openrouter",
+    "oracle_case_ids": [
+      "ERROR-RATE-LIMIT-WITH-RETRY",
+      "ERROR-RATE-LIMIT-NO-RETRY"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_openrouter_provider.py plus provider-oracles-v1.json"
+  },
+  "perplexity": {
+    "cases": [
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited",
+          "retry_after_ms": 2000
+        },
+        "id": "ERROR-RATE-LIMIT-WITH-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping for provider-supplied metadata: simulated HTTP 429 Retry-After: 2 normalizes to 2000 milliseconds. It is not a timeout, latency target, default, or automatic-retry instruction.",
+        "request_patch": {
+          "fixture": "http-429",
+          "provider_response": {
+            "headers": {
+              "Retry-After": "2"
+            },
+            "status": 429
+          }
+        }
+      },
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited"
+        },
+        "id": "ERROR-RATE-LIMIT-NO-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping when a provider supplies no retry metadata; retry_after_ms is omitted and the SDK does not invent a default.",
+        "request_patch": {
+          "fixture": "http-429-no-retry",
+          "provider_response": {
+            "headers": {},
+            "status": 429
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "perplexity"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/errors.json#/perplexity",
+    "oracle_case_ids": [
+      "ERROR-RATE-LIMIT-WITH-RETRY",
+      "ERROR-RATE-LIMIT-NO-RETRY"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_perplexity_provider.py plus provider-oracles-v1.json"
+  },
+  "together": {
+    "cases": [
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited",
+          "retry_after_ms": 2000
+        },
+        "id": "ERROR-RATE-LIMIT-WITH-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping for provider-supplied metadata: simulated HTTP 429 Retry-After: 2 normalizes to 2000 milliseconds. It is not a timeout, latency target, default, or automatic-retry instruction.",
+        "request_patch": {
+          "fixture": "http-429",
+          "provider_response": {
+            "headers": {
+              "Retry-After": "2"
+            },
+            "status": 429
+          }
+        }
+      },
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited"
+        },
+        "id": "ERROR-RATE-LIMIT-NO-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping when a provider supplies no retry metadata; retry_after_ms is omitted and the SDK does not invent a default.",
+        "request_patch": {
+          "fixture": "http-429-no-retry",
+          "provider_response": {
+            "headers": {},
+            "status": 429
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "together"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/errors.json#/together",
+    "oracle_case_ids": [
+      "ERROR-RATE-LIMIT-WITH-RETRY",
+      "ERROR-RATE-LIMIT-NO-RETRY"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_together_provider.py plus provider-oracles-v1.json"
+  },
+  "xai": {
+    "cases": [
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited",
+          "retry_after_ms": 2000
+        },
+        "id": "ERROR-RATE-LIMIT-WITH-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping for provider-supplied metadata: simulated HTTP 429 Retry-After: 2 normalizes to 2000 milliseconds. It is not a timeout, latency target, default, or automatic-retry instruction.",
+        "request_patch": {
+          "fixture": "http-429",
+          "provider_response": {
+            "headers": {
+              "Retry-After": "2"
+            },
+            "status": 429
+          }
+        }
+      },
+      {
+        "control": "error",
+        "expected_error": "rate_limited",
+        "expected_wire": {
+          "code": "rate_limited"
+        },
+        "id": "ERROR-RATE-LIMIT-NO-RETRY",
+        "polarity": "negative",
+        "provenance": "Hand-authored typed error mapping when a provider supplies no retry metadata; retry_after_ms is omitted and the SDK does not invent a default.",
+        "request_patch": {
+          "fixture": "http-429-no-retry",
+          "provider_response": {
+            "headers": {},
+            "status": 429
+          }
+        }
+      }
+    ],
+    "expected": {
+      "provider_id": "xai"
+    },
+    "fixture_ref": "packages/nxuskit-py/tests/fixtures/provider_parity/errors.json#/xai",
+    "oracle_case_ids": [
+      "ERROR-RATE-LIMIT-WITH-RETRY",
+      "ERROR-RATE-LIMIT-NO-RETRY"
+    ],
+    "provenance": "packages/nxuskit-py/tests/contract/test_xai_provider.py plus provider-oracles-v1.json"
+  }
+}

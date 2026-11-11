@@ -11,7 +11,7 @@ strings for all data exchange. Every function is thread-safe unless noted.
 const char *nxuskit_version(void);
 ```
 
-Returns the library version string (e.g., `"1.0.5"`). The returned pointer is
+Returns the library version string (e.g., `"2.0.0"`). The returned pointer is
 static and valid for the process lifetime. Never returns NULL.
 
 ## Provider Lifecycle
@@ -26,7 +26,7 @@ Creates a provider from a JSON configuration string.
 
 **Parameters:**
 - `config_json` — JSON string with at minimum `{"provider_type": "..."}`.
-  See [Provider Reference](../providers/cloud-llms/) for provider-specific fields.
+  See [Provider Reference](providers/cloud-llms.md) for provider-specific fields.
 
 **Returns:** Opaque provider handle, or NULL on failure. On failure, call
 `nxuskit_last_error()` for the error message.

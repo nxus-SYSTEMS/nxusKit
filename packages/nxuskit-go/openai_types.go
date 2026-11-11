@@ -31,6 +31,8 @@ type openaiChatRequest struct {
 	FrequencyPenalty *float64              `json:"frequency_penalty,omitempty"`
 	Stop             []string              `json:"stop,omitempty"`
 	Seed             *int                  `json:"seed,omitempty"`
+	Logprobs         *bool                 `json:"logprobs,omitempty"`
+	TopLogprobs      *int                  `json:"top_logprobs,omitempty"`
 	StreamOptions    *streamOptions        `json:"stream_options,omitempty"`
 	ResponseFormat   *openaiResponseFormat `json:"response_format,omitempty"`
 	Tools            []openaiTool          `json:"tools,omitempty"`

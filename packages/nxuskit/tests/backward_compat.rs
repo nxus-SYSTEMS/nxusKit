@@ -24,8 +24,7 @@ fn v092_style_response_without_logprobs_deserializes() {
 
 #[test]
 fn v092_consumer_request_serializes_byte_identically_without_logprobs() {
-    let request = ChatRequest::new("gpt-5.4")
-        .with_message(Message::user("Hello from v0.9.2"));
+    let request = ChatRequest::new("gpt-5.4").with_message(Message::user("Hello from v0.9.2"));
 
     let actual = serde_json::to_string(&request).expect("request must serialize");
     let expected = include_str!("fixtures/v092-chat-request-no-logprobs.json").trim();

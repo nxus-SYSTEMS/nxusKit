@@ -153,7 +153,7 @@ fn build_sampler_from_params(
     top_p: f32,
     presence_penalty: Option<f32>,
     frequency_penalty: Option<f32>,
-    seed: Option<u64>,
+    seed: Option<u32>,
 ) -> LlamaSampler {
     let mut samplers: Vec<LlamaSampler> = Vec::new();
 
@@ -172,7 +172,7 @@ fn build_sampler_from_params(
 
     // Selection sampler (use seed if provided for reproducibility)
     if let Some(seed) = seed {
-        samplers.push(LlamaSampler::dist(seed as u32));
+        samplers.push(LlamaSampler::dist(seed));
     } else {
         samplers.push(LlamaSampler::dist(42));
     }
@@ -258,7 +258,11 @@ impl InferenceBackend for LlamaCppBackend {
         let top_p = request.top_p.unwrap_or(0.95);
         let presence_penalty = request.presence_penalty;
         let frequency_penalty = request.frequency_penalty;
-        let seed = request.seed;
+        let seed = request.seed.map(u32::try_from).transpose().map_err(|_| {
+            NxuskitError::InvalidRequest(
+                "local llama.cpp seed supports only 0 through u32::MAX".into(),
+            )
+        })?;
         let context_size = llama_model.n_ctx_train;
         let model_memory = llama_model.size_bytes;
 
@@ -401,7 +405,11 @@ impl InferenceBackend for LlamaCppBackend {
         let top_p = request.top_p.unwrap_or(0.95);
         let presence_penalty = request.presence_penalty;
         let frequency_penalty = request.frequency_penalty;
-        let seed = request.seed;
+        let seed = request.seed.map(u32::try_from).transpose().map_err(|_| {
+            NxuskitError::InvalidRequest(
+                "local llama.cpp seed supports only 0 through u32::MAX".into(),
+            )
+        })?;
         let context_size = llama_model.n_ctx_train;
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Result<StreamChunk>>();

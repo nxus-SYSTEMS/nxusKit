@@ -1,0 +1,22 @@
+{
+  "iss": "nxus-licensing",
+  "aud": "nxuskit-deployment-runtime",
+  "sub": "account_7c1d9a",
+  "jti": "8b3a28ec-d856-4e9e-884d-f9d1268db7e2",
+  "iat": 1721779200,
+  "type": "deployment",
+  "product_id": "nxuskit",
+  "edition": "pro",
+  "grant_id": "grant_2f8b30",
+  "grant_revision": 3,
+  "purpose": "offline_deployment",
+  "target_id": "target_7e1a5b",
+  "policy_hash": "sha256:8d9a1f23c4567890abcdef1234567890abcdef1234567890abcdef1234567890",
+  "sdk_release_line": 2,
+  "authorization_scope": "client_entitlement",
+  "capability_grants": ["cap.solver"],
+  "capability_denials": ["cap.experimental"],
+  "limits_override": {
+    "solver.max_nodes": 1000
+  }
+}

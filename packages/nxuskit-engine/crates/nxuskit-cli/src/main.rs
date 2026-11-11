@@ -89,6 +89,18 @@ enum Commands {
         action: PipelineAction,
     },
 
+    /// Declaration-only orchestration definition commands
+    Orchestration {
+        #[command(subcommand)]
+        action: commands::orchestration::OrchestrationAction,
+    },
+
+    /// v2 preview contract schema and fixture conformance commands
+    ContractV2 {
+        #[command(subcommand)]
+        action: commands::contract_v2::ContractV2Action,
+    },
+
     /// Activate a Pro license on this machine
     Activate {
         /// Purchase ID received via email after Pro purchase
@@ -149,6 +161,11 @@ enum Commands {
         #[arg(value_enum)]
         shell: clap_complete::Shell,
     },
+
+    /// v1.1.0 readiness/capability snapshot (Phase 2 placeholder; full
+    /// projection lands in task T025).
+    #[command(hide = true)]
+    Doctor(commands::doctor::DoctorArgs),
 
     // ── Level 1 Commands ────────────────────────────────────────────
     /// Machine-facing LLM invocation (JSON-first)
@@ -216,6 +233,16 @@ enum PipelineAction {
     Validate {
         /// Path to pipeline file (.json or .yaml)
         input: PathBuf,
+
+        /// Emit the public v1.1 contract validator outcome as JSON.
+        ///
+        /// Feature 105 (US6 / T066). When set, the file is loaded via the
+        /// public `nxuskit::contract::v1_1::load_pipeline_definition_json`
+        /// loader and validated against the public contract. Output is
+        /// the discriminated-outcome JSON per the retargeted public CLI
+        /// projection contract.
+        #[arg(long, default_value_t = false)]
+        json: bool,
     },
 
     /// Convert pipeline between JSON and YAML formats
@@ -234,6 +261,15 @@ enum PipelineAction {
 
     /// Execute a multi-stage pipeline definition
     Run(commands::pipeline::PipelineRunArgs),
+
+    /// Evaluate local resource posture before running a v1.1 pipeline
+    Preflight(commands::pipeline_preflight::PipelinePreflightArgs),
+
+    /// Canonicalize a v1.1 pipeline definition
+    Normalize(commands::pipeline_normalize::PipelineNormalizeArgs),
+
+    /// Hash a v1.1 pipeline definition
+    Hash(commands::pipeline_hash::PipelineHashArgs),
 }
 
 /// License subcommands
@@ -251,6 +287,14 @@ enum LicenseAction {
     },
     /// Show authentication and license status
     Status {
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+    /// Inspect a v2 deployment token without storing or transmitting it
+    Inspect {
+        /// Compact v2 deployment token to validate locally
+        #[arg(long)]
+        token: String,
         #[arg(long, default_value_t = false)]
         json: bool,
     },
@@ -494,10 +538,37 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                     output::OutputWriter::write_error_and_exit(&e);
                 }
             }
+            PipelineAction::Preflight(args) => {
+                if let Err(e) = commands::pipeline_preflight::run_preflight_command(args).await {
+                    output::OutputWriter::write_error_and_exit(&e);
+                }
+            }
+            PipelineAction::Normalize(args) => {
+                if let Err(e) = commands::pipeline_normalize::run_normalize_command(args) {
+                    output::OutputWriter::write_error_and_exit(&e);
+                }
+            }
+            PipelineAction::Hash(args) => {
+                if let Err(e) = commands::pipeline_hash::run_hash_command(args) {
+                    output::OutputWriter::write_error_and_exit(&e);
+                }
+            }
             other => {
                 handle_pipeline_command(other)?;
             }
         },
+
+        Commands::Orchestration { action } => {
+            if let Err(e) = commands::orchestration::run_orchestration_command(action) {
+                output::OutputWriter::write_error_and_exit(&e);
+            }
+        }
+
+        Commands::ContractV2 { action } => {
+            if let Err(e) = commands::contract_v2::run_contract_v2_command(action) {
+                output::OutputWriter::write_error_and_exit(&e);
+            }
+        }
 
         Commands::Activate {
             key,
@@ -553,7 +624,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                     );
                 }
             }
-            handle_activate(key, trial, code, json);
+            handle_activate(key, trial, code, json).await;
         }
 
         Commands::Deactivate { json } => {
@@ -561,7 +632,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         }
 
         Commands::License { action } => {
-            handle_license_command(action);
+            handle_license_command(action).await;
         }
 
         Commands::Plugin { action } => {
@@ -610,6 +681,13 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 "nxuskit-cli",
                 &mut std::io::stdout(),
             );
+        }
+
+        Commands::Doctor(args) => {
+            let code = commands::doctor::run(&args);
+            if code != 0 {
+                process::exit(code);
+            }
         }
 
         // ── Level 1 Command Dispatch ────────────────────────────────
@@ -673,8 +751,56 @@ fn handle_pipeline_command(
     action: PipelineAction,
 ) -> std::result::Result<(), Box<dyn std::error::Error>> {
     match action {
-        PipelineAction::Validate { input } => {
-            // Load pipeline
+        PipelineAction::Validate { input, json } => {
+            if json {
+                // Feature 105 (US6 / T066): public v1.1 contract validation
+                // with discriminated-outcome JSON output and class-
+                // distinguishable exit codes.
+                use nxuskit::contract::v1_1::{
+                    load_pipeline_definition_json, pipeline_validate_exit_code,
+                    pipeline_validate_outcome_json,
+                };
+                let raw = std::fs::read_to_string(&input)
+                    .map_err(|e| format!("Failed to read pipeline file: {}", e))?;
+                use nxuskit::contract::v1_1::{
+                    BulkPayloadInControlPlaneKind, ContractError, PipelineValidationOutcome,
+                };
+                let outcome = match load_pipeline_definition_json(&raw) {
+                    Ok(p) => p.validate(),
+                    Err(ContractError::SchemaInvalid { path, message })
+                        if message.starts_with("bulk payload rejected") =>
+                    {
+                        // The loader's bulk-payload guard is the
+                        // defense-in-depth path. Re-project the structured
+                        // SchemaInvalid back into the typed
+                        // BulkPayloadInControlPlane outcome so consumers
+                        // branch on a single variant regardless of which
+                        // layer caught the violation.
+                        PipelineValidationOutcome::BulkPayloadInControlPlane {
+                            path,
+                            payload_kind: BulkPayloadInControlPlaneKind::LargeInlineText,
+                        }
+                    }
+                    Err(ContractError::SchemaInvalid { path, message }) => {
+                        PipelineValidationOutcome::SchemaInvalid { path, message }
+                    }
+                    Err(other) => PipelineValidationOutcome::SchemaInvalid {
+                        path: "$".to_owned(),
+                        message: other.to_string(),
+                    },
+                };
+                let body = serde_json::to_string(&pipeline_validate_outcome_json(&outcome))
+                    .map_err(|e| format!("serialize outcome: {}", e))?;
+                println!("{}", body);
+                let code = pipeline_validate_exit_code(&outcome);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+                return Ok(());
+            }
+            // Default (text) path: keep the legacy engine-internal validator
+            // behavior for backward compatibility with the existing
+            // `pipeline validate <file>` invocation pattern.
             let p = pipeline::load_pipeline(&input)
                 .map_err(|e| format!("Failed to load pipeline: {}", e))?;
 
@@ -743,6 +869,9 @@ fn handle_pipeline_command(
             }
         }
         PipelineAction::Run(_) => unreachable!("Run is dispatched in main match"),
+        PipelineAction::Preflight(_) => unreachable!("Preflight is dispatched in main match"),
+        PipelineAction::Normalize(_) => unreachable!("Normalize is dispatched in main match"),
+        PipelineAction::Hash(_) => unreachable!("Hash is dispatched in main match"),
     }
 
     Ok(())
@@ -841,12 +970,22 @@ fn handle_schema_command(
 }
 
 /// Handle `nxuskit-cli activate` command
-fn handle_activate(key: Option<String>, trial: bool, code: Option<String>, json_output: bool) {
+async fn handle_activate(
+    key: Option<String>,
+    trial: bool,
+    code: Option<String>,
+    json_output: bool,
+) {
     if trial {
         // Trial activation flow
         if let Some(activation_code) = code {
-            // Direct trial activation with code
-            match nxuskit_core::license::trial_activate(&activation_code) {
+            // Direct trial activation with code; nxuskit-core performs blocking HTTP.
+            let trial_activation = tokio::task::spawn_blocking(move || {
+                nxuskit_core::license::trial_activate(&activation_code)
+            })
+            .await
+            .expect("trial activation blocking task must join");
+            match trial_activation {
                 Ok(result) => {
                     if json_output {
                         let out = serde_json::json!({
@@ -877,8 +1016,11 @@ fn handle_activate(key: Option<String>, trial: bool, code: Option<String>, json_
                 }
             }
         } else {
-            // Issue a new trial
-            match nxuskit_core::license::trial_issue() {
+            // Issue a new trial; nxuskit-core performs blocking HTTP.
+            let trial_issuance = tokio::task::spawn_blocking(nxuskit_core::license::trial_issue)
+                .await
+                .expect("trial issuance blocking task must join");
+            match trial_issuance {
                 Ok(result) => {
                     if json_output {
                         let out = serde_json::json!({
@@ -919,7 +1061,11 @@ fn handle_activate(key: Option<String>, trial: bool, code: Option<String>, json_
             }
         };
 
-        match nxuskit_core::license::activate(&purchase_id) {
+        let paid_activation =
+            tokio::task::spawn_blocking(move || nxuskit_core::license::activate(&purchase_id))
+                .await
+                .expect("paid activation blocking task must join");
+        match paid_activation {
             Ok(result) => {
                 if json_output {
                     let out = serde_json::json!({
@@ -1068,7 +1214,16 @@ fn public_signing_key_source_label() -> &'static str {
     }
 }
 
-fn handle_license_command(action: LicenseAction) {
+/// Public diagnostic view of every immutable exact-`kid` verifier bundle
+/// entry. This is metadata only; it never selects a default signing key.
+fn public_signing_key_kids() -> Vec<&'static str> {
+    nxuskit_core::license::embedded_es256_public_key_bundle()
+        .iter()
+        .map(|(kid, _)| *kid)
+        .collect()
+}
+
+async fn handle_license_command(action: LicenseAction) {
     match action {
         LicenseAction::Login { json: json_output } => {
             let server_url = nxuskit_core::license::license_server_url();
@@ -1182,21 +1337,6 @@ fn handle_license_command(action: LicenseAction) {
             let info = nxuskit_core::entitlement::entitlement_info(None);
             let endpoint_override = std::env::var("NXUSKIT_LICENSE_SERVER").ok();
             let environment_override = std::env::var("NXUSKIT_LICENSE_ENVIRONMENT").ok();
-            let pro_engines_compiled = cfg!(feature = "pro-engines");
-            let effective_edition = info
-                .get("effective_edition")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
-            let pro_engine_warning =
-                matches!(effective_edition, "pro" | "enterprise") && !pro_engines_compiled;
-            let cli_diagnostics = serde_json::json!({
-                "pro_engines_compiled": pro_engines_compiled,
-                "warnings": if pro_engine_warning {
-                    vec!["valid Pro entitlement is present, but this CLI was built without Pro solver/ZEN engine modules"]
-                } else {
-                    Vec::<&str>::new()
-                },
-            });
             let licensing_diagnostics = serde_json::json!({
                 "environment": nxuskit_core::license::license_environment(),
                 "default_environment": nxuskit_core::license::default_license_environment(),
@@ -1206,8 +1346,8 @@ fn handle_license_command(action: LicenseAction) {
                     "default": nxuskit_core::license::default_license_server_url(),
                     "override": endpoint_override,
                 },
-                "signing_key": {
-                    "kid": nxuskit_core::license::embedded_es256_public_key_kid(),
+                "signing_keys": {
+                    "kids": public_signing_key_kids(),
                     "source": public_signing_key_source_label(),
                 }
             });
@@ -1227,7 +1367,6 @@ fn handle_license_command(action: LicenseAction) {
                 let out = serde_json::json!({
                     "auth": auth_json,
                     "license": info,
-                    "cli": cli_diagnostics,
                     "licensing": licensing_diagnostics,
                 });
                 println!("{}", serde_json::to_string_pretty(&out).unwrap());
@@ -1298,11 +1437,6 @@ fn handle_license_command(action: LicenseAction) {
                 };
 
                 println!("Edition: {} ({})", edition, status);
-                if pro_engine_warning {
-                    println!(
-                        "CLI warning: valid Pro entitlement is present, but this CLI was built without Pro solver/ZEN engine modules"
-                    );
-                }
                 println!(
                     "Licensing endpoint: {}",
                     nxuskit_core::license::license_server_url()
@@ -1312,8 +1446,8 @@ fn handle_license_command(action: LicenseAction) {
                     nxuskit_core::license::license_environment()
                 );
                 println!(
-                    "Signing key: {} ({})",
-                    nxuskit_core::license::embedded_es256_public_key_kid(),
+                    "Signing keys: {} ({})",
+                    public_signing_key_kids().join(", "),
                     public_signing_key_source_label()
                 );
 
@@ -1368,6 +1502,84 @@ fn handle_license_command(action: LicenseAction) {
                 }
             }
         }
+
+        LicenseAction::Inspect {
+            token,
+            json: json_output,
+        } => match nxuskit_core::license::validate_token_full(&token) {
+            Ok(validated) => {
+                let Some(inspection) = validated.deployment_v2 else {
+                    if json_output {
+                        println!(
+                            "{}",
+                            serde_json::json!({
+                                "valid": false,
+                                "result": "not_v2_deployment_token",
+                            })
+                        );
+                    } else {
+                        eprintln!("The token is not a validated v2 deployment token.");
+                    }
+                    process::exit(1);
+                };
+                let output = serde_json::json!({
+                    "valid": true,
+                    "token_type": validated.claims.token_type.to_string(),
+                    "edition": inspection.edition,
+                    "sdk_release_line": inspection.sdk_release_line,
+                    "grant_revision": inspection.grant_revision,
+                    "authorization_scope": inspection.authorization_scope,
+                    "signing_key_id": inspection.signing_key_id,
+                    "token_fingerprint": inspection.token_fingerprint,
+                    "result": "granted",
+                });
+                if json_output {
+                    println!("{}", serde_json::to_string_pretty(&output).unwrap());
+                } else {
+                    println!("Validated v2 deployment token");
+                    println!(
+                        "Edition: {}",
+                        output["edition"].as_str().unwrap_or("unknown")
+                    );
+                    println!(
+                        "SDK release line: {}",
+                        output["sdk_release_line"].as_u64().unwrap_or_default()
+                    );
+                    println!(
+                        "Grant revision: {}",
+                        output["grant_revision"].as_u64().unwrap_or_default()
+                    );
+                    println!(
+                        "Authorization scope: {}",
+                        output["authorization_scope"].as_str().unwrap_or("unknown")
+                    );
+                    println!(
+                        "Signing key: {}",
+                        output["signing_key_id"].as_str().unwrap_or("unknown")
+                    );
+                    println!(
+                        "Token fingerprint: {}",
+                        output["token_fingerprint"].as_str().unwrap_or("unknown")
+                    );
+                }
+            }
+            Err(error) => {
+                // This command deliberately reports only a stable class, not
+                // parser details that could contain caller-controlled input.
+                if json_output {
+                    println!(
+                        "{}",
+                        serde_json::json!({
+                            "valid": false,
+                            "result": error.code(),
+                        })
+                    );
+                } else {
+                    eprintln!("v2 deployment token validation failed: {}", error.code());
+                }
+                process::exit(1);
+            }
+        },
 
         LicenseAction::Activate {
             key,
@@ -1428,8 +1640,14 @@ fn handle_license_command(action: LicenseAction) {
 
             let server_url = nxuskit_core::license::license_server_url();
 
-            // Ensure authenticated before activation
-            match device_auth::ensure_authenticated(&server_url) {
+            // Device authentication may perform blocking HTTP; keep it off the Tokio runtime.
+            let auth_server_url = server_url.clone();
+            let authentication = tokio::task::spawn_blocking(move || {
+                device_auth::ensure_authenticated(&auth_server_url)
+            })
+            .await
+            .expect("device authentication blocking task must join");
+            match authentication {
                 Ok(_bearer_token) => {}
                 Err(e) => {
                     if json_output {
@@ -1446,8 +1664,12 @@ fn handle_license_command(action: LicenseAction) {
             }
 
             if trial {
-                // Trial activation
-                match nxuskit_core::license::trial_issue() {
+                // Trial activation performs blocking HTTP in nxuskit-core.
+                let trial_issuance =
+                    tokio::task::spawn_blocking(nxuskit_core::license::trial_issue)
+                        .await
+                        .expect("trial issuance blocking task must join");
+                match trial_issuance {
                     Ok(result) => {
                         if json_output {
                             let out = serde_json::json!({
@@ -1475,8 +1697,13 @@ fn handle_license_command(action: LicenseAction) {
                     }
                 }
             } else if let Some(purchase_id) = key {
-                // Paid license activation
-                match nxuskit_core::license::activate(&purchase_id) {
+                // Paid activation performs blocking HTTP in nxuskit-core.
+                let paid_activation = tokio::task::spawn_blocking(move || {
+                    nxuskit_core::license::activate(&purchase_id)
+                })
+                .await
+                .expect("paid activation blocking task must join");
+                match paid_activation {
                     Ok(result) => {
                         if json_output {
                             let out = serde_json::json!({
@@ -1594,69 +1821,121 @@ fn handle_license_command(action: LicenseAction) {
 pub(crate) fn create_provider(
     provider: &str,
 ) -> std::result::Result<Box<dyn LLMProvider>, Box<dyn std::error::Error>> {
+    create_provider_with_base_url(provider, None, None)
+}
+
+/// Construct a provider with an optional explicit endpoint.
+///
+/// The override is used by the frozen provider-contract harness for hermetic
+/// loopback proof. Normal CLI use remains unchanged when it is absent.
+pub(crate) fn create_provider_with_base_url(
+    provider: &str,
+    base_url: Option<&str>,
+    default_model: Option<&str>,
+) -> std::result::Result<Box<dyn LLMProvider>, Box<dyn std::error::Error>> {
     match provider.to_lowercase().as_str() {
         // Major providers
         "claude" => {
             let api_key = env::var("ANTHROPIC_API_KEY")
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-            Ok(Box::new(
-                ClaudeProvider::builder().api_key(api_key).build()?,
-            ))
+            let mut builder = ClaudeProvider::builder().api_key(api_key);
+            if let Some(url) = base_url {
+                builder = builder.base_url(url);
+            }
+            Ok(Box::new(builder.build()?))
         }
         "openai" => {
             let api_key = env::var("OPENAI_API_KEY")
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-            Ok(Box::new(
-                OpenAIProvider::builder().api_key(api_key).build()?,
-            ))
+            let mut builder = OpenAIProvider::builder().api_key(api_key);
+            if let Some(url) = base_url {
+                builder = builder.base_url(url);
+            }
+            Ok(Box::new(builder.build()?))
         }
-        "ollama" => Ok(Box::new(OllamaProvider::builder().build()?)),
+        "ollama" | "ollama_local" | "ollama_cloud_via_daemon" => {
+            let mut builder = OllamaProvider::builder();
+            if let Some(url) = base_url {
+                builder = builder.base_url(url);
+            }
+            Ok(Box::new(builder.build()?))
+        }
 
         // Local providers
-        "lmstudio" | "lm-studio" => Ok(Box::new(LmStudioProvider::builder().build()?)),
+        "lmstudio" | "lm-studio" => {
+            let mut builder = LmStudioProvider::builder().model(default_model.unwrap_or("default"));
+            if let Some(url) = base_url {
+                builder = builder.base_url(url);
+            }
+            Ok(Box::new(builder.build()?))
+        }
         "loopback" => Ok(Box::new(LoopbackProvider::new())),
 
         // OpenAI-compatible cloud providers
         "fireworks" => {
             let api_key = env::var("FIREWORKS_API_KEY")
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-            Ok(Box::new(
-                FireworksProvider::builder().api_key(api_key).build()?,
-            ))
+            let mut builder = FireworksProvider::builder().api_key(api_key);
+            if let Some(url) = base_url {
+                builder = builder.base_url(url);
+            }
+            Ok(Box::new(builder.build()?))
         }
         "xai" => {
             let api_key =
                 env::var("XAI_API_KEY").map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-            Ok(Box::new(XaiProvider::builder().api_key(api_key).build()?))
+            let mut builder = XaiProvider::builder().api_key(api_key);
+            if let Some(url) = base_url {
+                builder = builder.base_url(url);
+            }
+            Ok(Box::new(builder.build()?))
         }
         "groq" => {
             let api_key =
                 env::var("GROQ_API_KEY").map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-            Ok(Box::new(GroqProvider::builder().api_key(api_key).build()?))
+            let mut builder = GroqProvider::builder().api_key(api_key);
+            if let Some(url) = base_url {
+                builder = builder.base_url(url);
+            }
+            Ok(Box::new(builder.build()?))
         }
         "mistral" => {
             let api_key = env::var("MISTRAL_API_KEY")
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-            Ok(Box::new(MistralProvider::new(api_key)))
+            let provider_impl = MistralProvider::new(api_key);
+            let provider_impl = match base_url {
+                Some(url) => provider_impl.with_base_url(url),
+                None => provider_impl,
+            };
+            Ok(Box::new(provider_impl))
         }
         "openrouter" => {
             let api_key = env::var("OPENROUTER_API_KEY")
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-            Ok(Box::new(OpenRouterProvider::new(api_key)))
+            let provider_impl = OpenRouterProvider::new(api_key);
+            let provider_impl = match base_url {
+                Some(url) => provider_impl.with_base_url(url),
+                None => provider_impl,
+            };
+            Ok(Box::new(provider_impl))
         }
         "perplexity" => {
             let api_key = env::var("PERPLEXITY_API_KEY")
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-            Ok(Box::new(
-                PerplexityProvider::builder().api_key(api_key).build()?,
-            ))
+            let mut builder = PerplexityProvider::builder().api_key(api_key);
+            if let Some(url) = base_url {
+                builder = builder.base_url(url);
+            }
+            Ok(Box::new(builder.build()?))
         }
         "together" => {
             let api_key = env::var("TOGETHER_API_KEY")
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-            Ok(Box::new(
-                TogetherProvider::builder().api_key(api_key).build()?,
-            ))
+            let mut builder = TogetherProvider::builder().api_key(api_key);
+            if let Some(url) = base_url {
+                builder = builder.base_url(url);
+            }
+            Ok(Box::new(builder.build()?))
         }
 
         // Test/debug provider
@@ -1689,7 +1968,7 @@ pub(crate) fn create_provider(
             "Unknown provider: '{}'. Supported providers:\n  \
              - claude (ANTHROPIC_API_KEY)\n  \
              - openai (OPENAI_API_KEY)\n  \
-             - ollama (local, no key required)\n  \
+             - ollama / ollama_local / ollama_cloud_via_daemon (no key required)\n  \
              - lmstudio (local, no key required)\n  \
              - loopback (echo, for testing)\n  \
              - fireworks (FIREWORKS_API_KEY)\n  \

@@ -42,7 +42,6 @@ reqwest = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }
 
-
 [dev-dependencies]
 tempfile = "3"
 p256 = { workspace = true }
@@ -57,10 +56,16 @@ harness = false
 name = "license_offline_check"
 harness = false
 
+[[bench]]
+name = "provider_surface"
+harness = false
+
 [build-dependencies]
 cbindgen = "0.29"
 serde = { version = "1.0", features = ["derive"] }
-serde_yaml_ng = "0.10"
+serde_json = { workspace = true }
+serde_yaml_ng = { package = "serde_yaml_bw", version = "=2.5.8" }
+sha2 = { workspace = true }
 
 [lints]
 workspace = true

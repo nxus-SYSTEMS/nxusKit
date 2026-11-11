@@ -36,7 +36,7 @@ fn make_developer_token() -> (String, String) {
         .to_string();
 
     // Build public key PEM from the SEC1 encoded point
-    let point = verifying_key.to_encoded_point(false);
+    let point = verifying_key.to_sec1_point(false);
     let point_bytes = point.as_bytes();
 
     let algo_oid: &[u8] = &[

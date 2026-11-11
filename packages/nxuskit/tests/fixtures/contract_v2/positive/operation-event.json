@@ -1,0 +1,21 @@
+{
+  "contract_version": "2.0-alpha",
+  "event_id": "evt.fixture.001",
+  "operation_id": "op.fixture.001",
+  "correlation_id": "corr.fixture.001",
+  "causality_id": "cause.fixture.001",
+  "event_kind": "result_available",
+  "status": "succeeded",
+  "refs": [
+    {
+      "kind": "packet",
+      "packet_id": "packet.fixture.result",
+      "locality": "remote",
+      "trust": "verified",
+      "classification": "preview"
+    }
+  ],
+  "message": "result packet is available",
+  "occurred_at": "2026-06-05T00:00:03Z",
+  "classification": "preview"
+}

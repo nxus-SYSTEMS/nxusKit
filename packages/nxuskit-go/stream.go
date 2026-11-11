@@ -2,12 +2,18 @@ package nxuskit
 
 // StreamChunk represents an incremental piece of a streaming response.
 type StreamChunk struct {
+	// ProviderMetadata is present only on a successful terminal chunk.
+	ProviderMetadata map[string]any `json:"provider_metadata,omitempty"`
 	// Delta is the incremental text content.
 	Delta string `json:"delta"`
 	// Thinking contains incremental chain-of-thought reasoning (if enabled).
 	Thinking *string `json:"thinking,omitempty"`
 	// FinishReason is set on the final chunk to indicate why generation stopped.
 	FinishReason *FinishReason `json:"finish_reason,omitempty"`
+	// RawFinishReason preserves the provider's unmodified value, including unknown values.
+	RawFinishReason *string `json:"raw_finish_reason,omitempty"`
+	// Terminal identifies protocol completion independently of a known finish reason.
+	Terminal bool `json:"terminal,omitempty"`
 	// Usage contains token counts (typically only on the final chunk).
 	Usage *TokenUsage `json:"usage,omitempty"`
 	// ToolCalls contains incremental tool call data during streaming.
@@ -41,7 +47,7 @@ type FunctionCallDelta struct {
 
 // IsFinal returns true if this is the final chunk (FinishReason is set).
 func (sc StreamChunk) IsFinal() bool {
-	return sc.FinishReason != nil
+	return sc.Terminal || sc.FinishReason != nil
 }
 
 // HasThinking returns true if this chunk contains thinking content.
@@ -74,6 +80,7 @@ func FinalChunk(delta string, reason FinishReason, usage *TokenUsage) StreamChun
 	return StreamChunk{
 		Delta:        delta,
 		FinishReason: &reason,
+		Terminal:     true,
 		Usage:        usage,
 	}
 }

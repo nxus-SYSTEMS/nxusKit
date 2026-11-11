@@ -1,0 +1,229 @@
+{
+  "schema_version": "nxus-spec119-rust-stream-fixtures/v1",
+  "definition_candidate": "50516e36b26c9754e3092e5ba10e80396f8837e6",
+  "queue_capacity": 16,
+  "terminal_kinds": ["complete", "error", "cancelled"],
+  "assertion_groups": [8, 6, 8, 4, 6, 6, 4],
+  "cases": [
+    {
+      "id": "ollama-baseline",
+      "provider": "ollama_local",
+      "oracle": "STREAM-BASELINE",
+      "provenance": "Hand-authored from accepted STREAM-BASELINE and the accepted Ollama wire contract; production mappers did not generate these bytes.",
+      "config": {
+        "provider_id": "ollama_local",
+        "model": "llama3.2",
+        "endpoint": "http://127.0.0.1:11434",
+        "auth_selector": null,
+        "transport": "native",
+        "connect_timeout_ms": 1000,
+        "read_timeout_ms": 1000
+      },
+      "request": {
+        "messages": [{"role": "user", "content": "Return JSON"}],
+        "model": null,
+        "metadata": {},
+        "temperature": null,
+        "max_tokens": null,
+        "top_p": null,
+        "top_k": null,
+        "min_p": null,
+        "seed": null,
+        "stop": [],
+        "presence_penalty": null,
+        "frequency_penalty": null,
+        "reasoning_effort": null,
+        "response_format": null,
+        "thinking": "disabled",
+        "logprobs": null,
+        "top_logprobs": null,
+        "tools": []
+      },
+      "outgoing_wire": {
+        "model": "llama3.2",
+        "messages": [{"role": "user", "content": "Return JSON"}],
+        "stream": true,
+        "think": false
+      },
+      "provider_frames": [
+        {"message": {"role": "assistant", "content": "{\"x\":\"€"}, "done": false},
+        {"message": {"role": "assistant", "content": "1\"}"}, "done": true, "done_reason": "stop", "prompt_eval_count": 10, "eval_count": 2}
+      ],
+      "public_events": [
+        {"type": "start"},
+        {"type": "content", "delta": "{\"x\":\"€"},
+        {"type": "complete", "content": "1\"}", "canonical_finish": "stop", "raw_finish": "stop", "usage": {"prompt": 10, "completion": 2, "total": 12, "is_estimated": false}}
+      ],
+      "terminal": "complete"
+    },
+    {
+      "id": "ollama-reasoning",
+      "provider": "ollama_local",
+      "oracle": "STREAM-REASONING",
+      "provenance": "Hand-authored from accepted STREAM-REASONING; content and thinking remain distinct events.",
+      "config": {
+        "provider_id": "ollama_local",
+        "model": "qwen3",
+        "endpoint": "http://127.0.0.1:11434",
+        "auth_selector": null,
+        "transport": "native",
+        "connect_timeout_ms": 1000,
+        "read_timeout_ms": 1000
+      },
+      "request": {
+        "messages": [{"role": "user", "content": "Return JSON"}],
+        "model": null,
+        "metadata": {},
+        "temperature": null,
+        "max_tokens": null,
+        "top_p": null,
+        "top_k": null,
+        "min_p": null,
+        "seed": null,
+        "stop": [],
+        "presence_penalty": null,
+        "frequency_penalty": null,
+        "reasoning_effort": null,
+        "response_format": null,
+        "thinking": "enabled",
+        "logprobs": null,
+        "top_logprobs": null,
+        "tools": []
+      },
+      "outgoing_wire": {
+        "model": "qwen3",
+        "messages": [{"role": "user", "content": "Return JSON"}],
+        "stream": true,
+        "think": true
+      },
+      "provider_frames": [
+        {"message": {"role": "assistant", "content": "{\"x\":", "thinking": "reason"}, "done": false},
+        {"message": {"role": "assistant", "content": "1}"}, "done": true, "done_reason": "stop", "prompt_eval_count": 10, "eval_count": 2}
+      ],
+      "public_events": [
+        {"type": "start"},
+        {"type": "content", "delta": "{\"x\":"},
+        {"type": "thinking", "delta": "reason"},
+        {"type": "complete", "content": "1}", "canonical_finish": "stop", "raw_finish": "stop", "usage": {"prompt": 10, "completion": 2, "total": 12, "is_estimated": false}}
+      ],
+      "terminal": "complete"
+    },
+    {
+      "id": "openai-baseline",
+      "provider": "openai",
+      "oracle": "STREAM-BASELINE",
+      "provenance": "Hand-authored from accepted STREAM-BASELINE and OpenAI SSE semantics; production serializers did not generate it.",
+      "config": {
+        "provider_id": "openai",
+        "model": "gpt-4o-mini",
+        "endpoint": "http://127.0.0.1:8080/v1",
+        "auth_selector": "fixture-openai",
+        "transport": "native",
+        "connect_timeout_ms": 1000,
+        "read_timeout_ms": 1000
+      },
+      "request": {
+        "messages": [{"role": "user", "content": "Return JSON"}],
+        "model": null,
+        "metadata": {},
+        "temperature": null,
+        "max_tokens": null,
+        "top_p": null,
+        "top_k": null,
+        "min_p": null,
+        "seed": null,
+        "stop": [],
+        "presence_penalty": null,
+        "frequency_penalty": null,
+        "reasoning_effort": null,
+        "response_format": null,
+        "thinking": null,
+        "logprobs": null,
+        "top_logprobs": null,
+        "tools": []
+      },
+      "outgoing_wire": {
+        "model": "gpt-4o-mini",
+        "messages": [{"role": "user", "content": "Return JSON"}],
+        "stream": true
+      },
+      "provider_frames": [
+        {"choices": [{"delta": {"content": "{\"x\":\"€"}, "finish_reason": null}]},
+        {"choices": [{"delta": {"content": "1\"}"}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12}}
+      ],
+      "public_events": [
+        {"type": "start"},
+        {"type": "content", "delta": "{\"x\":\"€"},
+        {"type": "complete", "content": "1\"}", "canonical_finish": "stop", "raw_finish": "stop", "usage": {"prompt": 10, "completion": 2, "total": 12, "is_estimated": false}}
+      ],
+      "terminal": "complete"
+    },
+    {
+      "id": "openai-reasoning-unsupported",
+      "provider": "openai",
+      "error": "unsupported_capability",
+      "provenance": "Accepted capability matrix: OpenAI reasoning streaming is rejected before transport.",
+      "config": {
+        "provider_id": "openai",
+        "model": "gpt-4o-mini",
+        "endpoint": "http://127.0.0.1:8080/v1",
+        "auth_selector": "fixture-openai",
+        "transport": "native",
+        "connect_timeout_ms": 1000,
+        "read_timeout_ms": 1000
+      },
+      "request": {
+        "messages": [{"role": "user", "content": "Return JSON"}],
+        "model": null,
+        "metadata": {},
+        "temperature": null,
+        "max_tokens": null,
+        "top_p": null,
+        "top_k": null,
+        "min_p": null,
+        "seed": null,
+        "stop": [],
+        "presence_penalty": null,
+        "frequency_penalty": null,
+        "reasoning_effort": null,
+        "response_format": null,
+        "thinking": "enabled",
+        "logprobs": null,
+        "top_logprobs": null,
+        "tools": []
+      },
+      "outgoing_wire": null,
+      "provider_frames": [],
+      "public_events": [],
+      "terminal": null
+    },
+    {
+      "id": "ollama-error",
+      "provider": "ollama_local",
+      "request_case_id": "ollama-baseline",
+      "terminal": "error",
+      "provenance": "Post-establishment provider failure maps to one typed terminal and no later event.",
+      "provider_frames": [
+        {"failure": {"kind": "network", "message": "redacted transport failure"}}
+      ],
+      "public_events": [
+        {"type": "start"},
+        {"type": "error", "error": {"code": "network", "message": "Ollama request failed: Network", "field": null, "retry_after_ms": null}}
+      ]
+    },
+    {
+      "id": "openai-cancel",
+      "provider": "openai",
+      "request_case_id": "openai-baseline",
+      "terminal": "cancelled",
+      "provenance": "Explicit cancellation suppresses queued content and yields one canonical cancelled terminal.",
+      "provider_frames": [
+        {"choices": [{"delta": {"content": "must-not-be-visible-after-cancel"}, "finish_reason": null}]}
+      ],
+      "public_events": [
+        {"type": "start"},
+        {"type": "cancelled", "error": {"code": "cancelled", "message": "provider stream cancelled", "field": null, "retry_after_ms": null}}
+      ]
+    }
+  ]
+}

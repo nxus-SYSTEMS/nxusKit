@@ -160,6 +160,25 @@ class TestParseNxuskitError:
         assert isinstance(err, FeatureUnavailableError)
         assert err.feature == "clips"
 
+    def test_parse_unsupported_capability_preserves_type_and_provider(self):
+        err = _parse_err(
+            {
+                "error_type": "unsupported_capability",
+                "message": "stop",
+                "provider": "perplexity",
+            }
+        )
+        assert isinstance(err, ProviderError)
+        assert err.error_type == "unsupported_capability"
+        assert err.provider == "perplexity"
+        assert str(err) == "stop"
+
+    def test_parse_invalid_request_preserves_type(self):
+        err = _parse_err({"error_type": "invalid_request", "message": "bad request"})
+        assert isinstance(err, ProviderError)
+        assert err.error_type == "invalid_request"
+        assert str(err) == "bad request"
+
     def test_parse_unknown_type_falls_back_to_provider_error(self):
         err = _parse_err({"error_type": "some_new_thing", "message": "surprise"})
         assert isinstance(err, ProviderError)

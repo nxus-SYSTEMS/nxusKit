@@ -28,6 +28,7 @@ from nxuskit._ffi_errors import (
     LicenseRequiredError,
     NxuskitError,
     ProviderError,
+    TimeoutError,
 )
 from nxuskit._ffi_types import chat_response_from_ffi, model_info_from_ffi, stream_chunk_from_ffi
 from nxuskit.types import ChatResponse, ModelInfo, StreamChunk
@@ -43,8 +44,11 @@ def _parse_nxuskit_error(err_obj: dict[str, Any]) -> NxuskitError:
     error_type = err_obj.get("error_type", "internal")
     message = err_obj.get("message", "Unknown error")
     feature = err_obj.get("feature")
+    provider = err_obj.get("provider") or feature
 
     match error_type:
+        case "timeout":
+            return TimeoutError("Provider request timed out", provider=provider)
         case "license_required":
             return LicenseRequiredError(message, feature=feature)
         case "license_expired":
@@ -54,8 +58,17 @@ def _parse_nxuskit_error(err_obj: dict[str, Any]) -> NxuskitError:
             return EditionInsufficientError(message, feature=feature, required_edition=edition)
         case "feature_unavailable":
             return FeatureUnavailableError(message, feature=feature)
+        case "unsupported_capability" | "invalid_request":
+            return ProviderError(message, provider=provider, error_type=error_type)
+        case "rate_limited":
+            return ProviderError(
+                message,
+                provider=provider,
+                error_type="rate_limited",
+                retry_after_ms=err_obj.get("retry_after_ms"),
+            )
         case _:
-            return ProviderError(f"{error_type}: {message}", provider=feature)
+            return ProviderError(f"{error_type}: {message}", provider=provider)
 
 
 class FFIProvider:
@@ -70,11 +83,18 @@ class FFIProvider:
             resp = provider.chat(request)
     """
 
-    def __init__(self, handle: Any, provider_type: str = ""):
+    def __init__(
+        self,
+        handle: Any,
+        provider_type: str = "",
+        *,
+        declared_profile: str | None = None,
+    ):
         import atexit
 
         self._handle = handle
         self._provider_type = provider_type
+        self._declared_profile = declared_profile
         self._closed = False
         # Register cleanup before interpreter shutdown to avoid __del__ segfault
         atexit.register(self.close)
@@ -114,7 +134,9 @@ class FFIProvider:
         if "error" in raw and raw["error"]:
             raise _parse_nxuskit_error(raw["error"])
 
-        return chat_response_from_ffi(raw)
+        result = chat_response_from_ffi(raw)
+        result.declared_profile = self._declared_profile
+        return result
 
     def stream(self, request: dict[str, Any]) -> Iterator[StreamChunk]:
         """Send a streaming chat request.
@@ -143,7 +165,9 @@ class FFIProvider:
                 return 0
             try:
                 raw = json.loads(ffi.string(chunk_json).decode("utf-8"))
-                chunk_queue.put(stream_chunk_from_ffi(raw))
+                chunk = stream_chunk_from_ffi(raw)
+                chunk.declared_profile = self._declared_profile
+                chunk_queue.put(chunk)
             except Exception:
                 pass  # Skip malformed chunks
             return 0
@@ -163,6 +187,12 @@ class FFIProvider:
         stream = lib.nxuskit_chat_stream(self._handle, req_json, on_chunk, on_done, ffi.NULL)
         if stream == ffi.NULL:
             err = last_error() or "unknown error"
+            try:
+                structured = json.loads(err)
+            except (ValueError, TypeError):
+                structured = None
+            if isinstance(structured, dict) and structured.get("error_type"):
+                raise _parse_nxuskit_error(structured)
             raise ProviderError(
                 f"chat_stream failed: {err}",
                 provider=self._provider_type,
@@ -235,7 +265,11 @@ class FFIProvider:
             pass
 
 
-def create_ffi_provider(config: dict[str, Any]) -> FFIProvider:
+def create_ffi_provider(
+    config: dict[str, Any],
+    *,
+    declared_profile: str | None = None,
+) -> FFIProvider:
     """Create a provider backed by the nxuskit shared library.
 
     Args:
@@ -260,4 +294,8 @@ def create_ffi_provider(config: dict[str, Any]) -> FFIProvider:
             provider=config.get("provider_type"),
         )
 
-    return FFIProvider(handle, provider_type=config.get("provider_type", ""))
+    return FFIProvider(
+        handle,
+        provider_type=config.get("provider_type", ""),
+        declared_profile=declared_profile,
+    )

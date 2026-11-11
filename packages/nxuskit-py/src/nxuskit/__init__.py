@@ -70,6 +70,7 @@ from nxuskit.tools import (
 )
 from nxuskit.types import (
     PUBLIC_CAPABILITY_FIELDS,
+    AdapterCapabilities,
     CapabilityStatus,
     ChatRequest,
     ChatResponse,
@@ -183,6 +184,7 @@ __all__ = [
     "CapabilityStatus",
     "ManifestPublicationPosture",
     "PUBLIC_CAPABILITY_FIELDS",
+    "AdapterCapabilities",
     "PublicProviderCapability",
     "PublicCapabilityManifest",
     "LogprobsData",

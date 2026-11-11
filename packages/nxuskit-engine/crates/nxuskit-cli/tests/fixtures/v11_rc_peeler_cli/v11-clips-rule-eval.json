@@ -1,0 +1,15 @@
+{
+  "contract_version": "1.1",
+  "pipeline_id": "v11-clips-rule-eval",
+  "version": "1.0.0",
+  "stages": [
+    {
+      "name": "evaluate_rules",
+      "stage_type": "clips_rule_eval",
+      "capability_ref": "rule_eval.generic",
+      "inputs": [],
+      "outputs": [],
+      "metadata": {}
+    }
+  ]
+}

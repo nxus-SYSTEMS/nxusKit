@@ -169,6 +169,7 @@ impl MockProviderBuilder {
 #[async_trait]
 impl LLMProvider for MockProvider {
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse> {
+        request.validate_legacy_sampling(self.provider_name())?;
         let start_time = std::time::Instant::now();
 
         // Adapt request to provider capabilities
@@ -197,8 +198,9 @@ impl LLMProvider for MockProvider {
 
     async fn chat_stream(
         &self,
-        _request: &ChatRequest,
+        request: &ChatRequest,
     ) -> Result<Box<dyn Stream<Item = Result<StreamChunk>> + Send + Unpin>> {
+        request.validate_legacy_sampling(self.provider_name())?;
         let response = self.response.clone();
         let injected = self.streaming_logprobs.clone();
 

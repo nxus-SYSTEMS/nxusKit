@@ -8,6 +8,8 @@
 
 use std::path::PathBuf;
 
+use nxuskit_engine::LLMProvider;
+use nxuskit_engine::providers::OllamaProvider;
 use nxuskit_engine::types::StreamChunk;
 use serde_json::Value;
 
@@ -275,17 +277,21 @@ fn per_provider_capability_flags_match_specification() {
         "lmstudio: false (no fixture/parser proof; T069 may flip)"
     );
 
-    // Ollama: no documented streaming-logprob field per reconciled decision.
-    // Task T070 (local live test) covers verification.
-    let ollama = ProviderCapabilities {
-        supports_logprobs: false,
-        supports_streaming_logprobs: false,
-        ..Default::default()
-    };
+    // Ollama /api/chat documents stream logprobs; bind the assertion to
+    // the real adapter capability instead of a hand-constructed stale record.
+    let ollama = OllamaProvider::builder()
+        .build()
+        .unwrap()
+        .get_capabilities();
     assert!(
-        !ollama.supports_streaming_logprobs,
-        "ollama: false (reconciled decision; T070 may flip)"
+        ollama.supports_logprobs,
+        "ollama unary logprobs must be true"
     );
+    assert!(
+        ollama.supports_streaming_logprobs,
+        "ollama streaming logprobs must be true"
+    );
+    assert_eq!(ollama.max_logprobs, Some(20));
 
     // Fireworks: treat as false until a recorded fixture proves otherwise.
     // Reconciled planning decision for Sprint 1.

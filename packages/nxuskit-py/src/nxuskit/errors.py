@@ -44,10 +44,17 @@ class RateLimitError(LLMError):
         provider: Optional[str] = None,
         model: Optional[str] = None,
         retry_after: Optional[float] = None,
+        retry_after_ms: Optional[int] = None,
     ):
-        """Initialize RateLimitError."""
+        """Initialize RateLimitError with canonical and legacy retry metadata."""
         super().__init__(message, status_code, provider, model)
+        if retry_after_ms is None and retry_after is not None:
+            retry_after_ms = int(retry_after * 1000)
+        elif retry_after is None and retry_after_ms is not None:
+            retry_after = retry_after_ms / 1000
+        self.code = "rate_limited"
         self.retry_after = retry_after
+        self.retry_after_ms = retry_after_ms
 
     @property
     def is_retryable(self) -> bool:

@@ -12,6 +12,7 @@ use crate::{
     TokenUsage,
     error::{NxuskitError, Result},
     parameter_adapter::{AdaptedRequest, ParameterAdapter},
+    provider::ProviderContractMapper,
     token_estimator::{StreamingTokenAccumulator, TokenEstimator},
     types::{
         ContentPart, FinishReason, ImageData, InferenceMetadata, LogprobsData, MessageContent,
@@ -31,6 +32,32 @@ pub struct OpenAIProvider {
     connection_timeout: Duration,
     stream_read_timeout: Duration,
     total_timeout: Duration,
+}
+
+impl OpenAIProvider {
+    /// Static adapter declarations, not model or endpoint-effective support.
+    pub fn adapter_capabilities() -> ProviderCapabilities {
+        let caps = ProviderCapabilities {
+            supports_system_messages: true,
+            supports_streaming: true,
+            supports_vision: true,
+            max_stop_sequences: Some(4),
+            supports_presence_penalty: true,
+            supports_frequency_penalty: true,
+            supports_seed: true,
+            supports_logprobs: true,
+            supports_streaming_logprobs: true,
+            supports_json_mode: true,
+            supports_json_schema: true,
+            penalty_range: Some((-2.0, 2.0)),
+            max_logprobs: Some(20),
+        };
+        debug_assert!(
+            caps.supports_logprobs || !caps.supports_streaming_logprobs,
+            "supports_streaming_logprobs implies supports_logprobs"
+        );
+        caps
+    }
 }
 
 impl OpenAIProvider {
@@ -111,7 +138,13 @@ impl OpenAIProvider {
             .structured_output
             .as_ref()
             .map(crate::capabilities::openai_wire::response_format)
-            .unwrap_or(serde_json::Value::Null);
+            .unwrap_or_else(|| match &adapted_request.response_format {
+                None | Some(crate::types::ResponseFormat::Text) => serde_json::Value::Null,
+                Some(crate::types::ResponseFormat::Json) => serde_json::json!({"type":"json_object"}),
+                Some(crate::types::ResponseFormat::JsonSchema { schema }) => serde_json::json!({
+                    "type":"json_schema", "json_schema":{"name":"response", "strict":true, "schema":schema}
+                }),
+            });
         let (tools, tool_choice, parallel_tool_calls) =
             match adapted_request.tool_call_config.as_ref() {
                 Some(cfg) => (
@@ -119,7 +152,18 @@ impl OpenAIProvider {
                     crate::capabilities::openai_wire::tool_choice_for(&record, cfg),
                     cfg.parallel_tool_calls,
                 ),
-                None => (serde_json::Value::Null, serde_json::Value::Null, None),
+                None => (
+                    adapted_request
+                        .tools
+                        .as_ref()
+                        .map(|tools| serde_json::json!(tools))
+                        .unwrap_or(serde_json::Value::Null),
+                    adapted_request
+                        .tool_choice
+                        .clone()
+                        .unwrap_or(serde_json::Value::Null),
+                    None,
+                ),
             };
 
         Ok((
@@ -129,8 +173,13 @@ impl OpenAIProvider {
                 temperature: adapted_request.temperature,
                 max_tokens: adapted_request.max_tokens,
                 top_p: adapted_request.top_p,
+                stop: adapted_request.stop.clone(),
+                presence_penalty: adapted_request.presence_penalty,
+                frequency_penalty: adapted_request.frequency_penalty,
+                seed: adapted_request.seed,
                 logprobs: adapted_request.logprobs,
                 top_logprobs: adapted_request.top_logprobs,
+                reasoning_effort: adapted_request.reasoning_effort.clone(),
                 stream,
                 stream_options: if stream {
                     Some(OpenAIStreamOptions {
@@ -234,8 +283,7 @@ impl OpenAIProvider {
         let status = response.status();
         if !status.is_success() {
             let retry_after = super::parse_retry_after(response.headers());
-            let error_text = response
-                .text()
+            let error_text = crate::provider::http::read_response_text_bounded(response)
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(match status.as_u16() {
@@ -245,7 +293,8 @@ impl OpenAIProvider {
             });
         }
 
-        let responses_response: OpenAIResponsesResponse = response.json().await?;
+        let responses_response: OpenAIResponsesResponse =
+            crate::provider::http::read_response_json_bounded(response).await?;
         let content = extract_responses_text(&responses_response);
         let model = responses_response
             .model
@@ -264,22 +313,39 @@ impl OpenAIProvider {
                 ))
             });
         let finish_reason = match responses_response.status.as_deref() {
-            Some("incomplete") => FinishReason::Length,
-            Some("failed") | Some("cancelled") => FinishReason::Error,
-            _ => FinishReason::Stop,
+            Some("completed") => Some(FinishReason::Stop),
+            Some("failed" | "cancelled") => {
+                return Err(NxuskitError::provider(
+                    200,
+                    format!(
+                        "OpenAI Responses terminal status: {}",
+                        responses_response.status.as_deref().unwrap()
+                    ),
+                ));
+            }
+            _ => None,
         };
+        let is_complete = matches!(
+            responses_response.status.as_deref(),
+            Some("completed" | "incomplete")
+        );
 
         let mut chat_response = ChatResponse::new(content, model, usage);
         chat_response.provider = self.provider_name().to_string();
-        chat_response.finish_reason = Some(finish_reason);
+        chat_response.finish_reason = finish_reason;
+        chat_response.raw_finish_reason = responses_response.status;
         chat_response.warnings = adapted.warnings;
-        chat_response.inference_metadata = InferenceMetadata::completed(finish_reason)
-            .with_token_usage(chat_response.usage.clone())
-            .with_provider_metadata(serde_json::json!({
-                "provider": "openai",
-                "transport": "responses",
-                "response_id": responses_response.id,
-            }));
+        chat_response.inference_metadata = InferenceMetadata {
+            is_complete,
+            finish_reason,
+            ..InferenceMetadata::default()
+        }
+        .with_token_usage(chat_response.usage.clone())
+        .with_provider_metadata(serde_json::json!({
+            "provider": "openai",
+            "transport": "responses",
+            "response_id": responses_response.id,
+        }));
 
         Ok(chat_response)
     }
@@ -377,6 +443,7 @@ fn enrich_openai_model(info: &mut ModelInfo) {
 #[async_trait]
 impl LLMProvider for OpenAIProvider {
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse> {
+        request.validate_legacy_sampling(self.provider_name())?;
         if request.openai_responses.is_some() {
             return self.chat_responses(request).await;
         }
@@ -396,8 +463,7 @@ impl LLMProvider for OpenAIProvider {
         let status = response.status();
         if !status.is_success() {
             let retry_after = super::parse_retry_after(response.headers());
-            let error_text = response
-                .text()
+            let error_text = crate::provider::http::read_response_text_bounded(response)
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(match status.as_u16() {
@@ -407,7 +473,8 @@ impl LLMProvider for OpenAIProvider {
             });
         }
 
-        let openai_response: OpenAIResponse = response.json().await?;
+        let openai_response: OpenAIResponse =
+            crate::provider::http::read_response_json_bounded(response).await?;
 
         let choice =
             openai_response
@@ -451,18 +518,22 @@ impl LLMProvider for OpenAIProvider {
         );
         response.provider = self.provider_name().to_string();
         response.finish_reason = finish_reason;
+        response.raw_finish_reason = choice.finish_reason;
         response.logprobs = logprobs;
 
         // Add parameter adaptation warnings
         response.warnings = adapted.warnings;
 
         // Populate inference metadata
-        response.inference_metadata =
-            InferenceMetadata::completed(response.finish_reason.unwrap_or(FinishReason::Stop))
-                .with_token_usage(response.usage.clone())
-                .with_provider_metadata(serde_json::json!({
-                    "provider": "openai"
-                }));
+        response.inference_metadata = InferenceMetadata {
+            is_complete: true,
+            finish_reason: response.finish_reason,
+            ..InferenceMetadata::default()
+        }
+        .with_token_usage(response.usage.clone())
+        .with_provider_metadata(serde_json::json!({
+            "provider": "openai"
+        }));
 
         Ok(response)
     }
@@ -471,6 +542,7 @@ impl LLMProvider for OpenAIProvider {
         &self,
         request: &ChatRequest,
     ) -> Result<Box<dyn Stream<Item = Result<StreamChunk>> + Send + Unpin>> {
+        request.validate_legacy_sampling(self.provider_name())?;
         let (openai_request, adapted) = self.build_openai_request(request, true)?;
 
         // Note: The client already has timeouts configured via build_http_client():
@@ -493,8 +565,7 @@ impl LLMProvider for OpenAIProvider {
         let status = response.status();
         if !status.is_success() {
             let retry_after = super::parse_retry_after(response.headers());
-            let error_text = response
-                .text()
+            let error_text = crate::provider::http::read_response_text_bounded(response)
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(match status.as_u16() {
@@ -504,93 +575,7 @@ impl LLMProvider for OpenAIProvider {
             });
         }
 
-        let stream = response.bytes_stream();
-        let mut buffer = String::new();
-
-        // Create token estimator for the model (outside stream! macro to avoid lifetime issues)
-        let model = adapted.request.model.clone();
-        let estimator = TokenEstimator::for_model(&model);
-        let prompt_tokens = estimator.count_messages(&adapted.request.messages);
-
-        let output_stream = stream! {
-            // Create accumulator with pre-calculated prompt tokens
-            let mut accumulator = StreamingTokenAccumulator::new(estimator, prompt_tokens);
-
-            let mut stream = stream;
-            let mut finish_reason = crate::types::FinishReason::Stop;
-
-            'stream_loop: loop {
-                match stream.next().await {
-                    Some(Ok(bytes)) => {
-                        let text = String::from_utf8_lossy(&bytes);
-                        buffer.push_str(&text);
-
-                        // Process complete SSE events
-                        while let Some(pos) = buffer.find("\n\n") {
-                            let event = buffer[..pos].to_string();
-                            buffer = buffer[pos + 2..].to_string();
-
-                            if let Some(data) = event.strip_prefix("data: ") {
-                                if data == "[DONE]" {
-                                    // Done - finalize on next iteration
-                                    break 'stream_loop;
-                                }
-
-                                match serde_json::from_str::<OpenAIStreamChunk>(data) {
-                                    Ok(chunk_data) => {
-                                        // Capture actual usage if provided
-                                        if let Some(usage) = chunk_data.usage {
-                                            let actual = TokenCount::new(usage.prompt_tokens, usage.completion_tokens);
-                                            accumulator.set_actual(actual);
-                                        }
-
-                                        if let Some(choice) = chunk_data.choices.into_iter().next() {
-                                            let logprobs_delta = decode_oai_logprob_delta(choice.logprobs);
-                                            if let Some(content) = choice.delta.content {
-                                                accumulator.add_chunk(&content);
-                                                let mut stream_chunk = StreamChunk::new(content);
-                                                stream_chunk.usage = Some(accumulator.running_total());
-                                                stream_chunk.logprobs = logprobs_delta;
-                                                yield Ok(stream_chunk);
-                                            } else if logprobs_delta.is_some() {
-                                                // Logprobs without content delta — rare but possible;
-                                                // surface via an empty-delta chunk so consumers see them.
-                                                let mut stream_chunk = StreamChunk::new(String::new());
-                                                stream_chunk.usage = Some(accumulator.running_total());
-                                                stream_chunk.logprobs = logprobs_delta;
-                                                yield Ok(stream_chunk);
-                                            }
-                                            if let Some(reason_str) = choice.finish_reason {
-                                                finish_reason = crate::types::FinishReason::from_str_flexible(&reason_str)
-                                                    .unwrap_or(crate::types::FinishReason::Stop);
-                                                break 'stream_loop;
-                                            }
-                                        }
-                                    }
-                                    Err(e) => {
-                                        yield Err(NxuskitError::Stream(format!("Failed to parse stream chunk: {}", e)));
-                                        break 'stream_loop;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Some(Err(e)) => {
-                        accumulator.mark_interrupted();
-                        finish_reason = crate::types::FinishReason::Error;
-                        yield Err(NxuskitError::Network(e));
-                        break 'stream_loop;
-                    }
-                    None => break 'stream_loop,
-                }
-            }
-
-            // Send final chunk after stream ends
-            let final_usage = accumulator.finalize();
-            yield Ok(StreamChunk::final_chunk(finish_reason, Some(final_usage)));
-        };
-
-        Ok(Box::new(Box::pin(output_stream)))
+        Ok(openai_compatible_stream(response, &adapted.request))
     }
 
     fn provider_name(&self) -> &str {
@@ -639,14 +624,14 @@ impl LLMProvider for OpenAIProvider {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response
-                .text()
+            let error_text = crate::provider::http::read_response_text_bounded(response)
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(NxuskitError::provider(status.as_u16(), error_text));
         }
 
-        let models_response: OpenAIModelsResponse = response.json().await?;
+        let models_response: OpenAIModelsResponse =
+            crate::provider::http::read_response_json_bounded(response).await?;
 
         Ok(models_response
             .data
@@ -666,26 +651,7 @@ impl LLMProvider for OpenAIProvider {
     }
 
     fn get_capabilities(&self) -> ProviderCapabilities {
-        let caps = ProviderCapabilities {
-            supports_system_messages: true,
-            supports_streaming: true,
-            supports_vision: true,
-            max_stop_sequences: Some(4),
-            supports_presence_penalty: true,
-            supports_frequency_penalty: true,
-            supports_seed: true,
-            supports_logprobs: true,
-            supports_streaming_logprobs: true,
-            supports_json_mode: true,
-            supports_json_schema: true,
-            penalty_range: Some((-2.0, 2.0)),
-            max_logprobs: Some(20),
-        };
-        debug_assert!(
-            caps.supports_logprobs || !caps.supports_streaming_logprobs,
-            "supports_streaming_logprobs implies supports_logprobs"
-        );
-        caps
+        Self::adapter_capabilities()
     }
 }
 
@@ -827,9 +793,19 @@ struct OpenAIRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     top_p: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    stop: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    presence_penalty: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    frequency_penalty: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    seed: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     logprobs: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     top_logprobs: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning_effort: Option<String>,
     stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     stream_options: Option<OpenAIStreamOptions>,
@@ -1010,17 +986,61 @@ fn extract_responses_text(response: &OpenAIResponsesResponse) -> String {
 
 #[derive(Debug, Deserialize)]
 struct OpenAIChoice {
-    message: OpenAIMessage,
+    message: OpenAIResponseMessage,
     #[serde(default)]
     finish_reason: Option<String>,
     #[serde(default)]
     logprobs: Option<OpenAIStreamLogprobs>,
 }
 
+// Response content accepts standard Chat Completions text and the existing
+// part-array compatibility shape. Keep outgoing OpenAIMessage unchanged.
+#[derive(Debug, Deserialize)]
+struct OpenAIResponseMessage {
+    #[serde(default, deserialize_with = "deserialize_response_content")]
+    content: Option<Vec<OpenAIContentPart>>,
+}
+
+fn deserialize_response_content<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<Vec<OpenAIContentPart>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Content {
+        Text(String),
+        Parts(Vec<OpenAIContentPart>),
+    }
+    Ok(
+        Option::<Content>::deserialize(deserializer)?.map(|content| match content {
+            Content::Text(text) => vec![OpenAIContentPart::Text { text }],
+            Content::Parts(parts) => parts,
+        }),
+    )
+}
+
 #[derive(Debug, Deserialize)]
 struct OpenAIUsage {
     prompt_tokens: u32,
     completion_tokens: u32,
+}
+
+/// Selected metadata updates may carry no token counters. Never fabricate actual
+/// usage from an absent/null/partial pair; malformed supplied counters still fail.
+#[derive(Debug, Deserialize)]
+pub(super) struct SelectedProviderUsage {
+    prompt_tokens: Option<u32>,
+    completion_tokens: Option<u32>,
+}
+
+impl SelectedProviderUsage {
+    pub(super) fn actual(&self) -> Option<TokenCount> {
+        self.prompt_tokens
+            .zip(self.completion_tokens)
+            .map(|(prompt, completion)| TokenCount::new(prompt, completion))
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -1117,9 +1137,636 @@ struct OpenAIModel {
     owned_by: String,
 }
 
+// ============================================================================
+/// Shared legacy JSON-stream decoder; provider-specific requests/status remain owned by adapters.
+pub(super) fn openai_compatible_stream(
+    response: reqwest::Response,
+    request: &ChatRequest,
+) -> Box<dyn Stream<Item = Result<StreamChunk>> + Send + Unpin> {
+    openai_compatible_stream_with_metadata(response, request, "")
+}
+
+pub(super) fn merge_provider_metadata(
+    current: &mut Option<serde_json::Map<String, serde_json::Value>>,
+    data: &serde_json::Value,
+    provider: &str,
+) -> Result<()> {
+    use serde_json::Value;
+    let (fields, usage_fields): (&[&str], &[&str]) = match provider {
+        "openrouter" => (
+            &["id", "provider"],
+            &[
+                "cost",
+                "cost_details",
+                "prompt_tokens_details",
+                "completion_tokens_details",
+            ],
+        ),
+        "perplexity" => (
+            &["citations", "search_results"],
+            &[
+                "cost",
+                "search_context_size",
+                "citation_tokens",
+                "num_search_queries",
+                "reasoning_tokens",
+            ],
+        ),
+        _ => return Ok(()),
+    };
+    let selected = current.get_or_insert_with(serde_json::Map::new);
+    if data.get("error").is_some() {
+        return Err(NxuskitError::Stream(
+            "provider returned an error envelope".into(),
+        ));
+    }
+    for name in fields {
+        if let Some(value) = data.get(*name) {
+            selected.insert((*name).into(), value.clone());
+        }
+    }
+    if let Some(usage) = data.get("usage") {
+        if usage.is_null() {
+            selected.insert("usage".into(), Value::Null);
+        } else if let Some(usage) = usage.as_object() {
+            for name in usage_fields {
+                if let Some(value) = usage.get(*name) {
+                    let target = selected
+                        .entry("usage")
+                        .or_insert_with(|| serde_json::json!({}));
+                    if target.is_null() {
+                        *target = serde_json::json!({});
+                    }
+                    target
+                        .as_object_mut()
+                        .expect("selected usage object")
+                        .insert((*name).into(), value.clone());
+                }
+            }
+        } else {
+            return Err(NxuskitError::Stream(
+                "provider_metadata usage must be object or null".into(),
+            ));
+        }
+    }
+    fn depth_ok(value: &Value, depth: usize) -> bool {
+        if depth > 16 {
+            return false;
+        }
+        match value {
+            Value::Object(values) => values.values().all(|v| depth_ok(v, depth + 1)),
+            Value::Array(values) => values.iter().all(|v| depth_ok(v, depth + 1)),
+            _ => true,
+        }
+    }
+    if !selected.values().all(|v| depth_ok(v, 1)) {
+        return Err(NxuskitError::Stream(
+            "provider_metadata depth exceeds 16".into(),
+        ));
+    }
+    if serde_json::to_vec(selected)?.len() > 65536 {
+        return Err(NxuskitError::Stream(
+            "provider_metadata compact UTF-8 bytes exceed 65536".into(),
+        ));
+    }
+    if selected.is_empty() {
+        *current = None;
+    }
+    Ok(())
+}
+
+pub(super) fn openai_compatible_stream_with_metadata(
+    response: reqwest::Response,
+    request: &ChatRequest,
+    provider: &'static str,
+) -> Box<dyn Stream<Item = Result<StreamChunk>> + Send + Unpin> {
+    let stream = response.bytes_stream();
+    let mut buffer = Vec::new();
+
+    // Create token estimator for the model (outside stream! macro to avoid lifetime issues)
+    let model = request.model.clone();
+    let estimator = TokenEstimator::for_model(&model);
+    let prompt_tokens = estimator.count_messages(&request.messages);
+
+    let output_stream = stream! {
+        let mut provider_metadata = None;
+        // Create accumulator with pre-calculated prompt tokens
+        let mut accumulator = StreamingTokenAccumulator::new(estimator, prompt_tokens);
+
+        let mut stream = stream;
+        let mut raw_finish_reason = None;
+
+        'stream_loop: loop {
+            match stream.next().await {
+                Some(Ok(bytes)) => {
+                    let mut chunk_cursor =
+                        crate::provider::http::BoundedStreamChunkCursor::new(&bytes);
+                    loop {
+                        let has_more = match chunk_cursor.append_next(&mut buffer) {
+                            Ok(has_more) => has_more,
+                            Err(error) => { yield Err(NxuskitError::Stream(error.to_string())); return; }
+                        };
+                    while let Some(frame) = contract::next_openai_sse_frame(&mut buffer) {
+                        match frame {
+                            Ok(contract::OpenAiSseFrame::Done) => break 'stream_loop,
+                            Ok(contract::OpenAiSseFrame::Ignored) => continue,
+                            Err(error) => {
+                                yield Err(NxuskitError::Stream(format!("{error}")));
+                                return;
+                            }
+                            Ok(contract::OpenAiSseFrame::Data(mut data)) => {
+                            if data.get("error").is_some() {
+                                yield Err(NxuskitError::Stream("provider returned an error envelope".into()));
+                                return;
+                            }
+                            if let Err(error) = merge_provider_metadata(&mut provider_metadata, &data, provider) {
+                                yield Err(error);
+                                return;
+                            }
+                            if matches!(provider, "openrouter" | "perplexity") {
+                                match serde_json::from_value::<Option<SelectedProviderUsage>>(data.get("usage").cloned().unwrap_or(serde_json::Value::Null)) {
+                                    Ok(usage) => {
+                                        if let Some(actual) = usage.and_then(|u| u.actual()) { accumulator.set_actual(actual); }
+                                    }
+                                    Err(error) => { yield Err(NxuskitError::Stream(format!("Invalid token usage: {error}"))); return; }
+                                }
+                                let selected_update = data.get("usage").is_some() || match provider {
+                                    "openrouter" => data.get("id").is_some() || data.get("provider").is_some(),
+                                    _ => data.get("citations").is_some() || data.get("search_results").is_some(),
+                                };
+                                if let Some(object) = data.as_object_mut() {
+                                    // Already handled independently from selected metadata above.
+                                    object.remove("usage");
+                                    if selected_update { object.entry("choices").or_insert_with(|| serde_json::json!([])); }
+                                }
+                            }
+                            match serde_json::from_value::<OpenAIStreamChunk>(data) {
+                                Ok(chunk_data) => {
+                                    // Capture actual usage if provided
+                                    if let Some(usage) = chunk_data.usage {
+                                        let actual = TokenCount::new(usage.prompt_tokens, usage.completion_tokens);
+                                        accumulator.set_actual(actual);
+                                    }
+
+                                    if let Some(choice) = chunk_data.choices.into_iter().next() {
+                                        let logprobs_delta = decode_oai_logprob_delta(choice.logprobs);
+                                        if let Some(content) = choice.delta.content {
+                                            accumulator.add_chunk(&content);
+                                            let mut stream_chunk = StreamChunk::new(content);
+                                            stream_chunk.usage = Some(accumulator.running_total());
+                                            stream_chunk.logprobs = logprobs_delta;
+                                            yield Ok(stream_chunk);
+                                        } else if logprobs_delta.is_some() {
+                                            // Logprobs without content delta — rare but possible;
+                                            // surface via an empty-delta chunk so consumers see them.
+                                            let mut stream_chunk = StreamChunk::new(String::new());
+                                            stream_chunk.usage = Some(accumulator.running_total());
+                                            stream_chunk.logprobs = logprobs_delta;
+                                            yield Ok(stream_chunk);
+                                        }
+                                        if let Some(reason_str) = choice.finish_reason {
+                                            raw_finish_reason = Some(reason_str);
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    yield Err(NxuskitError::Stream(format!("Failed to parse stream chunk: {}", e)));
+                                    return;
+                                }
+                            }
+                            }
+                        }
+                    }
+                        if !has_more {
+                            break;
+                        }
+                    }
+                }
+                Some(Err(e)) => {
+                    yield Err(NxuskitError::Network(e));
+                    return;
+                }
+                None => {
+                    yield Err(NxuskitError::Stream("stream ended before [DONE]".to_string()));
+                    return;
+                }
+            }
+        }
+
+        // Only the protocol sentinel completes the stream; usage can follow a reason.
+        let final_usage = accumulator.finalize();
+        let mut final_chunk = StreamChunk::new(String::new());
+        final_chunk.terminal = true;
+        final_chunk.finish_reason = raw_finish_reason.as_deref().and_then(FinishReason::from_str_flexible);
+        final_chunk.raw_finish_reason = raw_finish_reason;
+        final_chunk.provider_metadata = provider_metadata;
+        final_chunk.usage = Some(final_usage);
+        yield Ok(final_chunk);
+    };
+
+    Box::new(Box::pin(output_stream))
+}
+
+#[path = "openai_contract.rs"]
+pub(super) mod contract;
+
+pub use contract::OpenAIContractMapper;
+
+#[cfg(test)]
+use contract::{OpenAiSseFrame, next_openai_sse_frame};
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selected_metadata_bounds_merge_and_null() {
+        let mut selected = None;
+        merge_provider_metadata(&mut selected, &serde_json::json!({"provider":"vendor","usage":{"cost":0.25,"cost_details":{"x":null}}}), "openrouter").unwrap();
+        merge_provider_metadata(&mut selected, &serde_json::json!({"provider":null,"usage":{"completion_tokens_details":{"reasoning_tokens":3}}}), "openrouter").unwrap();
+        assert_eq!(
+            serde_json::to_value(&selected).unwrap(),
+            serde_json::json!({"provider":null,"usage":{"cost":0.25,"cost_details":{"x":null},"completion_tokens_details":{"reasoning_tokens":3}}})
+        );
+        merge_provider_metadata(
+            &mut selected,
+            &serde_json::json!({"usage":null}),
+            "openrouter",
+        )
+        .unwrap();
+        merge_provider_metadata(
+            &mut selected,
+            &serde_json::json!({"usage":{"cost":null}}),
+            "openrouter",
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(&selected).unwrap(),
+            serde_json::json!({"provider":null,"usage":{"cost":null}})
+        );
+        for size in [65535, 65536, 65537] {
+            let overhead = serde_json::to_vec(&serde_json::json!({"citations":[""]}))
+                .unwrap()
+                .len();
+            let n = size - overhead;
+            let value = "é".repeat(n / 2) + &"x".repeat(n % 2);
+            let data = serde_json::json!({"citations":[value]});
+            assert_eq!(serde_json::to_vec(&data).unwrap().len(), size);
+            let result = merge_provider_metadata(&mut None, &data, "perplexity");
+            assert_eq!(result.is_ok(), size <= 65536);
+            if let Err(error) = result {
+                assert!(!error.is_retryable());
+            }
+        }
+        for depth in [16, 17] {
+            let mut value = serde_json::json!("leaf");
+            for _ in 0..depth - 1 {
+                value = serde_json::json!([value]);
+            }
+            assert_eq!(
+                merge_provider_metadata(
+                    &mut None,
+                    &serde_json::json!({"citations":value}),
+                    "perplexity"
+                )
+                .is_ok(),
+                depth == 16
+            );
+        }
+        assert!(
+            merge_provider_metadata(&mut None, &serde_json::json!({"usage":42}), "openrouter")
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn selected_metadata_stream_overflow_is_terminal_error() {
+        let body = format!(
+            "data: {{\"choices\":[{{\"delta\":{{\"content\":\"text\"}}}}]}}\n\ndata: {{\"choices\":[],\"id\":\"{}\"}}\n\ndata: {{\"choices\":[],\"provider\":\"{}\"}}\n\ndata: [DONE]\n\n",
+            "x".repeat(33000),
+            "x".repeat(33000)
+        );
+        let (p, server) = legacy_transport_provider(&body);
+        let response = p
+            .client
+            .post(format!("{}/chat/completions", p.base_url))
+            .json(&serde_json::json!({}))
+            .send()
+            .await
+            .unwrap();
+        let chunks: Vec<_> = openai_compatible_stream_with_metadata(
+            response,
+            &ChatRequest::new("fixture"),
+            "openrouter",
+        )
+        .collect()
+        .await;
+        server.join().unwrap();
+        assert_eq!(
+            chunks
+                .iter()
+                .filter_map(|c| c.as_ref().ok())
+                .map(|c| c.delta.as_str())
+                .collect::<String>(),
+            "text"
+        );
+        assert_eq!(chunks.iter().filter(|c| c.is_err()).count(), 1);
+        assert!(
+            !chunks
+                .iter()
+                .any(|c| c.as_ref().is_ok_and(StreamChunk::is_final))
+        );
+        let error = chunks.last().unwrap().as_ref().unwrap_err();
+        assert!(error.to_string().contains("provider_metadata"));
+        assert!(!error.is_retryable());
+    }
+
+    fn legacy_transport_provider(body: &str) -> (OpenAIProvider, std::thread::JoinHandle<()>) {
+        legacy_transport_provider_at(body, "/chat/completions")
+    }
+
+    fn legacy_transport_provider_at(
+        body: &str,
+        path: &'static str,
+    ) -> (OpenAIProvider, std::thread::JoinHandle<()>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let body = body.to_owned();
+        let server = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut headers = Vec::new();
+            let mut byte = [0];
+            while !headers.ends_with(b"\r\n\r\n") {
+                socket.read_exact(&mut byte).unwrap();
+                headers.push(byte[0]);
+            }
+            let headers = String::from_utf8(headers).unwrap();
+            assert!(headers.starts_with(&format!("POST {path} HTTP/1.1\r\n")));
+            let length: usize = headers
+                .lines()
+                .find_map(|line| {
+                    let (name, value) = line.split_once(':')?;
+                    name.eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse().unwrap())
+                })
+                .unwrap();
+            socket.read_exact(&mut vec![0; length]).unwrap();
+            write!(socket, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).unwrap();
+        });
+        let provider = OpenAIProvider::builder()
+            .api_key("loopback-only")
+            .base_url(format!("http://{address}"))
+            .build()
+            .unwrap();
+        (provider, server)
+    }
+
+    async fn legacy_transport_stream(body: &str) -> Vec<Result<StreamChunk>> {
+        let (provider, server) = legacy_transport_provider(body);
+        let events = tokio::time::timeout(Duration::from_secs(5), async {
+            provider
+                .chat_stream(&ChatRequest::new("gpt-4o"))
+                .await
+                .unwrap()
+                .collect::<Vec<_>>()
+                .await
+        })
+        .await
+        .unwrap();
+        server.join().unwrap();
+        events
+    }
+
+    #[tokio::test]
+    async fn legacy_transport_unary_raw_reason_truth() {
+        for (wire, raw, canonical) in [
+            ("\"length\"", Some("length"), Some(FinishReason::Length)),
+            ("\"vendor-new\"", Some("vendor-new"), None),
+            ("null", None, None),
+        ] {
+            let body = format!(
+                "{{\"model\":\"actual\",\"choices\":[{{\"message\":{{\"content\":\"ok\"}},\"finish_reason\":{wire}}}],\"usage\":{{\"prompt_tokens\":7,\"completion_tokens\":3}}}}"
+            );
+            let (provider, server) = legacy_transport_provider(&body);
+            let response = provider.chat(&ChatRequest::new("gpt-4o")).await.unwrap();
+            server.join().unwrap();
+            assert_eq!(response.model, "actual");
+            assert_eq!(response.finish_reason, canonical);
+            assert_eq!(response.raw_finish_reason.as_deref(), raw);
+            assert_eq!(response.inference_metadata.finish_reason, canonical);
+        }
+    }
+
+    #[tokio::test]
+    async fn legacy_responses_terminal_truth() {
+        for (status, raw, canonical, complete, failure) in [
+            (
+                Some("completed"),
+                Some("completed"),
+                Some(FinishReason::Stop),
+                true,
+                false,
+            ),
+            (Some("vendor-new"), Some("vendor-new"), None, false, false),
+            (None, None, None, false, false),
+            (Some("incomplete"), Some("incomplete"), None, true, false),
+            (Some("failed"), None, None, false, true),
+            (Some("cancelled"), None, None, false, true),
+        ] {
+            let body=serde_json::json!({"status":status,"model":"actual","output_text":"partial","usage":{"input_tokens":7,"output_tokens":3}}).to_string();
+            let (p, server) = legacy_transport_provider_at(&body, "/responses");
+            let mut request = ChatRequest::new("gpt-5.5");
+            request.openai_responses = Some(crate::capabilities::OpenAIResponsesOptions::default());
+            let result = p.chat(&request).await;
+            server.join().unwrap();
+            if failure {
+                assert!(result.is_err(), "{status:?}: {result:?}");
+                continue;
+            }
+            let response = result.unwrap();
+            assert_eq!(response.raw_finish_reason.as_deref(), raw, "{status:?}");
+            assert_eq!(response.finish_reason, canonical, "{status:?}");
+            assert_eq!(
+                response.inference_metadata.finish_reason, canonical,
+                "{status:?}"
+            );
+            assert_eq!(
+                response.inference_metadata.is_complete, complete,
+                "{status:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn legacy_request_controls_reach_wire() {
+        use std::io::{Read, Write};
+        for streaming in [false, true] {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let endpoint = format!("http://{}", listener.local_addr().unwrap());
+            let server = std::thread::spawn(move || {
+                let (mut socket, _) = listener.accept().unwrap();
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let mut headers = Vec::new();
+                let mut byte = [0];
+                while !headers.ends_with(b"\r\n\r\n") {
+                    socket.read_exact(&mut byte).unwrap();
+                    headers.push(byte[0]);
+                }
+                let headers = String::from_utf8(headers).unwrap();
+                assert!(headers.starts_with("POST /chat/completions HTTP/1.1"));
+                let length: usize = headers
+                    .lines()
+                    .find_map(|line| {
+                        let (k, v) = line.split_once(':')?;
+                        k.eq_ignore_ascii_case("content-length")
+                            .then(|| v.trim().parse().unwrap())
+                    })
+                    .unwrap();
+                let mut bytes = vec![0; length];
+                socket.read_exact(&mut bytes).unwrap();
+                let request: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                let body = if streaming {
+                    "data: [DONE]\n\n"
+                } else {
+                    "{\"model\":\"actual\",\"choices\":[{\"message\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1}}"
+                };
+                write!(
+                    socket,
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                )
+                .unwrap();
+                request
+            });
+            let p = OpenAIProvider::builder()
+                .api_key("loopback")
+                .base_url(endpoint)
+                .build()
+                .unwrap();
+            let mut request = ChatRequest::new("gpt-4o").with_message(Message::user("hi"));
+            request.stop = Some(vec!["END".into()]);
+            request.presence_penalty = Some(0.5);
+            request.frequency_penalty = Some(-0.5);
+            request.seed = Some(7);
+            request.logprobs = Some(true);
+            request.top_logprobs = Some(3);
+            request.reasoning_effort = Some("low".into());
+            request.response_format = Some(crate::types::ResponseFormat::JsonSchema {
+                schema: serde_json::json!({"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}),
+            });
+            request.tools = Some(vec![
+                serde_json::json!({"type":"function","function":{"name":"lookup","parameters":{"type":"object","properties":{}}}}),
+            ]);
+            request.tool_choice = Some(serde_json::json!("required"));
+            if streaming {
+                let chunks: Vec<_> = p.chat_stream(&request).await.unwrap().collect().await;
+                assert!(chunks.iter().all(Result::is_ok));
+            } else {
+                p.chat(&request).await.unwrap();
+            }
+            let wire = server.join().unwrap();
+            assert_eq!(wire["stop"], serde_json::json!(["END"]));
+            assert_eq!(wire["presence_penalty"], 0.5);
+            assert_eq!(wire["frequency_penalty"], -0.5);
+            assert_eq!(wire["seed"], 7);
+            assert_eq!(wire["logprobs"], true);
+            assert_eq!(wire["top_logprobs"], 3);
+            assert_eq!(wire["reasoning_effort"], "low");
+            assert_eq!(
+                wire["response_format"],
+                serde_json::json!({"type":"json_schema","json_schema":{"name":"response","strict":true,"schema":{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}}})
+            );
+            assert_eq!(
+                wire["tools"],
+                serde_json::json!([{"type":"function","function":{"name":"lookup","parameters":{"type":"object","properties":{}}}}])
+            );
+            assert_eq!(wire["tool_choice"], "required");
+        }
+    }
+
+    #[tokio::test]
+    async fn legacy_transport_terminal_failures_never_succeed() {
+        for body in [
+            "",
+            "data: {broken}\n\n",
+            "data: {\"choices\":[]}",
+            "data: {\"choices\":[{\"delta\":{\"content\":\"partial\"},\"finish_reason\":null}]}\n\n",
+        ] {
+            let events = legacy_transport_stream(body).await;
+            assert_eq!(
+                events.iter().filter(|event| event.is_err()).count(),
+                1,
+                "{body}: {events:?}"
+            );
+            assert!(events.last().unwrap().is_err(), "{events:?}");
+            assert!(
+                !events
+                    .iter()
+                    .any(|event| event.as_ref().is_ok_and(StreamChunk::is_final)),
+                "{events:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn legacy_transport_terminal_reason_and_late_usage() {
+        for (wire, raw, canonical) in [
+            ("\"length\"", Some("length"), Some(FinishReason::Length)),
+            ("\"vendor-new\"", Some("vendor-new"), None),
+            ("null", None, None),
+        ] {
+            let body = format!(
+                "data: {{\"choices\":[{{\"delta\":{{\"content\":\"€\"}},\"finish_reason\":{wire}}}]}}\r\n\r\ndata: {{\"choices\":[],\"usage\":{{\"prompt_tokens\":7,\"completion_tokens\":3}}}}\r\n\r\ndata: [DONE]\r\n\r\ndata: {{broken}}\r\n\r\n"
+            );
+            let events = legacy_transport_stream(&body).await;
+            assert!(events.iter().all(Result::is_ok), "{events:?}");
+            let chunks: Vec<_> = events.into_iter().map(Result::unwrap).collect();
+            assert_eq!(
+                chunks
+                    .iter()
+                    .map(|chunk| chunk.delta.as_str())
+                    .collect::<String>(),
+                "€"
+            );
+            assert_eq!(chunks.iter().filter(|chunk| chunk.is_final()).count(), 1);
+            let final_chunk = chunks.last().unwrap();
+            assert!(final_chunk.terminal);
+            assert_eq!(final_chunk.finish_reason, canonical);
+            assert_eq!(final_chunk.raw_finish_reason.as_deref(), raw);
+            let actual = final_chunk.usage.as_ref().unwrap().actual.as_ref().unwrap();
+            assert_eq!((actual.prompt_tokens, actual.completion_tokens), (7, 3));
+        }
+    }
+
+    #[test]
+    fn sse_framer_accepts_crlf_and_preserves_split_utf8() {
+        let mut buffer = br#"data: {"choices":[{"delta":{"content":""#.to_vec();
+        buffer.push(0xe2);
+        assert!(next_openai_sse_frame(&mut buffer).is_none());
+        buffer.extend_from_slice(&[0x82, 0xac]);
+        buffer.extend_from_slice(b"\"},\"finish_reason\":null}]}\r\n\r\n");
+        let frame = next_openai_sse_frame(&mut buffer).unwrap().unwrap();
+        let OpenAiSseFrame::Data(value) = frame else {
+            panic!("expected data frame");
+        };
+        assert_eq!(value["choices"][0]["delta"]["content"], "€");
+
+        let mut invalid = b"data: {\xff}\n\n".to_vec();
+        let Err(error) = next_openai_sse_frame(&mut invalid).unwrap() else {
+            panic!("expected malformed response error");
+        };
+        assert_eq!(
+            error.code,
+            crate::error::ProviderErrorCode::MalformedResponse
+        );
+    }
 
     #[test]
     fn test_builder_missing_api_key() {

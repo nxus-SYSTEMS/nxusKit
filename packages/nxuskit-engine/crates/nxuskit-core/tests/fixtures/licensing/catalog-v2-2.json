@@ -1,0 +1,10 @@
+{
+  "sdk_release_line": 2,
+  "editions": {
+    "pro": {
+      "ordinary_capabilities": ["cap.solver", "cap.experimental"],
+      "separately_sold_capabilities": ["addon.managed_evidence"],
+      "limits": {"solver.max_nodes": 100}
+    }
+  }
+}

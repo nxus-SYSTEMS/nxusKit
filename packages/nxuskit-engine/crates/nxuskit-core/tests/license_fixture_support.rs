@@ -110,16 +110,23 @@ pub fn make_license_fixture(kind: LicenseFixtureKind) -> LicenseFixture {
             "deployment",
             json!({
                 "iss": "nxus-licensing",
+                "aud": "nxuskit-deployment-runtime",
+                "sub": "account_fixture",
+                "jti": "11111111-1111-4111-8111-111111111111",
                 "iat": now,
                 "type": "deployment",
                 "edition": "enterprise",
                 "product_id": "nxuskit",
-                "tenant_id": "org-deploy-fixture",
-                "customer_email": "fixture@example.invalid",
-                "sdk_version_ceiling": "1.0",
-                "environment": "test",
-                "features_override": ["solver", "zen", "clips", "bayesian"],
-                "limits_override": {"deployment.nodes": 10}
+                "grant_id": "grant_fixture",
+                "grant_revision": 1,
+                "purpose": "offline_deployment",
+                "target_id": "target_fixture",
+                "policy_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "sdk_release_line": 2,
+                "authorization_scope": "client_entitlement",
+                "capability_grants": ["cap.solver", "cap.zen", "cap.clips", "cap.bayesian"],
+                "capability_denials": [],
+                "limits_override": {"solver.max_nodes": 10}
             }),
         ),
         LicenseFixtureKind::RealPurchase => (
@@ -183,6 +190,29 @@ pub fn sign_license_fixture_claims_with_kid(claims: &Value, kid: &str) -> (Strin
     )
 }
 
+pub fn sign_license_fixture_claims_without_kid(claims: &Value) -> (String, String) {
+    let (private_pem, public_key_pem) = test_es256_keypair();
+    let encoding_key = EncodingKey::from_ec_pem(private_pem.as_bytes())
+        .expect("test ES256 private key must be valid");
+    let header = Header::new(Algorithm::ES256);
+    (
+        encode(&header, claims, &encoding_key).expect("test JWT encoding must succeed"),
+        public_key_pem,
+    )
+}
+
+pub fn sign_license_fixture_claims_with_blank_kid(claims: &Value) -> (String, String) {
+    let (private_pem, public_key_pem) = test_es256_keypair();
+    let encoding_key = EncodingKey::from_ec_pem(private_pem.as_bytes())
+        .expect("test ES256 private key must be valid");
+    let mut header = Header::new(Algorithm::ES256);
+    header.kid = Some(" ".to_string());
+    (
+        encode(&header, claims, &encoding_key).expect("test JWT encoding must succeed"),
+        public_key_pem,
+    )
+}
+
 fn sign_json_claims(claims: &Value, private_pem: &str) -> String {
     sign_json_claims_with_kid(claims, private_pem, "es256-v1-test")
 }
@@ -212,7 +242,7 @@ fn test_es256_keypair() -> (String, String) {
         .expect("PKCS8 test private key encoding must succeed")
         .to_string();
 
-    let point = verifying_key.to_encoded_point(false);
+    let point = verifying_key.to_sec1_point(false);
     let der = encode_ec_public_key_der(point.as_bytes());
     let encoded = base64::engine::general_purpose::STANDARD.encode(der);
     let body = encoded

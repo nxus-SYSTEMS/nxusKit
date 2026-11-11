@@ -1,0 +1,20 @@
+{
+  "contract_version": "2.0-alpha",
+  "operation_id": "op.fixture.001",
+  "correlation_id": "corr.fixture.001",
+  "status": "accepted",
+  "accepted_at": "2026-06-05T00:00:01Z",
+  "event_stream_ref": {
+    "packet_id": "packet.fixture.events",
+    "locality": "remote",
+    "trust": "verified",
+    "classification": "preview"
+  },
+  "result_ref": {
+    "packet_id": "packet.fixture.result",
+    "locality": "remote",
+    "trust": "verified",
+    "classification": "preview"
+  },
+  "classification": "preview"
+}

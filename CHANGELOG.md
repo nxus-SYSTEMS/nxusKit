@@ -9,163 +9,116 @@ Public SDK release tags begin at `sdk-v0.9.0`. Earlier entries preserve
 pre-public development history with normalized pre-public version numbers after
 historical version resets.
 
+## [2.0.0] - 2026-07-15
+
+### Changed
+
+- Prepared lockstep v2.0.0 package metadata across the Rust SDK and C ABI,
+  Go SDK, and Python SDK. This entry does not claim publication, availability,
+  or a public release.
+
+- `nxuskit-cli doctor --json` now emits `captured_at` as the actual UTC command
+  capture time instead of the pre-RC deterministic epoch placeholder.
+- SDK 2.0.0 downstream-consumer documentation identifies the v1.1 contract
+  `nxuskit::contract::v1_1` as the authority for ActionEnvelope, ActionResult,
+  reference DTOs, readiness, artifact/history envelopes, regulated workflow
+  packets, pipeline definitions, and tool semantics. Pre-RC feature-105/WIP
+  gating language is superseded by `contract_version = "1.1"`.
+
 ## [Unreleased]
 
-## [1.0.5] - 2026-06-16
+### Package qualification controls
 
-> Public-trust, PyPI metadata, and release workflow hardening patch for the
-> v1.0 SDK line. This patch preserves the v1.0.0 API and C ABI contracts; no
-> API or C ABI signature change is introduced.
+- Pro package workflows bind one exact source/driver revision, immutable
+  catalog/verifier inputs, producer tools and the inner archive checksum to
+  extracted-consumer results. Windows qualification requires the two supported
+  Pro prerequisites, not CE build success. Installation examples distinguish
+  historical qualification from current-source proof. These source changes do
+  not claim new package availability, platform qualification or publication.
 
-### Changed
+### Dependency and compiler compatibility repairs
 
-- Updated lockstep SDK version metadata across Rust, Go, Python, bundle
-  documentation, and release verification guards to `1.0.5`.
-- Promoted `nxuskit-py` package metadata to `Development Status :: 5 -
-  Production/Stable` for the stabilized v1 SDK posture.
-- Pointed PyPI project URLs to nxusKit docs, SDK downloads, examples,
-  changelog, issue tracker, and repository.
-- Clarified Python package README and shipped docs: `pip install nxuskit-py`
-  installs the pure-Python package; native CLIPS/BN/FFI features require a
-  compatible SDK bundle; Solver and ZEN require Pro SDK features and
-  entitlement.
-- Documented the confirmed public release policy: public release pages include
-  both Community/OSS and Pro binary SDK packages while public source/tag
-  archives remain CE-safe.
+- Rust source builds require Rust 1.94 or newer. The Rust wrapper pins the
+  official async-trait 0.1.92 repair, preserving object-safe async traits and
+  genuine unused Future/Result diagnostics without SDK lint suppressions.
+- Updated the affected LRU, MCP, XML, Rustls, signing, and async-runtime
+  dependency families. The SDK and shared licensing client use the coordinated
+  JWT AWS-LC backend; token claims, key-ID enforcement, and denial behavior are
+  not relaxed. The C ABI is unchanged.
+- Source distributions retain attributed Candle ZIP-reader and ZEN parent
+  repairs under the engine workspace's `third-party/` directory. Build the
+  shipped workspace with its lock and patch tables intact; copying an internal
+  engine crate alone is not the supported Rust SDK delivery shape.
+- ZEN still rejects every JavaScript Function node before evaluation. Unused
+  private Function HTTP IAM authentication now fails explicitly without
+  credential discovery or unsigned fallback. Supported in-memory decision
+  tables, expressions, switches, and ordinary LLM providers are not removed.
+- Removed an unused development-only pprof declaration and its inferno/XML
+  dependency path; existing Criterion benchmark code is unchanged. This does
+  not remove an implemented profiling feature or announce new profiling tools.
+- Moved catalog/CLI YAML parsing to maintained serde_yaml_bw 2.5.8. The internal
+  dependency alias remains `serde_yaml_ng`; the resolved package identity is
+  explicit. Catalog values and aliases, unsigned limits, CLI structured output,
+  and malformed/duplicate/tagged-input rejection have focused compatibility
+  coverage. This is not a C ABI or licensing-policy change.
+- These are candidate-source changes, not a publication, platform qualification,
+  or release-acceptance claim. Exact package/native and CI qualification remains
+  required; retained maintenance warnings are reported separately.
+- Residual maintenance risk remains in the optional model graph: `fxhash` is
+  selected by `bm25`; `number_prefix` by the Mistral 0.7 `indicatif` path; and
+  `paste` by the Candle/Mistral GEMM, SIMD, tokenizer, and image families. Current
+  upstream parent releases do not jointly eliminate those paths. A Mistral
+  upgrade would remove only one warning while changing model dependencies and
+  qualification scope. Follow up on coordinated maintained-parent migrations;
+  no advisory ignore, security waiver, provider removal, or GA risk acceptance
+  is implied by retaining these explicitly reported maintenance warnings.
 
-### Fixed
+### Prerelease source migration — optional sampling controls
 
-- Added fail-fast release preflight checks before expensive platform builds for
-  version/posture, PyPI metadata, public asset policy, and packaging verifier
-  assumptions.
-- Kept public SDK release asset checks aligned with the OSS+Pro public binary
-  policy and exact expected platform asset set.
-- Carried forward the `MIT OR Apache-2.0` Python license allow-list and Windows
-  Visual Studio discovery remediation.
+- Rust wrapper and engine `ChatRequest` now include optional `top_k: Option<i64>`
+  and `min_p: Option<f64>`. Explicit Rust struct literals must add both fields
+  (normally `None`) or use the existing constructor/default pattern. Omitted
+  fields remain absent from serialized JSON; no C ABI layout or signature changes.
+- Ollama accepts `top_k` from 1 through 2147483647 and finite `min_p` from 0
+  through 1 in unary and streaming requests. Unqualified legacy providers reject
+  supplied values explicitly rather than silently dropping them. Python native
+  and FFI sync/async request bindings preserve the same controls.
 
-### Compatibility
+### Prerelease source migration — signed request seeds
 
-- No API or C ABI signature changes from v1.0.0 are introduced.
-- The v1.0.1 Pro CLI packaging fix remains included: Pro SDK bundles compile
-  solver and ZEN command modules with `pro-engines`.
-- Native/FFI Python features require an installed matching SDK bundle; Solver
-  and ZEN remain Pro-only and require Pro SDK/entitlement.
+- Rust `ChatRequest.seed` in the user-facing wrapper and engine is now
+  `Option<i64>`, matching the canonical signed 64-bit request contract. Rust
+  callers with `u64` variables must use a checked `i64::try_from` conversion;
+  values above `i64::MAX` are no longer representable. JSON outside the signed
+  range is rejected, never wrapped or truncated. Omitted seeds remain omitted.
+- OpenAI/Ollama transport bindings preserve signed values. This is not a claim
+  that every provider supports every seed: the local llama.cpp sampler retains
+  its unsigned 32-bit domain and explicitly rejects values outside it.
+- C ABI entry points and binary layouts are unchanged; the existing JSON
+  request field carries the signed value. No release or publication is implied.
 
-## [1.0.4] - 2026-06-15
+### Prerelease source migration — terminal result DTOs
 
-> Python package publication-readiness and source/tag alignment patch for the
-> v1.0 SDK line. This patch preserves the v1.0.0 API and C ABI contracts; no
-> API or C ABI signature change is introduced.
-
-### Changed
-
-- Updated lockstep SDK version metadata across Rust, Go, Python, bundle
-  documentation, and release verification guards to `1.0.4`.
-- Prepared the Python distribution source for TestPyPI/PyPI validation as
-  `nxuskit-py==1.0.4` while keeping the import package as `nxuskit`.
-- Clarified that PyPI wheels are pure-Python `py3-none-any` artifacts and do
-  not bundle native `libnxuskit` binaries.
-- Aligned SDK-local Examples portfolio snapshot provenance with the v1.0.4
-  release-candidate source state while retaining the same public Examples
-  portfolio snapshot.
-- Supersedes the abandoned v1.0.3 SDK release attempt; public latest remains
-  v1.0.2 until v1.0.4 release assets are published and verified.
-
-### Fixed
-
-- Kept package-local Python distribution `LICENSE` and `NOTICE` metadata in the
-  wheel/sdist and updated release-target license links for v1.0.4.
-- Updated package-readiness guidance for TestPyPI/PyPI operator setup and local
-  install/smoke validation.
-- Extended release inventory checks to guard stale Python package install-name
-  claims and unsupported package/runtime boundary claims.
-- Hardened Windows release builds to discover Visual Studio with `vswhere` and
-  fail clearly if `cl` or `dumpbin` are unavailable.
-
-### Compatibility
-
-- No API or C ABI signature changes from v1.0.0 are introduced.
-- The v1.0.1 Pro CLI packaging fix remains included: Pro SDK bundles compile
-  solver and ZEN command modules with `pro-engines`.
-- Native/FFI Python features require an installed matching SDK bundle; Solver
-  and ZEN remain Pro-only and require Pro SDK/entitlement.
-
-## [1.0.2] - 2026-06-12
-
-> Public-trust and packaging hardening patch for the v1.0 SDK line. This
-> patch preserves the v1.0.0 API and C ABI contracts; no API or
-> C ABI signature change is introduced.
-
-### Changed
-
-- Updated current-release posture across the SDK README and shipped bundle docs
-  to `1.0.2`.
-- Aligned internal engine workspace package metadata to `1.0.2` so
-  `nxuskit_version()` matches the Go and Python FFI wrappers.
-- Replaced PyPI-style Python installation copy with SDK-bundle setup guidance
-  using `NXUSKIT_SDK_DIR` and the bundle's `python/src` path.
-- Framed the validated Examples portfolio snapshot as release QA/provenance,
-  not an SDK runtime dependency on the Examples companion portfolio.
-
-### Fixed
-
-- Corrected invalid Python snippets that imported from `nxuskit-py`; bundled
-  examples now use the `nxuskit` module path.
-- Qualified unsupported production-readiness wording in SDK-local Examples
-  catalog metadata.
-- Extended release inventory checks to guard stale Python install, invalid
-  Python import, production-claim, and current-version posture regressions.
-
-### Compatibility
-
-- No API or C ABI signature changes from v1.0.0 are introduced.
-- The v1.0.1 Pro CLI packaging fix remains included: Pro SDK bundles compile
-  solver and ZEN command modules with `pro-engines`.
-
-## [1.0.1] - 2026-06-08
-
-### Fixed
-
-- Rebuilt Pro SDK CLI packaging so `nxuskit-cli solver` and `nxuskit-cli zen`
-  compile the real Pro engine command modules instead of CE-safe stubs.
-- Extended the CLI `pro-engines` feature to enable solver/ZEN capability flags
-  in both `nxuskit-engine` and `nxuskit-core`.
-- Added Pro CLI wiring verification to SDK bundle validation.
-
-### Compatibility
-
-- No API or C ABI signature changes from v1.0.0 were introduced.
-
-## [1.0.0] - 2026-05-28
-
-> General Availability release for the v0.9.4-stabilized SDK API surface.
-> This release is intentionally narrow: version metadata moves to `1.0.0`,
-> public documentation now reflects GA posture, and SDK bundle packaging guards
-> include the Rust benchmark targets required by the wrapper manifest.
-
-### Changed
-
-- Promoted nxusKit SDK to GA in public README/support copy.
-- Updated Rust workspace, C ABI, Go SDK, Python SDK, and package metadata to
-  lockstep version `1.0.0`.
-- Promoted Python package classifier to `Development Status :: 5 -
-  Production/Stable`.
-- Refreshed public architecture and README links to the hosted docs site.
-- Clarified loopback CLI examples so local copy-paste commands use explicit
-  loopback model names.
-
-### Fixed
-
-- SDK release workflows now copy `packages/nxuskit/benches` into the bundled
-  Rust wrapper so the declared benchmark target is present in release archives.
-- Packaging verification now fails if the bundled Rust wrapper omits the
-  declared `logprobs_serialization` benchmark target.
-
-### Compatibility
-
-- No API or C ABI signature changes from v0.9.4 are introduced in this GA cut.
-- Pro installation packages continue to be published on the public release page;
-  Pro capabilities still require a valid license key.
+- Legacy finish reasons retain their existing five variants. Chat responses and
+  stream chunks carry optional `raw_finish_reason` (`RawFinishReason` in Go);
+  stream chunks also carry explicit `terminal` (`Terminal` in Go). An unknown
+  or absent canonical reason stays absent rather than becoming `Stop`.
+- Rust callers constructing public response/chunk struct literals must provide
+  the new fields or use the existing constructors. Go callers using unkeyed
+  literals must migrate to keyed literals. Python's new stream `terminal`
+  argument is defaulted and keyword-only, preserving positional construction.
+- Existing JSON without the new fields remains readable. `is_final`/`IsFinal`
+  accepts explicit terminality or a legacy finish reason; consumers must not
+  infer completion solely from a known reason. Errors remain errors, not a
+  successful terminal chunk.
+- These are prerelease source/JSON changes, not C ABI layout or entry-point
+  changes. They do not announce publication or release acceptance.
+- Selected OpenRouter/Perplexity response fields use optional `provider_metadata`
+  (`ProviderMetadata` in Go) on unary and successful terminal results. Rust
+  struct-literal callers must initialize this optional field; Python additions
+  are defaulted/keyword-only. The fixed initial metadata envelope limit is
+  65,536 compact UTF-8 bytes and depth 16; exceeding it errors without truncation
+  or successful terminal output. This is not a whole-body/frame allocation bound.
 
 ## [0.9.4] - 2026-05-11
 
@@ -278,8 +231,8 @@ historical version resets.
   - Release default endpoint is `https://nxus.systems/licensing-api/v1`.
   - `nxuskit-cli license status --json` exposes endpoint, environment, and
     signing-key diagnostics.
-  - SDK accepts `real_purchase` and `leased` token kinds even while
-    `external licensing client` lags on its enum (ES256 fallback verifier).
+  - SDK accepts `real_purchase` and `leased` token kinds through
+    its ES256 fallback verifier.
   - Stable licensing errors include `authentication_required`,
     `environment_mismatch`, `wrong_product_identifier`, etc.
   - Activation timeouts extended to 30s on both client and proxy

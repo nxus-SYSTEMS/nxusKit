@@ -7,8 +7,7 @@ Run:
     python streaming.py
 
 Prerequisites:
-    export NXUSKIT_SDK_DIR="/path/to/nxuskit-sdk-1.0.5-oss-<platform>"
-    export PYTHONPATH="$NXUSKIT_SDK_DIR/python/src:${PYTHONPATH:-}"
+    pip install nxuskit-py
 """
 
 import os

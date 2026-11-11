@@ -1,0 +1,31 @@
+{
+  "schema_version": "nxus-licensing-production-verifier-bundle/v1",
+  "bundle_id": "nxus-licensing-production-verifier-bundle-v1",
+  "provenance": {
+    "manager_decision": "D-C9-W540-PRODUCTION-VERIFIER-BUNDLE-INPUT",
+    "devops_authority_commit": "e4b815077685f3a356cc8750fabddb810d210ed9",
+    "provider": "Google Cloud KMS",
+    "key_resource": "projects/nxus-licensing-prod/locations/us-central1/keyRings/licensing-signing/cryptoKeys/license-token-signing",
+    "permitted_operations": [
+      "versions_list",
+      "get_public_key"
+    ],
+    "retained_selection": "The authorized 2026-07-24 inventory returned exactly one retained signing version, whose provider state was ENABLED."
+  },
+  "current_key_comparison": {
+    "reference": "DevOps/sharedData/keys/es256-production-pubkey.pem",
+    "reference_pem_sha256": "f5a48e001977f7b44a9f77f4ea38ae3d9707f5d49aca4968bd923eac38edfdaf",
+    "bundle_kid": "projects/nxus-licensing-prod/locations/us-central1/keyRings/licensing-signing/cryptoKeys/license-token-signing/cryptoKeyVersions/1",
+    "result": "byte_identical"
+  },
+  "keys": [
+    {
+      "kid": "projects/nxus-licensing-prod/locations/us-central1/keyRings/licensing-signing/cryptoKeys/license-token-signing/cryptoKeyVersions/1",
+      "state": "ENABLED",
+      "algorithm": "EC_SIGN_P256_SHA256",
+      "protection_level": "SOFTWARE",
+      "pem_path": "production-verifier-bundle-v1/version-1.pem",
+      "pem_sha256": "f5a48e001977f7b44a9f77f4ea38ae3d9707f5d49aca4968bd923eac38edfdaf"
+    }
+  ]
+}

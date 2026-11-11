@@ -93,6 +93,7 @@ release/
 *.rlib
 *.prof*
 Cargo.lock
+!/tests/fixtures/async-trait-compat/Cargo.lock
 **/*.rs.bk
 *.pdb
 
@@ -205,3 +206,6 @@ about.hbs
 
 # vexp daemon runtime data (index database, socket, PID, logs)
 .vexp/
+
+# Local Codex/RB-005/RB-006 supervisor state
+.codex/

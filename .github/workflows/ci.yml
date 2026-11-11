@@ -203,7 +203,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install tools
-        run: pip install ruff
+        run: pip install ruff==0.17.4
       - name: Ruff check
         run: |
           cd packages/nxuskit-py
@@ -220,7 +220,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install tools
-        run: pip install ruff
+        run: pip install ruff==0.17.4
       - name: Ruff format check
         run: |
           cd packages/nxuskit-py

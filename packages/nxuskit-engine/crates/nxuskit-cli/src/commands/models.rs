@@ -16,6 +16,27 @@ pub struct ModelsArgs {
     #[arg(short, long, default_value = "json")]
     pub format: String,
 
+    /// Optional discovery endpoint. When supplied, model discovery uses the
+    /// independent endpoint/auth-only DiscoveryClient surface.
+    #[arg(long)]
+    pub endpoint: Option<String>,
+
+    /// Optional environment-variable credential selector for independent discovery.
+    #[arg(long)]
+    pub auth_selector: Option<String>,
+
+    /// Independent discovery connect timeout in milliseconds.
+    #[arg(long, default_value_t = 5000)]
+    pub connect_timeout_ms: u32,
+
+    /// Independent discovery read timeout in milliseconds.
+    #[arg(long, default_value_t = 5000)]
+    pub read_timeout_ms: u32,
+
+    /// Perform the independent endpoint/auth-only discovery health operation.
+    #[arg(long, default_value_t = false)]
+    pub health: bool,
+
     /// Filter by capability: chat, streaming, vision, function_calling
     #[arg(long)]
     pub supports: Option<String>,
@@ -37,7 +58,14 @@ pub struct ModelsArgs {
 
 #[derive(Debug, Serialize)]
 pub struct ModelsResult {
+    pub provider_id: String,
     pub models: Vec<ModelEntry>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DiscoveryHealthResult {
+    pub provider_id: String,
+    pub result: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -52,21 +80,89 @@ pub struct ModelEntry {
 
 pub async fn run_models_command(args: ModelsArgs) -> Result<(), CliError> {
     let format = OutputFormat::parse(&args.format)?;
-    let writer = OutputWriter::new(format, args.quiet, args.output);
+    let writer = OutputWriter::new(format, args.quiet, args.output.clone());
 
-    let provider_impl =
-        crate::create_provider(&args.provider).map_err(|e| CliError::ProviderError {
-            message: format!("{e}"),
-        })?;
+    if args.health {
+        use nxuskit_engine::discovery::{DiscoveryClientFactory, DiscoveryConfig};
 
-    let raw_models = provider_impl
-        .list_models()
-        .await
-        .map_err(|e| CliError::ProviderError {
-            message: format!("{e}"),
-        })?;
+        let endpoint = args
+            .endpoint
+            .as_deref()
+            .ok_or_else(|| CliError::InvalidRequest {
+                message: "--health requires --endpoint".to_string(),
+            })?;
+        let discovery_provider = match args.provider.as_str() {
+            "ollama" => "ollama_local",
+            other => other,
+        };
+        let client = DiscoveryClientFactory::create(DiscoveryConfig {
+            provider_id: discovery_provider.to_string(),
+            endpoint: endpoint.to_string(),
+            auth_selector: args.auth_selector.clone(),
+            connect_timeout_ms: args.connect_timeout_ms,
+            read_timeout_ms: args.read_timeout_ms,
+        })
+        .map_err(CliError::from_contract_error)?;
+        client
+            .health()
+            .await
+            .map_err(CliError::from_contract_error)?;
+        client
+            .close()
+            .await
+            .map_err(CliError::from_contract_error)?;
+        let trace = TraceFields::new("models_health", "", Some(&args.provider), None);
+        return writer.write_response(
+            DiscoveryHealthResult {
+                provider_id: args.provider,
+                result: "ok",
+            },
+            trace,
+            None,
+            None,
+            None,
+        );
+    }
 
-    let is_local = matches!(args.provider.as_str(), "ollama" | "lmstudio");
+    let raw_models = if let Some(endpoint) = args.endpoint.as_deref() {
+        use nxuskit_engine::discovery::{DiscoveryClientFactory, DiscoveryConfig};
+
+        let discovery_provider = match args.provider.as_str() {
+            "ollama" => "ollama_local",
+            other => other,
+        };
+        let client = DiscoveryClientFactory::create(DiscoveryConfig {
+            provider_id: discovery_provider.to_string(),
+            endpoint: endpoint.to_string(),
+            auth_selector: args.auth_selector.clone(),
+            connect_timeout_ms: args.connect_timeout_ms,
+            read_timeout_ms: args.read_timeout_ms,
+        })
+        .map_err(CliError::from_contract_error)?;
+        let models = client
+            .list_models()
+            .await
+            .map_err(CliError::from_contract_error)?;
+        client
+            .close()
+            .await
+            .map_err(CliError::from_contract_error)?;
+        models
+    } else {
+        let provider_impl =
+            crate::create_provider(&args.provider).map_err(|e| CliError::ProviderError {
+                message: format!("{e}"),
+            })?;
+        provider_impl
+            .list_models()
+            .await
+            .map_err(CliError::from_provider_error)?
+    };
+
+    let is_local = matches!(
+        args.provider.as_str(),
+        "ollama" | "ollama_local" | "ollama_cloud_via_daemon" | "lmstudio"
+    );
 
     let mut models: Vec<ModelEntry> = raw_models
         .iter()
@@ -148,5 +244,14 @@ pub async fn run_models_command(args: ModelsArgs) -> Result<(), CliError> {
     }
 
     let trace = TraceFields::new("models", "", Some(&args.provider), None);
-    writer.write_response(ModelsResult { models }, trace, None, None, None)
+    writer.write_response(
+        ModelsResult {
+            provider_id: args.provider,
+            models,
+        },
+        trace,
+        None,
+        None,
+        None,
+    )
 }

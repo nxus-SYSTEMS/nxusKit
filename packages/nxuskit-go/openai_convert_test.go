@@ -1,8 +1,20 @@
 package nxuskit
 
 import (
+	"encoding/json"
 	"testing"
 )
+
+func TestOpenAIUnaryRawReasonTruth(t *testing.T) {
+	var wire openaiChatResponse
+	if err := json.Unmarshal([]byte(`{"model":"actual","choices":[{"message":{"content":"ok"},"finish_reason":"vendor-new"}]}`), &wire); err != nil {
+		t.Fatal(err)
+	}
+	response := convertFromOpenAIResponse(&wire)
+	if response.FinishReason != nil || response.RawFinishReason == nil || *response.RawFinishReason != "vendor-new" {
+		t.Fatalf("truth lost: %+v", response)
+	}
+}
 
 func TestConvertToOpenAIMessage_SimpleText(t *testing.T) {
 	msg := UserMessage("Hello, world!")

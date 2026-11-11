@@ -15,7 +15,14 @@ after_includes = """
 """
 
 [export]
-include = ["NxuskitStreamCallback", "NxuskitStreamDoneCallback"]
+include = [
+    "NxuskitChatAsyncCallback",
+    "NxuskitListModelsAsyncCallback",
+    "NxuskitStreamCallback",
+    "NxuskitStreamDoneCallback",
+    "NxuskitStreamOperationChunkCallback",
+    "NxuskitStreamOperationDoneCallback",
+]
 
 [fn]
 rename_args = "None"

@@ -30,6 +30,16 @@ pub struct TokenInfo {
     pub edition: Option<String>,
     /// Days until token expiry (None for deployment tokens)
     pub days_remaining: Option<i64>,
+    /// Numeric SDK release line for a validated v2 deployment token.
+    pub sdk_release_line: Option<u32>,
+    /// Immutable grant revision for a validated v2 deployment token.
+    pub grant_revision: Option<u32>,
+    /// Safe authorization scope for a validated v2 deployment token.
+    pub authorization_scope: Option<String>,
+    /// ES256 key id used to verify a validated v2 deployment token.
+    pub signing_key_id: Option<String>,
+    /// SHA-256 fingerprint of a validated v2 deployment token.
+    pub token_fingerprint: Option<String>,
     /// Error message if validation failed
     pub error: Option<String>,
     /// Entitlement result code
@@ -78,7 +88,7 @@ pub fn license_resolve(explicit_key: Option<&str>) -> Result<LicenseResolution, 
 
 /// Validate a license token JWT string.
 ///
-/// Performs RS384 signature verification, claim parsing, and type-specific
+/// Performs ES256 signature verification, claim parsing, and type-specific
 /// validation (expiry, machine binding, version ceiling).
 pub fn license_validate(token: &str) -> Result<TokenInfo, NxuskitError> {
     use std::ffi::{CStr, CString};

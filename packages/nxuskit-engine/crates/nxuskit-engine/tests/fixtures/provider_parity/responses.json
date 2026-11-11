@@ -1,0 +1,83 @@
+{
+  "schema_version": "nxus-spec119-rust-provider-fixtures/v1",
+  "definition_revision": "312bb8b089e8429ae0449ba0491ba4ba126a56af",
+  "provider_oracles_sha256": "303d5c8eea2949e2cf209d7f85c951f14079368b5a0530bd8666ad33fcfec60c",
+  "qualification_matrix_sha256": "9532caa146142687ec8399ec5bbbabb227d1016b10da774a5bc98d75f4c5daf8",
+  "records": [
+    {
+      "id": "RESPONSE-LITERAL-OLLAMA-LOCAL",
+      "anchor": "ollama_local",
+      "config": {
+        "provider_id": "ollama_local",
+        "model": "ollama_local-fixture-model",
+        "endpoint": "http://localhost:11434/api/chat?contract=1#response",
+        "auth_selector": null,
+        "transport": "auto",
+        "connect_timeout_ms": 30000,
+        "read_timeout_ms": 30000
+      },
+      "raw_wire": {
+        "model": "ollama_local-fixture-model",
+        "message": {"role": "assistant", "content": "ollama_local-fixture-response", "thinking": "reason"},
+        "done": true,
+        "done_reason": "stop",
+        "prompt_eval_count": 10,
+        "eval_count": 2
+      },
+      "expected": {
+        "content": "ollama_local-fixture-response",
+        "descriptor": {
+          "provider_id": "ollama_local",
+          "model": "ollama_local-fixture-model",
+          "endpoint_origin": "http://localhost:11434",
+          "locality": "local_daemon",
+          "transport": "ollama_native"
+        },
+        "usage": {"prompt": 10, "completion": 2, "total": 12, "is_estimated": false},
+        "thinking": "reason",
+        "tool_calls": [],
+        "canonical_finish": "stop",
+        "raw_finish": "stop",
+        "error": null
+      },
+      "provenance": "descriptor provider_id/model/transport from qualification-matrix-v1.json profile_oracles[id=ollama_local].{request_wire.expected,reasoning_stream}; content from profile_oracles[id=ollama_local].response_mapping.expected.content; canonical_finish/raw_finish/usage from provider-oracles-v1.json RESPONSE-LITERAL; thinking present because profile reasoning_stream.status is supported. descriptor.endpoint_origin is the normalized scheme/host/non-default-port origin of the validated ProviderConfig.endpoint that participated in this mapping, per provider-oracles-v1.json ProviderResponse.descriptor."
+    },
+    {
+      "id": "RESPONSE-LITERAL-OPENAI",
+      "anchor": "openai",
+      "config": {
+        "provider_id": "openai",
+        "model": "openai-fixture-model",
+        "endpoint": "https://api.openai.com/v1/chat/completions?contract=1#response",
+        "auth_selector": "openai-default",
+        "transport": "auto",
+        "connect_timeout_ms": 30000,
+        "read_timeout_ms": 30000
+      },
+      "raw_wire": {
+        "model": "openai-fixture-model",
+        "choices": [
+          {"message": {"role": "assistant", "content": "openai-fixture-response"}, "finish_reason": "stop"}
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12}
+      },
+      "expected": {
+        "content": "openai-fixture-response",
+        "descriptor": {
+          "provider_id": "openai",
+          "model": "openai-fixture-model",
+          "endpoint_origin": "https://api.openai.com",
+          "locality": "remote",
+          "transport": "remote_https"
+        },
+        "usage": {"prompt": 10, "completion": 2, "total": 12, "is_estimated": false},
+        "thinking": null,
+        "tool_calls": [],
+        "canonical_finish": "stop",
+        "raw_finish": "stop",
+        "error": null
+      },
+      "provenance": "descriptor provider_id/model/transport from qualification-matrix-v1.json profile_oracles[id=openai].{request_wire.expected,reasoning_stream}; content from profile_oracles[id=openai].response_mapping.expected.content; canonical_finish/raw_finish/usage from provider-oracles-v1.json RESPONSE-LITERAL; thinking is null because profile reasoning_stream.status is unsupported_capability. descriptor.endpoint_origin is the normalized scheme/host/non-default-port origin of the validated ProviderConfig.endpoint that participated in this mapping, per provider-oracles-v1.json ProviderResponse.descriptor."
+    }
+  ]
+}

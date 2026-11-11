@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -85,6 +86,9 @@ func (p *LmStudioProvider) ProviderName() string {
 
 // Chat sends a chat completion request to LM Studio.
 func (p *LmStudioProvider) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
+	if err := validateGenerationControls(req, lmstudioProviderName); err != nil {
+		return nil, err
+	}
 	openaiReq := &openaiChatRequest{
 		Model:            req.Model,
 		Messages:         convertToOpenAIMessages(req.Messages),
@@ -109,8 +113,8 @@ func (p *LmStudioProvider) Chat(ctx context.Context, req *ChatRequest) (*ChatRes
 	}
 
 	var openaiResp openaiChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&openaiResp); err != nil {
-		return nil, NewProviderError(lmstudioProviderName, "failed to decode response", 0, err)
+	if err := decodeBoundedProviderResponse(resp, lmstudioProviderName, "failed to decode response", &openaiResp); err != nil {
+		return nil, err
 	}
 
 	return convertFromOpenAIResponse(&openaiResp), nil
@@ -125,6 +129,10 @@ func (p *LmStudioProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-
 		defer close(chunks)
 		defer close(errs)
 
+		if err := validateGenerationControls(req, lmstudioProviderName); err != nil {
+			errs <- err
+			return
+		}
 		openaiReq := &openaiChatRequest{
 			Model:            req.Model,
 			Messages:         convertToOpenAIMessages(req.Messages),
@@ -163,8 +171,11 @@ func (p *LmStudioProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-
 			}
 
 			event, err := sseReader.Read()
+			if err == io.EOF {
+				return
+			}
 			if err != nil {
-				// EOF is normal end of stream
+				errs <- NewStreamError(lmstudioProviderName, "stream read error", err)
 				return
 			}
 
@@ -228,8 +239,8 @@ func (p *LmStudioProvider) ListModels(ctx context.Context) ([]ModelInfo, error) 
 	}
 
 	var modelsResp openaiModelsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&modelsResp); err != nil {
-		return nil, NewProviderError(lmstudioProviderName, "failed to decode models response", 0, err)
+	if err := decodeBoundedProviderResponse(resp, lmstudioProviderName, "failed to decode models response", &modelsResp); err != nil {
+		return nil, err
 	}
 
 	models := make([]ModelInfo, len(modelsResp.Data))
@@ -275,8 +286,12 @@ func (p *LmStudioProvider) wrapError(err error) error {
 
 // handleErrorResponse parses an error response from LM Studio.
 func (p *LmStudioProvider) handleErrorResponse(resp *http.Response) error {
+	body, readErr := httputil.ReadBoundedBody(resp.Body)
+	if readErr != nil {
+		return NewProviderError(lmstudioProviderName, readErr.Error(), resp.StatusCode, readErr)
+	}
 	var errResp openaiErrorResponse
-	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+	if err := decodeProviderJSON(body, &errResp); err != nil {
 		return NewProviderError(lmstudioProviderName, fmt.Sprintf("HTTP %d", resp.StatusCode), resp.StatusCode, nil)
 	}
 

@@ -1,92 +1,52 @@
-# nxusKit Tier Comparison: Community vs Pro vs Enterprise
+# nxusKit v2.0.0 — Community and Pro
 
-## Overview
+Community Edition is free, open source and useful without a Pro entitlement.
+Released CE features remain available under their open-source license.
+Use CE from the v2.0.0 SDK bundle or build it from the public source.
 
-nxusKit SDK uses a dual-edition model for the public SDK surface.
+The initial supported Pro launch capability is **Solver**. Compiled capability
+manifests may also expose ZEN, MCP, plugin loading or advanced CLIPS; their
+presence is not a launch support promise or proof of authorization. Enterprise
+catalog entries are planning inputs, not an offered v2.0.0 GA tier.
 
-The public `nxusKit` repository contains nxusKit SDK Community Edition, which is free and open source. CE is not a trial, teaser, or time-limited evaluation; it is intended to remain useful on its own. We do not move released CE features behind the Pro paywall, and code released as CE remains available under its open-source license.
+## Distribution and support scope
 
-Community Edition is useful on its own without Pro. The public `nxusKit-examples` repository labels examples by edition, so developers can see which workflows run with CE alone and which require Pro.
+| Edition | Distribution | Initial scope |
+| --- | --- | --- |
+| Community | Public source or the public SDK bundle | Community workflows without an SDK license token |
+| Pro | The same public SDK bundle with a valid paid entitlement | Entitled Solver workflows |
 
-nxusKit SDK Pro adds proprietary commercial capabilities for teams that need solver-backed workflows, ZEN decision tables, plugin loading, and trust-policy features. Pro is distributed under a paid, trial, or evaluation entitlement. **Enterprise** adds delegated trust and custom plugin configuration for large organizations.
+Pro targets are Linux x86_64, macOS ARM64 and Windows x86_64. macOS x86_64 is
+unsupported starting with v2.0.0. Follow [Getting Started](getting-started.md)
+to select the exact archive and verify its checksum. A package-index install
+is not a substitute for the selected native bundle.
 
-## Feature Matrix
+## Commercial terms and runtime validity
 
-| Feature Domain | Community | Pro | Enterprise |
-|----------------|:---------:|:---:|:----------:|
-| LLM Cloud Providers (OpenAI, Claude, xAI Grok, Groq, Mistral, Fireworks, Together, OpenRouter, Perplexity) | Yes | Yes | Yes |
-| LLM Local Providers (Ollama, LM Studio) | Yes | Yes | Yes |
-| CLIPS Rule Engine (ClipsSession API) | Yes | Yes | Yes |
-| Bayesian Network Inference | Yes | Yes | Yes |
-| Auth Helper (API-key management, credential store) | Yes | Yes | Yes |
-| Tool Calling / Function Calling | Yes | Yes | Yes |
-| Streaming & Token Usage | Yes | Yes | Yes |
-| Retry & Adaptive Rate Limiting | Yes | Yes | Yes |
-| Vision / Image Support | Yes | Yes | Yes |
-| OAuth Authentication Infrastructure | Yes | Yes | Yes |
-| Cross-language Parity (Rust, Go, Python) | Yes | Yes | Yes |
-| Static + Dynamic Linking | Yes | Yes | Yes |
-| **ZEN Decision Tables** | — | Yes | Yes |
-| **Constraint Solver (Z3-backed)** | — | Yes | Yes |
-| **Plugin Loading & Trust Policy** | — | Yes | Yes |
-| **MCP (Model Context Protocol)** | — | Yes | Yes |
-| **CLIPS Advanced (programmatic rules, session persistence)** | — | Yes | Yes |
-| **Custom Plugin Configuration Paths** | — | — | Yes |
-| **Delegated Trust Roots** | — | — | Yes |
-| **Priority Support** | — | — | Yes |
+New Pro purchases are paused. Details about v2.0.0 Launch Party Pricing will
+follow. The public download does not change any existing paid rights, and
+older prices in the bundled guides are not a current offer.
 
-## Numerical Limits
+Runtime validity and maintenance/support are separate. Strict deployment-v2
+tokens carry `sdk_release_line`; line 2 covers the v2 major line. Developer-token
+expiry and machine claims are separate. Legacy deployment version ceilings are
+historical-v1 behavior, not accepted strict deployment-v2 claims. Token expiry,
+signature, subject/machine and feature
+authorization must still pass. A support-lapsed perpetual purchase is not by
+itself proof that a token expired, nor permission to ignore an expired token.
 
-| Limit | Community | Pro | Enterprise |
-|-------|:---------:|:---:|:----------:|
-| Max concurrent CLIPS sessions | 16 | 64 | 256 |
-| Max cached rulebases | 8 | 32 | 128 |
-| Max rules per session | 500 | 5,000 | 50,000 |
-| Max facts per session | 10,000 | 100,000 | 1,000,000 |
-| Max Bayesian network nodes | 50 | 500 | 5,000 |
-| Max solver constraints | — | 10,000 | 100,000 |
-| Machine activations (developer tokens) | — | 3 | Unlimited |
+Developer-seat capacity follows the owned entitlement and service policy.
+There is no unlimited-instance/no-seat-fee promise here. New assisted
+deployment-token issuance and replacement are
+deferred until after the v2.0.0 GA release, with no announced date. This does
+not change offline validation of already-issued tokens. Trial duration,
+renewal, recovery and purchaser/seat behavior require
+tested service contracts; do not infer them from static catalog limits.
 
-## SDK Wrapper Availability
+## Checking authorization
 
-All editions provide wrappers for all three languages:
-
-| Language | Package | Install |
-|----------|---------|---------|
-| Rust | `nxuskit` | Path dependency from SDK bundle |
-| Go | `nxuskit` | `go get github.com/nxus-SYSTEMS/nxusKit/packages/nxuskit-go` |
-| Python | `nxuskit-py` | SDK bundle `python/src` on `PYTHONPATH`; PyPI/TestPyPI target `nxuskit-py` |
-
-## Example Tier Assignments
-
-| Example | Tier | Reason |
-|---------|------|--------|
-| LLM basics, streaming, tool calling | Community | Uses cloud/local LLM providers |
-| CLIPS basics, CLIPS-LLM hybrid | Community | CLIPS engine is Community-tier |
-| Bayesian network inference | Community | BN inference is Community-tier |
-| Gamer (game AI solver) | **Pro** | Uses Z3 constraint solver |
-| Racer (optimization) | **Pro** | Uses Z3 constraint solver |
-| Ruler (rule evaluation) | **Pro** | Uses ZEN decision tables |
-| Solver (generic CSP) | **Pro** | Uses Z3 constraint solver |
-| Riffer (music generation) | **Pro** | Uses solver + CLIPS pipeline |
-| Sweeper (minesweeper AI) | **Pro** | Uses Z3 constraint solver |
-
-## Licensing
-
-| Aspect | Community | Pro | Enterprise |
-|--------|-----------|-----|------------|
-| License type | Open-source | Commercial subscription | Commercial subscription |
-| Token required | No | Yes (developer or deployment) | Yes |
-| Machine activations | N/A | Up to 3 per license | Unlimited |
-| Deployment tokens | N/A | Unlimited instances, no per-seat fees | Unlimited |
-| Version ceiling | N/A | Locked to major.minor at purchase time | Locked to major.minor |
-| Trial | N/A | 30-day trial (registration required) | Contact sales |
-
-## Getting Started with Pro
-
-1. Create an account and register for a trial or purchase a license
-2. Authenticate: `nxuskit-cli license login`
-3. Activate on your machine: `nxuskit-cli license activate --key <purchase_id>`
-4. For CI/CD: set `NXUSKIT_LICENSE_TOKEN` with your deployment token
-
-See the [License Activation Guide](license-activation-guide.md) for the full workflow.
+Use the [License Activation Guide](license-activation-guide.md) for the shipped
+login/activation/status commands. `license status --json` can exit 0 when no
+token is installed. A Pro binary or a capability flag does not grant access:
+verify the intended entitled Solver operation separately. Purchase/activation
+walkthroughs remain dependent on the qualified Licensing and portal service.

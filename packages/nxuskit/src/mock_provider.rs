@@ -204,6 +204,8 @@ impl crate::async_provider::AsyncProvider for MockProvider {
             provider: "mock".into(),
             usage: TokenUsage::default(),
             finish_reason: Some(crate::FinishReason::Stop),
+            raw_finish_reason: None,
+            provider_metadata: None,
             metadata: HashMap::new(),
             warnings: vec![],
             logprobs: None,

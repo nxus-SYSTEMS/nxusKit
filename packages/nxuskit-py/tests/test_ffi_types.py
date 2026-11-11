@@ -9,6 +9,49 @@ from nxuskit._ffi_types import (
 from nxuskit.types import TokenUsage
 
 
+def test_selected_metadata_survives_ffi_json():
+    import json
+
+    expected = {
+        "citations": ["https://example.org/é"],
+        "usage": {"cost": None, "reasoning_tokens": 7},
+    }
+    body = json.loads(
+        '{"content":"ok","provider_metadata":{"citations":["https://example.org/é"],"usage":{"cost":null,"reasoning_tokens":7}}}'
+    )
+    assert chat_response_from_ffi(body).provider_metadata == expected
+    body.update(delta="", terminal=True)
+    assert stream_chunk_from_ffi(body).provider_metadata == expected
+    assert chat_response_from_ffi({}).provider_metadata is None
+    assert stream_chunk_from_ffi({}).provider_metadata is None
+
+
+def test_terminal_truth_json_compatibility():
+    import json
+    from dataclasses import asdict
+
+    for body, final, raw in [
+        ('{"delta":"old"}', False, None),
+        ('{"delta":"old","finish_reason":null}', False, None),
+        ('{"delta":"old","finish_reason":"stop"}', True, None),
+        ('{"delta":"x","terminal":false,"finish_reason":null}', False, None),
+        (
+            '{"delta":"x","terminal":true,"finish_reason":null,"raw_finish_reason":"vendor-new"}',
+            True,
+            "vendor-new",
+        ),
+        ('{"delta":"x","terminal":true,"finish_reason":null,"raw_finish_reason":null}', True, None),
+    ]:
+        chunk = stream_chunk_from_ffi(json.loads(body))
+        assert chunk.is_final() is final, body
+        assert asdict(chunk)["raw_finish_reason"] == raw, body
+    response = chat_response_from_ffi(
+        {"content": "x", "finish_reason": None, "raw_finish_reason": "vendor-new"}
+    )
+    assert response.finish_reason is None
+    assert response.raw_finish_reason == "vendor-new"
+
+
 def _parse_usage(data: dict) -> TokenUsage:
     """Helper matching the internal _parse_usage from _ffi_types."""
     from nxuskit._ffi_types import _parse_usage

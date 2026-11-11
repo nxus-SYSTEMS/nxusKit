@@ -6,11 +6,12 @@ members = [
     "crates/nxuskit-core",
 ]
 resolver = "2"
+exclude = ["third-party/candle-core-0.9.2"]
 
 [workspace.package]
-version = "1.0.5"
+version = "2.0.0"
 edition = "2024"
-rust-version = "1.93"
+rust-version = "1.94"
 authors = ["nxusKit Contributors"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/nxus-SYSTEMS/nxusKit"
@@ -27,7 +28,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # Async utilities
-async-trait = "0.1"
+async-trait = "=0.1.92"
 futures = "0.3"
 async-stream = "0.3"
 
@@ -52,16 +53,17 @@ uuid = { version = "1", features = ["v4", "v7", "fast-rng", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 # YAML I/O (maintained fork of serde_yaml)
-serde_yaml_ng = "0.10"
+serde_yaml_ng = { package = "serde_yaml_bw", version = "=2.5.8" }
 
 # JSON Schema validation (Draft 2020-12, 2019-09, 7, 6, 4)
 jsonschema = "0.45"
 
 # JWT token validation (ES256 for license tokens, RS384 legacy support)
-jsonwebtoken = { version = "10", default-features = false, features = ["use_pem", "rsa", "rust_crypto", "p256"] }
+# Keep exactly one backend, aligned with the immutable licensing client pin.
+jsonwebtoken = { version = "10", default-features = false, features = ["use_pem", "aws_lc_rs"] }
 
 # EC P-256 key generation (dev-dependency: ES256 test fixture signing)
-p256 = { version = "0.13", features = ["pkcs8", "ecdsa"] }
+p256 = { version = "0.14", features = ["pkcs8", "ecdsa"] }
 
 # Cross-platform machine fingerprinting (for license token binding)
 machine-uid = "0.5"
@@ -76,7 +78,7 @@ log = "0.4"
 slotmap = "1.0"
 
 # LRU cache (configurable capacity with O(1) operations)
-lru = "0.12"
+lru = "0.19"
 
 # Synchronization primitives (faster than std::sync, no poisoning)
 parking_lot = "0.12"
@@ -128,3 +130,6 @@ print_stderr = "warn"
 must_use_candidate = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
+
+[patch.crates-io]
+candle-core = { path = "third-party/candle-core-0.9.2" }

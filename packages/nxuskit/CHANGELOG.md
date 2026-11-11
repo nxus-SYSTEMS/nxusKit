@@ -5,71 +5,28 @@ All notable changes to nxuskit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-07-15
+
+### Changed
+
+- Prepared the Rust wrapper for the lockstep v2.0.0 SDK package candidate.
+  This entry does not claim publication, availability, or a public release.
+
+- `nxuskit::contract::v1_1::doctor_readiness_snapshot` now captures the current
+  UTC timestamp for `ReadinessSnapshot.captured_at`. Use
+  `doctor_readiness_snapshot_at` or `ReadinessSnapshot::from_pure` when a
+  deterministic fixture timestamp is required.
+- Documented `nxuskit::contract::v1_1` as the v1.1 public contract authority
+  for downstream consumers and clarified the default Arrow/Substrait/Zenoh/CLIPS
+  readiness posture.
+
 ## [Unreleased]
 
-## [1.0.5] - 2026-06-16
-
-### Changed
-
-- Updated Rust wrapper package metadata to the SDK lockstep `1.0.5` release.
-- Kept the v1.0.0 Rust wrapper API and C ABI compatibility contract unchanged.
-
-### Fixed
-
-- Aligned release QA/provenance and SDK bundle documentation with the v1.0.5
-  public-trust and release workflow hardening pass.
-
-## [1.0.4] - 2026-06-15
-
-### Changed
-
-- Updated Rust wrapper package metadata to the SDK lockstep `1.0.4` release.
-- Kept the v1.0.0 Rust wrapper API and C ABI compatibility contract unchanged.
-
-### Fixed
-
-- Aligned release QA/provenance and SDK bundle documentation with the v1.0.4
-  Python PyPI/TestPyPI source-readiness pass.
-
-## [1.0.2] - 2026-06-12
-
-### Changed
-
-- Updated Rust wrapper package metadata to the SDK lockstep `1.0.2` release.
-- Kept the v1.0.0 Rust wrapper API and C ABI compatibility contract unchanged.
-
-### Fixed
-
-- Aligned release QA/provenance and SDK bundle documentation with the v1.0.2
-  public-trust hardening pass.
-
-## [1.0.1] - 2026-06-08
-
-### Fixed
-
-- Rebuilt Pro SDK CLI packaging so `nxuskit-cli solver` and `nxuskit-cli zen`
-  compile the real Pro engine command modules instead of CE-safe stubs.
-- Extended the CLI `pro-engines` feature to enable solver/ZEN capability flags
-  in both `nxuskit-engine` and `nxuskit-core`.
-
-## [1.0.0] - 2026-05-28
-
-### Changed
-
-- Promoted the Rust wrapper to the lockstep nxusKit SDK `1.0.0` GA version.
-- Preserved the v0.9.4-stabilized public API surface; this release contains no
-  Rust wrapper API break.
-- SDK bundle packaging now includes the wrapper benchmark target declared in
-  `Cargo.toml`.
-
-## [0.9.4] - 2026-05-11
-
-### Changed
-
-- **SDK lockstep versioning**: Rust wrapper metadata aligned with the published
-  SDK `0.9.4` C ABI and release bundles.
-- **Streaming logprobs**: wrapper types include per-chunk streaming logprob
-  deltas for providers that support them.
+- Pin official async-trait 0.1.92 for compiler compatibility. Object-safe boxed
+  async behavior and genuine unused Future/Result obligations remain intact;
+  consumers do not need an SDK workspace `[patch]` or lint suppression. Rust 1.94
+  remains the minimum. This change does not alter the C ABI or qualify a native
+  package for release.
 
 ## [0.9.3] - 2026-04-29
 

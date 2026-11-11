@@ -17,6 +17,7 @@ fn successful_token_classification_fixtures_validate_to_expected_types() {
         validation.set_issuer(&["nxus-licensing"]);
         validation.validate_exp = false;
         validation.validate_nbf = false;
+        validation.validate_aud = false;
         validation.required_spec_claims.clear();
 
         let token =
@@ -35,15 +36,22 @@ fn successful_token_classification_fixtures_validate_to_expected_types() {
         assert_eq!(token.claims.token_type, expected);
         assert_eq!(token.claims.product_id, "nxuskit");
         assert!(!token.claims.edition.is_empty());
-        assert!(
-            token
-                .claims
-                .features_override
-                .as_ref()
-                .is_some_and(|v| !v.is_empty()),
-            "fixture {} must include feature entitlements",
-            fixture.name
-        );
+        if expected == TokenType::Deployment {
+            assert!(
+                fixture.claims["capability_grants"].is_array(),
+                "strict deployment fixtures carry v2 grants rather than legacy feature overrides"
+            );
+        } else {
+            assert!(
+                token
+                    .claims
+                    .features_override
+                    .as_ref()
+                    .is_some_and(|v| !v.is_empty()),
+                "fixture {} must include feature entitlements",
+                fixture.name
+            );
+        }
         assert!(
             token
                 .claims

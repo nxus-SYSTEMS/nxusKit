@@ -1,0 +1,7 @@
+{
+  "contract_version": "1.1",
+  "fixture_kind": "boundary_negative",
+  "seeded_class": "internal_repo_name",
+  "description": "Negative-control: metadata-only marker for the boundary scan (Phase 4, T038). The actual banned token is NOT embedded in this fixture so the existing public-leak gate (internal/tools/scripts/verify_no_internal_refs.sh) does not trip on it. Phase-4 negative-control tests reconstruct the seeded substring at test time and write it to a scoped tempdir before invoking the scan.",
+  "seeded_token_kind": "internal_repo_name_marker"
+}
