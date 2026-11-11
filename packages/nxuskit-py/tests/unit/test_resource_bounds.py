@@ -25,9 +25,7 @@ def test_unary_sync_exact_and_one_over():
     exact = read_bounded_chunks([b"a" * MAX_UNARY_RESPONSE_BODY_BYTES], provider="test")
     assert len(exact) == MAX_UNARY_RESPONSE_BODY_BYTES
     with pytest.raises(ProviderError) as caught:
-        read_bounded_chunks(
-            [b"a" * MAX_UNARY_RESPONSE_BODY_BYTES, b"x"], provider="test"
-        )
+        read_bounded_chunks([b"a" * MAX_UNARY_RESPONSE_BODY_BYTES, b"x"], provider="test")
     assert_limit_error(caught.value, MAX_UNARY_RESPONSE_BODY_BYTES)
 
 

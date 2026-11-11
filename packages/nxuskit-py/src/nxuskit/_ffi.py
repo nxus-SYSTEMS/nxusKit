@@ -62,7 +62,8 @@ ffi.cdef("""
     NxuskitResponse *nxuskit_chat(NxuskitProvider *provider, const char *request_json);
     const char *nxuskit_response_json(const NxuskitResponse *response);
     void nxuskit_free_response(NxuskitResponse *response);
-    NxuskitChatOperation *nxuskit_chat_operation_start(NxuskitProvider *, const char *, uint64_t, NxuskitChatAsyncCallback, void *);
+    NxuskitChatOperation *nxuskit_chat_operation_start(NxuskitProvider *, const char *, uint64_t, \
+NxuskitChatAsyncCallback, void *);
     void nxuskit_chat_operation_cancel(NxuskitChatOperation *);
     _Bool nxuskit_chat_operation_wait(NxuskitChatOperation *, uint32_t);
     _Bool nxuskit_chat_operation_free(NxuskitChatOperation *);

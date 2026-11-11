@@ -13,14 +13,13 @@ import math
 
 import httpx
 
+from nxuskit.errors import AuthenticationError, NetworkError, ProviderError, RateLimitError
+from nxuskit.errors import TimeoutError as SDKTimeoutError
 from nxuskit.providers._resource_bounds import (
     NdjsonRecordFramer,
     SseEventFramer,
     read_bounded_async_chunks,
 )
-
-from nxuskit.errors import AuthenticationError, NetworkError, ProviderError, RateLimitError
-from nxuskit.errors import TimeoutError as SDKTimeoutError
 from nxuskit.providers.claude import ClaudeProvider
 from nxuskit.providers.claude import _canonical_reason as _claude_reason
 from nxuskit.providers.fireworks import FireworksProvider
@@ -237,33 +236,28 @@ class NativeAsyncOpenAIProvider:
     def _request(self, messages, model, stream, **kwargs):
         _validate_request_controls(self.provider_name, **kwargs)
         response_format = kwargs.get("response_format")
-        if self.provider_name == "claude" and isinstance(response_format, dict) and (
-            response_format.get("type") != "json_schema"
-            or not isinstance(response_format.get("schema"), dict)
-        ):
-            error = ProviderError(
-                "invalid request control: response_format", provider="claude"
+        if (
+            self.provider_name == "claude"
+            and isinstance(response_format, dict)
+            and (
+                response_format.get("type") != "json_schema"
+                or not isinstance(response_format.get("schema"), dict)
             )
+        ):
+            error = ProviderError("invalid request control: response_format", provider="claude")
             error.code = "invalid_request"
             raise error
         if self.provider_name == "claude" and (
             isinstance(response_format, dict)
-            or (
-                stream
-                and (bool(kwargs.get("tools")) or kwargs.get("tool_choice") is not None)
-            )
+            or (stream and (bool(kwargs.get("tools")) or kwargs.get("tool_choice") is not None))
         ):
             error = ProviderError(
                 "unsupported Anthropic structured output or tool streaming", provider="claude"
             )
             error.code = "unsupported_capability"
             raise error
-        if self.provider_name == "perplexity" and any(
-            message.images for message in messages
-        ):
-            error = ProviderError(
-                "unsupported request control: images", provider="perplexity"
-            )
+        if self.provider_name == "perplexity" and any(message.images for message in messages):
+            error = ProviderError("unsupported request control: images", provider="perplexity")
             error.code = "unsupported_capability"
             raise error
         if self.provider_name == "ollama" and any(
@@ -538,9 +532,7 @@ class _NativeStream:
         try:
             return frame.decode("utf-8")
         except UnicodeDecodeError as error:
-            failure = ProviderError(
-                "invalid stream UTF-8", provider=self._owner.provider_name
-            )
+            failure = ProviderError("invalid stream UTF-8", provider=self._owner.provider_name)
             failure.code = "malformed_response"
             raise failure from error
 

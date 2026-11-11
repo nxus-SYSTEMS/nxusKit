@@ -204,9 +204,7 @@ def test_native_declared_unsupported_generation_controls_reject_before_transport
     from nxuskit import Provider
     from nxuskit.errors import ProviderError
 
-    provider = getattr(Provider, profile)(
-        model="m", api_key="fixture", use_ffi=False
-    )
+    provider = getattr(Provider, profile)(model="m", api_key="fixture", use_ffi=False)
 
     def forbidden(**kwargs):
         raise AssertionError("unsupported generation control reached transport")
@@ -617,6 +615,7 @@ class TestOpenAICompatibleHeaders:
 def test_selected_metadata_citation_heavy_unary():
     """Synthetic 40-result workload; expected values never use the mapper."""
     import json
+
     from nxuskit.providers.perplexity import PerplexityProvider
 
     expected = {
@@ -716,6 +715,7 @@ def test_invalid_tool_definition_is_invalid_request(tool):
         provider._build_request([Message.user("hi")], "sonar", tools=[tool])
     assert getattr(failure.value, "code", None) == "invalid_request"
 
+
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("case", ["stop", "json", "schema", "tools", "tool_choice"])
 def test_perplexity_native_sync_unsupported_request_surface_rejects_before_transport(
@@ -729,14 +729,10 @@ def test_perplexity_native_sync_unsupported_request_surface_rejects_before_trans
     kwargs = {
         "stop": {"stop": ["END"]},
         "json": {"response_format": ResponseFormat.JSON},
-        "schema": {
-            "response_format": {"type": "json_schema", "schema": {"type": "object"}}
-        },
+        "schema": {"response_format": {"type": "json_schema", "schema": {"type": "object"}}},
         "tools": {
             "tools": [
-                ToolDefinition.create(
-                    "emit_x", parameters={"type": "object", "properties": {}}
-                )
+                ToolDefinition.create("emit_x", parameters={"type": "object", "properties": {}})
             ]
         },
         "tool_choice": {"tool_choice": "required"},
@@ -758,7 +754,9 @@ def test_perplexity_native_sync_unsupported_request_surface_rejects_before_trans
 
 
 @pytest.mark.parametrize("stream", [False, True])
-@pytest.mark.parametrize("source_type", [ImageSourceType.URL, ImageSourceType.BASE64, ImageSourceType.FILEPATH])
+@pytest.mark.parametrize(
+    "source_type", [ImageSourceType.URL, ImageSourceType.BASE64, ImageSourceType.FILEPATH]
+)
 def test_perplexity_native_sync_images_reject_before_transport(source_type, stream, monkeypatch):
     from nxuskit.errors import ProviderError
     from nxuskit.providers.perplexity import PerplexityProvider
@@ -813,6 +811,7 @@ def test_perplexity_response_format_validation_precedes_unsupported_and_text_is_
 @pytest.mark.parametrize("unicode_text", [False, True])
 def test_selected_metadata_byte_boundary(size, unicode_text):
     import json
+
     from nxuskit.errors import ProviderError
     from nxuskit.providers.perplexity import PerplexityProvider
 
@@ -852,6 +851,7 @@ def test_selected_metadata_depth_boundary(depth):
 @pytest.mark.parametrize("overflow", [False, True])
 def test_selected_metadata_stream_merge_and_error(monkeypatch, overflow, reset_usage):
     import json
+
     from nxuskit.errors import ProviderError
     from nxuskit.providers.openrouter import OpenRouterProvider
 
@@ -1366,7 +1366,9 @@ def test_together_native_sync_core_wire_preserves_supported_controls_and_vision(
     from nxuskit.providers.together import TogetherProvider
     from nxuskit.types import ResponseFormat
 
-    provider = TogetherProvider(model="meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo", api_key="fixture")
+    provider = TogetherProvider(
+        model="meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo", api_key="fixture"
+    )
     message = Message.user("Describe this.").with_image_url("https://example.invalid/a.png")
     stops = ["a", "b", "c", "d"]
 

@@ -286,7 +286,10 @@ def _validate_request_controls(provider, **controls):
             error.code = "invalid_request"
             raise error
 
-    if provider in ("claude", "fireworks", "lmstudio", "groq", "mistral", "together", "openrouter") and controls.get("stop") is not None:
+    if (
+        provider in ("claude", "fireworks", "lmstudio", "groq", "mistral", "together", "openrouter")
+        and controls.get("stop") is not None
+    ):
         stop = controls["stop"]
         values = [stop] if isinstance(stop, str) else stop
         if len(values) > 4:

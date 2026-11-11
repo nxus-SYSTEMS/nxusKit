@@ -13,7 +13,9 @@ from nxuskit import Message, Provider
 @pytest.mark.parametrize("use_ffi", [False, True])
 @pytest.mark.parametrize("asynchronous", [False, True])
 @pytest.mark.parametrize("streaming", [False, True])
-@pytest.mark.parametrize("failure", ["error-null", "error-text", "incomplete", "negative-prompt", "negative-completion"])
+@pytest.mark.parametrize(
+    "failure", ["error-null", "error-text", "incomplete", "negative-prompt", "negative-completion"]
+)
 def test_ollama_error_completion_rejects_all_public_transports(
     use_ffi, asynchronous, streaming, failure
 ):
@@ -137,9 +139,7 @@ def test_ollama_cloud_declared_profile_reaches_async_owner_only(use_ffi):
 
             baseline = len(requests)
             with pytest.raises(ProviderError) as caught:
-                await owner.chat_async(
-                    [Message.user("hi")], response_format=ResponseFormat.JSON
-                )
+                await owner.chat_async([Message.user("hi")], response_format=ResponseFormat.JSON)
             assert getattr(caught.value, "code", None) == "unsupported_capability"
             assert len(requests) == baseline
         finally:
@@ -149,9 +149,7 @@ def test_ollama_cloud_declared_profile_reaches_async_owner_only(use_ffi):
         asyncio.run(run())
         assert len(requests) == 2
         assert all(path == "/api/chat" for path, _ in requests)
-        assert all(
-            "profile" not in body and "declared_profile" not in body for _, body in requests
-        )
+        assert all("profile" not in body and "declared_profile" not in body for _, body in requests)
     finally:
         server.shutdown()
         server.server_close()
@@ -234,8 +232,8 @@ def test_ollama_sampling_controls_reach_all_public_transports(
 @pytest.mark.parametrize("failure", ["timeout", "disconnect"])
 @pytest.mark.parametrize("profile", ["openrouter", "mistral"])
 def test_selected_sync_stream_timeout_after_first_chunk(failure, profile):
-    from nxuskit._ffi_errors import TimeoutError as FFITimeoutError
     from nxuskit._ffi_errors import ProviderError as FFIProviderError
+    from nxuskit._ffi_errors import TimeoutError as FFITimeoutError
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -346,8 +344,8 @@ def test_remaining_ffi_profiles_honor_endpoint(profile, streaming):
 @pytest.mark.parametrize("asynchronous", [False, True])
 @pytest.mark.parametrize("profile", ["openrouter", "mistral"])
 def test_selected_ffi_configured_timeout(streaming, asynchronous, profile):
-    from nxuskit.errors import ProviderError, TimeoutError
     from nxuskit._ffi_errors import TimeoutError as FFITimeoutError
+    from nxuskit.errors import ProviderError, TimeoutError
 
     requests = []
 

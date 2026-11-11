@@ -506,7 +506,9 @@ class TestStopSequencesAcrossAllProviders:
         from nxuskit.errors import ProviderError
         from nxuskit.providers.openrouter import OpenRouterProvider
 
-        provider = OpenRouterProvider(model="anthropic/claude-sonnet-4-20250514", api_key="test-key")
+        provider = OpenRouterProvider(
+            model="anthropic/claude-sonnet-4-20250514", api_key="test-key"
+        )
         messages = [Message.user("Hello")]
         stops = ["a", "b", "c", "d"]
 
@@ -612,9 +614,7 @@ class TestStopSequencesAcrossAllProviders:
         from nxuskit.errors import ProviderError
         from nxuskit.providers.perplexity import PerplexityProvider
 
-        provider = PerplexityProvider(
-            model="llama-3.1-sonar-small-128k-online", api_key="test-key"
-        )
+        provider = PerplexityProvider(model="llama-3.1-sonar-small-128k-online", api_key="test-key")
         with pytest.raises(ProviderError, match="unsupported request control: stop") as caught:
             provider._build_request(
                 [Message.user("Hello")],

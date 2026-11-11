@@ -45,9 +45,7 @@ class LegacyLineResponse:
 
 
 def test_openai_sync_stream_rejects_one_byte_over_sse_event(monkeypatch):
-    response = ChunkResponse(
-        [b"x" * (MAX_STREAM_RECORD_EVENT_BYTES + 1) + b"\n\n"]
-    )
+    response = ChunkResponse([b"x" * (MAX_STREAM_RECORD_EVENT_BYTES + 1) + b"\n\n"])
     provider = OpenAIProvider("m", api_key="test", api_url="https://example.invalid/v1")
     monkeypatch.setattr(provider, "_make_request", lambda **_kwargs: response)
 
@@ -58,9 +56,7 @@ def test_openai_sync_stream_rejects_one_byte_over_sse_event(monkeypatch):
 
 
 def test_ollama_sync_stream_rejects_one_byte_over_ndjson_record(monkeypatch):
-    response = ChunkResponse(
-        [b"x" * (MAX_STREAM_RECORD_EVENT_BYTES + 1) + b"\n"]
-    )
+    response = ChunkResponse([b"x" * (MAX_STREAM_RECORD_EVENT_BYTES + 1) + b"\n"])
     provider = OllamaProvider("m", api_url="http://example.invalid")
     monkeypatch.setattr(provider, "_make_request", lambda **_kwargs: response)
 
@@ -90,10 +86,10 @@ def test_openai_sync_stream_fragmented_utf8_and_crlf(monkeypatch):
 
 def test_claude_sync_stream_multiline_sse(monkeypatch):
     body = (
-        b'event: content_block_delta\r\n'
+        b"event: content_block_delta\r\n"
         b'data: {"type":"content_block_delta",\r\n'
         b'data: "delta":{"type":"text_delta","text":"hi"}}\r\n\r\n'
-        b'event: message_stop\r\n'
+        b"event: message_stop\r\n"
         b'data: {"type":"message_stop"}\r\n\r\n'
     )
     response = ChunkResponse([body[:31], body[31:79], body[79:]])
@@ -148,6 +144,7 @@ def test_sync_stream_transport_error_propagates_and_closes(monkeypatch):
         list(provider.chat_stream([]))
     assert caught.value is fault
     assert response.close_count == 1
+
 
 def test_sync_sse_requests_response_instance_iter_lines_override_remains_supported(monkeypatch):
     from io import BytesIO

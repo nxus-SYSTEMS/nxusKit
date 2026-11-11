@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Iterator, Optional, Protocol, Union
+
 from nxuskit._ffi_async_provider import AsyncFFIProvider
 
 # ── Core Types ──────────────────────────────────────────────────
@@ -181,7 +182,15 @@ class LLMProvider(Protocol):
 
 class Provider:
     @staticmethod
-    def create_async(provider_type: str, model: str, *, api_key: Optional[str] = ..., api_url: Optional[str] = ..., timeout: float = ..., max_in_flight: int = ...) -> AsyncFFIProvider: ...
+    def create_async(
+        provider_type: str,
+        model: str,
+        *,
+        api_key: Optional[str] = ...,
+        api_url: Optional[str] = ...,
+        timeout: float = ...,
+        max_in_flight: int = ...,
+    ) -> AsyncFFIProvider: ...
     @staticmethod
     def claude(*, model: str = ..., api_key: Optional[str] = ..., **kwargs: Any) -> LLMProvider: ...
     @staticmethod
@@ -193,15 +202,25 @@ class Provider:
     @staticmethod
     def xai(*, model: str = ..., api_key: Optional[str] = ..., **kwargs: Any) -> LLMProvider: ...
     @staticmethod
-    def mistral(*, model: str = ..., api_key: Optional[str] = ..., **kwargs: Any) -> LLMProvider: ...
+    def mistral(
+        *, model: str = ..., api_key: Optional[str] = ..., **kwargs: Any
+    ) -> LLMProvider: ...
     @staticmethod
-    def fireworks(*, model: str = ..., api_key: Optional[str] = ..., **kwargs: Any) -> LLMProvider: ...
+    def fireworks(
+        *, model: str = ..., api_key: Optional[str] = ..., **kwargs: Any
+    ) -> LLMProvider: ...
     @staticmethod
-    def together(*, model: str = ..., api_key: Optional[str] = ..., **kwargs: Any) -> LLMProvider: ...
+    def together(
+        *, model: str = ..., api_key: Optional[str] = ..., **kwargs: Any
+    ) -> LLMProvider: ...
     @staticmethod
-    def openrouter(*, model: str = ..., api_key: Optional[str] = ..., **kwargs: Any) -> LLMProvider: ...
+    def openrouter(
+        *, model: str = ..., api_key: Optional[str] = ..., **kwargs: Any
+    ) -> LLMProvider: ...
     @staticmethod
-    def perplexity(*, model: str = ..., api_key: Optional[str] = ..., **kwargs: Any) -> LLMProvider: ...
+    def perplexity(
+        *, model: str = ..., api_key: Optional[str] = ..., **kwargs: Any
+    ) -> LLMProvider: ...
     @staticmethod
     def lmstudio(*, model: str = ..., **kwargs: Any) -> LLMProvider: ...
 

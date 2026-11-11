@@ -424,9 +424,7 @@ def test_ollama_logprobs_wire_and_unary_mapping(monkeypatch):
         return Response()
 
     monkeypatch.setattr(provider, "_make_request", fake_request)
-    response = provider.chat(
-        [Message.user("hi")], logprobs=True, top_logprobs=5
-    )
+    response = provider.chat([Message.user("hi")], logprobs=True, top_logprobs=5)
     assert captured["json_data"]["logprobs"] is True
     assert captured["json_data"]["top_logprobs"] == 5
     assert response.logprobs is not None
@@ -441,9 +439,7 @@ def test_ollama_logprobs_wire_and_unary_mapping(monkeypatch):
         ("reasoning_effort", "medium"),
     ],
 )
-def test_ollama_unsupported_canonical_controls_reject_before_transport(
-    monkeypatch, control, value
-):
+def test_ollama_unsupported_canonical_controls_reject_before_transport(monkeypatch, control, value):
     from nxuskit.errors import ProviderError
 
     provider = OllamaProvider("local")

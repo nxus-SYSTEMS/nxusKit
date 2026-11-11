@@ -170,9 +170,7 @@ def test_ffi_invalid_tool_definition_fails_before_abi(abi, name, tool):
     from nxuskit.errors import ProviderError
 
     library, _ = abi
-    with getattr(Provider, name)(
-        model="default", api_key="test", use_ffi=True
-    ) as provider:
+    with getattr(Provider, name)(model="default", api_key="test", use_ffi=True) as provider:
         with pytest.raises(ProviderError) as failure:
             provider.chat([Message.user("hello")], tools=[tool])
     assert getattr(failure.value, "code", None) == "invalid_request"
@@ -275,9 +273,7 @@ def test_ffi_claude_schema_and_tool_streaming_reject_before_abi(abi):
     from nxuskit.errors import ProviderError
 
     library, _ = abi
-    tool = ToolDefinition.create(
-        "lookup", parameters={"type": "object", "properties": {}}
-    )
+    tool = ToolDefinition.create("lookup", parameters={"type": "object", "properties": {}})
     schema = {"type": "json_schema", "schema": {"type": "object"}}
 
     with Provider.claude(model="selected", use_ffi=True) as provider:
@@ -292,9 +288,7 @@ def test_ffi_claude_schema_and_tool_streaming_reject_before_abi(abi):
 
         assert provider.chat([Message.user("hello")], tools=[tool]).content == "reply"
         assert (
-            provider.chat(
-                [Message.user("hello")], response_format=ResponseFormat.JSON
-            ).content
+            provider.chat([Message.user("hello")], response_format=ResponseFormat.JSON).content
             == "reply"
         )
 
@@ -357,7 +351,10 @@ def test_ffi_ollama_declared_profile_is_python_only_provenance(abi):
     assert library.configs == [
         {"provider_type": "ollama", "model": "selected", "timeout_ms": 30000}
     ]
-    assert all("profile" not in request and "declared_profile" not in request for request in library.requests)
+    assert all(
+        "profile" not in request and "declared_profile" not in request
+        for request in library.requests
+    )
 
 
 @pytest.mark.parametrize(
@@ -379,7 +376,9 @@ def test_ffi_claude_ollama_native_unsupported_controls_reject_before_abi(
     library, _ = abi
     kwargs = {"api_key": "fixture"} if name == "claude" else {}
     with getattr(Provider, name)(model="selected", use_ffi=True, **kwargs) as provider:
-        with pytest.raises(ProviderError, match=f"unsupported request control: {control}") as caught:
+        with pytest.raises(
+            ProviderError, match=f"unsupported request control: {control}"
+        ) as caught:
             if streaming:
                 list(provider.chat_stream([Message.user("hello")], **{control: value}))
             else:
@@ -406,9 +405,7 @@ def test_ffi_perplexity_xai_generation_controls_fail_before_abi(
     from nxuskit.errors import ProviderError
 
     library, _ = abi
-    with getattr(Provider, name)(
-        model="selected", api_key="fixture", use_ffi=True
-    ) as provider:
+    with getattr(Provider, name)(model="selected", api_key="fixture", use_ffi=True) as provider:
         with pytest.raises(ProviderError) as caught:
             if streaming:
                 list(provider.chat_stream([Message.user("hello")], **{control: value}))
@@ -418,25 +415,20 @@ def test_ffi_perplexity_xai_generation_controls_fail_before_abi(
     assert control in str(caught.value)
     assert library.requests == []
 
+
 @pytest.mark.parametrize("streaming", [False, True])
 @pytest.mark.parametrize("case", ["stop", "json", "schema", "tools", "tool_choice"])
-def test_ffi_perplexity_unsupported_request_surface_fails_before_abi(
-    abi, case, streaming
-):
+def test_ffi_perplexity_unsupported_request_surface_fails_before_abi(abi, case, streaming):
     from nxuskit.errors import ProviderError
 
     library, _ = abi
     kwargs = {
         "stop": {"stop": ["END"]},
         "json": {"response_format": ResponseFormat.JSON},
-        "schema": {
-            "response_format": {"type": "json_schema", "schema": {"type": "object"}}
-        },
+        "schema": {"response_format": {"type": "json_schema", "schema": {"type": "object"}}},
         "tools": {
             "tools": [
-                ToolDefinition.create(
-                    "emit_x", parameters={"type": "object", "properties": {}}
-                )
+                ToolDefinition.create("emit_x", parameters={"type": "object", "properties": {}})
             ]
         },
         "tool_choice": {"tool_choice": "required"},
@@ -486,14 +478,11 @@ def test_ffi_perplexity_response_format_validation_and_text_omission(abi):
             )
         assert getattr(caught.value, "code", None) == "invalid_request"
 
-        assert provider.chat(
-            [Message.user("hello")], response_format=ResponseFormat.TEXT
-        ).content == "reply"
-        list(
-            provider.chat_stream(
-                [Message.user("hello")], response_format=ResponseFormat.TEXT
-            )
+        assert (
+            provider.chat([Message.user("hello")], response_format=ResponseFormat.TEXT).content
+            == "reply"
         )
+        list(provider.chat_stream([Message.user("hello")], response_format=ResponseFormat.TEXT))
 
     expected = {
         "model": "selected",
@@ -759,9 +748,7 @@ def test_ffi_fireworks_bounds_and_advanced_controls_fail_before_abi(
     from nxuskit.errors import ProviderError
 
     library, _ = abi
-    with Provider.fireworks(
-        model="selected", api_key="fixture", use_ffi=True
-    ) as provider:
+    with Provider.fireworks(model="selected", api_key="fixture", use_ffi=True) as provider:
         with pytest.raises(ProviderError) as caught:
             if streaming:
                 list(provider.chat_stream([Message.user("hello")], **controls))
@@ -798,12 +785,15 @@ def test_ffi_fireworks_schema_and_unary_tools_reach_abi_and_stream_tools_fail_be
         api_key="fixture",
         use_ffi=True,
     ) as provider:
-        assert provider.chat(
-            [Message.user("Look up A-1.")],
-            response_format={"type": "json_schema", "schema": schema},
-            tools=[tool],
-            tool_choice=choice,
-        ).content == "reply"
+        assert (
+            provider.chat(
+                [Message.user("Look up A-1.")],
+                response_format={"type": "json_schema", "schema": schema},
+                tools=[tool],
+                tool_choice=choice,
+            ).content
+            == "reply"
+        )
 
         assert library.requests == [
             {
@@ -816,7 +806,9 @@ def test_ffi_fireworks_schema_and_unary_tools_reach_abi_and_stream_tools_fail_be
         ]
 
         for kwargs in ({"tools": [tool]}, {"tool_choice": choice}):
-            with pytest.raises(ProviderError, match="unsupported Fireworks tool streaming") as caught:
+            with pytest.raises(
+                ProviderError, match="unsupported Fireworks tool streaming"
+            ) as caught:
                 list(provider.chat_stream([Message.user("stream")], **kwargs))
             assert getattr(caught.value, "code", None) == "unsupported_capability"
 
@@ -870,12 +862,15 @@ def test_ffi_lmstudio_schema_and_unary_tools_reach_abi_and_stream_tools_fail_bef
     choice = {"type": "function", "function": {"name": "lookup"}}
 
     with Provider.lmstudio(model="selected", use_ffi=True) as provider:
-        assert provider.chat(
-            [Message.user("Look up A-1.")],
-            response_format={"type": "json_schema", "schema": schema},
-            tools=[tool],
-            tool_choice=choice,
-        ).content == "reply"
+        assert (
+            provider.chat(
+                [Message.user("Look up A-1.")],
+                response_format={"type": "json_schema", "schema": schema},
+                tools=[tool],
+                tool_choice=choice,
+            ).content
+            == "reply"
+        )
 
         assert library.requests == [
             {
@@ -944,9 +939,7 @@ def test_ffi_groq_images_and_tool_streaming_fail_before_abi(abi):
         tool = ToolDefinition.create("lookup", parameters={"type": "object"})
         choice = {"type": "function", "function": {"name": "lookup"}}
         for kwargs in ({"tools": [tool]}, {"tool_choice": choice}):
-            with pytest.raises(
-                ProviderError, match="unsupported Groq tool streaming"
-            ) as caught:
+            with pytest.raises(ProviderError, match="unsupported Groq tool streaming") as caught:
                 list(provider.chat_stream([Message.user("stream")], **kwargs))
             assert getattr(caught.value, "code", None) == "unsupported_capability"
 
@@ -979,12 +972,15 @@ def test_ffi_groq_schema_and_unary_tools_reach_abi_and_stream_tools_fail_before_
         api_key="fixture",
         use_ffi=True,
     ) as provider:
-        assert provider.chat(
-            [Message.user("Look up A-1.")],
-            response_format={"type": "json_schema", "schema": schema},
-            tools=[tool],
-            tool_choice=choice,
-        ).content == "reply"
+        assert (
+            provider.chat(
+                [Message.user("Look up A-1.")],
+                response_format={"type": "json_schema", "schema": schema},
+                tools=[tool],
+                tool_choice=choice,
+            ).content
+            == "reply"
+        )
 
         assert library.requests == [
             {
@@ -1040,9 +1036,7 @@ def test_ffi_mistral_tool_streaming_fails_before_abi(abi):
         tool = ToolDefinition.create("lookup", parameters={"type": "object"})
         choice = {"type": "function", "function": {"name": "lookup"}}
         for kwargs in ({"tools": [tool]}, {"tool_choice": choice}):
-            with pytest.raises(
-                ProviderError, match="unsupported Mistral tool streaming"
-            ) as caught:
+            with pytest.raises(ProviderError, match="unsupported Mistral tool streaming") as caught:
                 list(provider.chat_stream([Message.user("stream")], **kwargs))
             assert getattr(caught.value, "code", None) == "unsupported_capability"
 
@@ -1074,12 +1068,15 @@ def test_ffi_mistral_schema_and_unary_tools_reach_abi_and_stream_tools_fail_befo
         api_key="fixture",
         use_ffi=True,
     ) as provider:
-        assert provider.chat(
-            [Message.user("Look up A-1.")],
-            response_format={"type": "json_schema", "schema": schema},
-            tools=[tool],
-            tool_choice="auto",
-        ).content == "reply"
+        assert (
+            provider.chat(
+                [Message.user("Look up A-1.")],
+                response_format={"type": "json_schema", "schema": schema},
+                tools=[tool],
+                tool_choice="auto",
+            ).content
+            == "reply"
+        )
 
         assert library.requests == [
             {
@@ -1092,9 +1089,7 @@ def test_ffi_mistral_schema_and_unary_tools_reach_abi_and_stream_tools_fail_befo
         ]
 
         for kwargs in ({"tools": [tool]}, {"tool_choice": "auto"}):
-            with pytest.raises(
-                ProviderError, match="unsupported Mistral tool streaming"
-            ) as caught:
+            with pytest.raises(ProviderError, match="unsupported Mistral tool streaming") as caught:
                 list(provider.chat_stream([Message.user("stream")], **kwargs))
             assert getattr(caught.value, "code", None) == "unsupported_capability"
 
@@ -1170,12 +1165,15 @@ def test_ffi_together_schema_and_unary_tools_reach_abi_and_stream_tools_fail_bef
         api_key="fixture",
         use_ffi=True,
     ) as provider:
-        assert provider.chat(
-            [Message.user("Look up A-1.")],
-            response_format={"type": "json_schema", "schema": schema},
-            tools=[tool],
-            tool_choice="required",
-        ).content == "reply"
+        assert (
+            provider.chat(
+                [Message.user("Look up A-1.")],
+                response_format={"type": "json_schema", "schema": schema},
+                tools=[tool],
+                tool_choice="required",
+            ).content
+            == "reply"
+        )
 
         assert library.requests == [
             {
@@ -1263,7 +1261,9 @@ def test_ffi_openrouter_tool_streaming_fails_before_abi(abi):
     assert library.requests == []
 
 
-def test_ffi_openrouter_schema_and_named_unary_tools_reach_abi_and_stream_tools_fail_before_abi(abi):
+def test_ffi_openrouter_schema_and_named_unary_tools_reach_abi_and_stream_tools_fail_before_abi(
+    abi,
+):
     from nxuskit.errors import ProviderError
 
     library, _ = abi
@@ -1289,12 +1289,15 @@ def test_ffi_openrouter_schema_and_named_unary_tools_reach_abi_and_stream_tools_
         api_key="fixture",
         use_ffi=True,
     ) as provider:
-        assert provider.chat(
-            [Message.user("Look up A-1.")],
-            response_format={"type": "json_schema", "schema": schema},
-            tools=[tool],
-            tool_choice=choice,
-        ).content == "reply"
+        assert (
+            provider.chat(
+                [Message.user("Look up A-1.")],
+                response_format={"type": "json_schema", "schema": schema},
+                tools=[tool],
+                tool_choice=choice,
+            ).content
+            == "reply"
+        )
 
         assert library.requests == [
             {
@@ -1322,24 +1325,52 @@ def test_empty_tools_three_state_ffi_shared_builder_r47b():
 
     tool = ToolDefinition.create("lookup", parameters={"type": "object"})
     for profile in ("claude", "groq"):
+
         class Dummy:
             provider_name = profile
             model = "m"
             declared_profile = None
 
         omitted = SyncFFIProvider._request(
-            Dummy(), [Message.user("hi")], None, None, None, None, None, None, None, None,
+            Dummy(),
+            [Message.user("hi")],
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
             streaming=True,
         )
         empty = SyncFFIProvider._request(
-            Dummy(), [Message.user("hi")], None, None, None, None, None, None, [], None,
+            Dummy(),
+            [Message.user("hi")],
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            [],
+            None,
             streaming=True,
         )
         assert "tools" not in omitted
         assert "tools" not in empty
         with pytest.raises(ProviderError) as caught:
             SyncFFIProvider._request(
-                Dummy(), [Message.user("hi")], None, None, None, None, None, None, [tool], None,
+                Dummy(),
+                [Message.user("hi")],
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                [tool],
+                None,
                 streaming=True,
             )
         assert getattr(caught.value, "code", None) == "unsupported_capability"

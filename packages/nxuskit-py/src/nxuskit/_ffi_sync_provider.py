@@ -139,7 +139,9 @@ class SyncFFIProvider:
             error.code = "unsupported_capability"
             raise error
         if thinking is not None and self.provider_name != "ollama":
-            error = ProviderError("unsupported request control: thinking", provider=self.provider_name)
+            error = ProviderError(
+                "unsupported request control: thinking", provider=self.provider_name
+            )
             error.code = "unsupported_capability"
             raise error
 
@@ -159,7 +161,9 @@ class SyncFFIProvider:
         )
         for name, value in unsupported:
             if value is not None:
-                error = ProviderError(f"unsupported request control: {name}", provider=self.provider_name)
+                error = ProviderError(
+                    f"unsupported request control: {name}", provider=self.provider_name
+                )
                 error.code = "unsupported_capability"
                 raise error
 
@@ -199,8 +203,11 @@ class SyncFFIProvider:
                 error.code = "invalid_request"
                 raise error
 
-        if self.provider_name in ("fireworks", "lmstudio", "groq", "mistral", "together", "openrouter") and streaming and (
-            bool(tools) or tool_choice is not None
+        if (
+            self.provider_name
+            in ("fireworks", "lmstudio", "groq", "mistral", "together", "openrouter")
+            and streaming
+            and (bool(tools) or tool_choice is not None)
         ):
             display_name = {
                 "fireworks": "Fireworks",

@@ -7,8 +7,8 @@ from urllib.parse import urlsplit
 
 from nxuskit.errors import ProviderError
 from nxuskit.message import Message
-from nxuskit.providers.base import BaseProvider
 from nxuskit.providers._resource_bounds import NdjsonRecordFramer
+from nxuskit.providers.base import BaseProvider
 from nxuskit.tools import ToolDefinition
 from nxuskit.types import (
     ChatResponse,

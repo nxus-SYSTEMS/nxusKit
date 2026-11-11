@@ -33,6 +33,7 @@ class ConfigError(NxuskitError):
     def __init__(self, message: str, provider: str | None = None):
         super().__init__(message, error_type="configuration", provider=provider)
 
+
 class ProviderError(NxuskitError):
     """Raised for provider-side or provider-contract errors."""
 

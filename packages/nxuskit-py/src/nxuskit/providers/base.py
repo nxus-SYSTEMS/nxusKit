@@ -1,7 +1,7 @@
 """Base classes for provider implementations."""
 
-from abc import ABC, abstractmethod
 import json
+from abc import ABC, abstractmethod
 from typing import Any, Iterator, List, Optional, Union
 
 import requests
@@ -136,6 +136,7 @@ class BaseProvider(ABC):
         Unsupported canonical controls must fail explicitly before transport.
         """
         pass
+
     def list_models(self) -> List[ModelInfo]:
         """List available models from this provider.
 

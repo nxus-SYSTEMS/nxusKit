@@ -9,9 +9,7 @@ from nxuskit.errors import ProviderError
 MAX_UNARY_RESPONSE_BODY_BYTES = 16 * 1024 * 1024
 MAX_STREAM_RECORD_EVENT_BYTES = 4 * 1024 * 1024
 STREAM_BUFFER_DELIMITER_SLACK_BYTES = 4
-MAX_STREAM_ACCUMULATOR_BYTES = (
-    MAX_STREAM_RECORD_EVENT_BYTES + STREAM_BUFFER_DELIMITER_SLACK_BYTES
-)
+MAX_STREAM_ACCUMULATOR_BYTES = MAX_STREAM_RECORD_EVENT_BYTES + STREAM_BUFFER_DELIMITER_SLACK_BYTES
 
 
 def _limit_error(provider: str | None, what: str, limit: int) -> ProviderError:
@@ -78,17 +76,13 @@ class SseEventFramer:
             found = [(pos, width) for pos, width in found if pos >= 0]
             if not found:
                 if len(self._buffer) > MAX_STREAM_RECORD_EVENT_BYTES + 3:
-                    raise _limit_error(
-                        self._provider, "SSE event", MAX_STREAM_RECORD_EVENT_BYTES
-                    )
+                    raise _limit_error(self._provider, "SSE event", MAX_STREAM_RECORD_EVENT_BYTES)
                 return events
 
             frame_end, delimiter_len = min(found, key=lambda item: item[0])
             if frame_end > MAX_STREAM_RECORD_EVENT_BYTES:
                 del self._buffer[: frame_end + delimiter_len]
-                raise _limit_error(
-                    self._provider, "SSE event", MAX_STREAM_RECORD_EVENT_BYTES
-                )
+                raise _limit_error(self._provider, "SSE event", MAX_STREAM_RECORD_EVENT_BYTES)
             events.append(bytes(self._buffer[:frame_end]))
             del self._buffer[: frame_end + delimiter_len]
 
@@ -100,9 +94,7 @@ class SseEventFramer:
             if available <= 0:
                 events.extend(self._drain())
                 if len(self._buffer) >= MAX_STREAM_ACCUMULATOR_BYTES:
-                    raise _limit_error(
-                        self._provider, "SSE event", MAX_STREAM_RECORD_EVENT_BYTES
-                    )
+                    raise _limit_error(self._provider, "SSE event", MAX_STREAM_RECORD_EVENT_BYTES)
                 continue
             take = min(available, len(chunk) - offset)
             self._buffer.extend(chunk[offset : offset + take])
@@ -156,9 +148,7 @@ class NdjsonRecordFramer:
                 payload_end -= 1
             if payload_end > MAX_STREAM_RECORD_EVENT_BYTES:
                 del self._buffer[: newline + 1]
-                raise _limit_error(
-                    self._provider, "NDJSON record", MAX_STREAM_RECORD_EVENT_BYTES
-                )
+                raise _limit_error(self._provider, "NDJSON record", MAX_STREAM_RECORD_EVENT_BYTES)
             record = bytes(self._buffer[:payload_end])
             del self._buffer[: newline + 1]
             if record.strip():
@@ -189,9 +179,7 @@ class NdjsonRecordFramer:
         if self._buffer.endswith(b"\r"):
             self._buffer.pop()
         if len(self._buffer) > MAX_STREAM_RECORD_EVENT_BYTES:
-            raise _limit_error(
-                self._provider, "NDJSON record", MAX_STREAM_RECORD_EVENT_BYTES
-            )
+            raise _limit_error(self._provider, "NDJSON record", MAX_STREAM_RECORD_EVENT_BYTES)
         record = bytes(self._buffer)
         self._buffer.clear()
         if record.strip():

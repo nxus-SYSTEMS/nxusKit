@@ -137,6 +137,7 @@ on every chunk (FR-007 — no phantom data).
 from nxuskit import Provider, ChatRequest, Role
 import asyncio
 
+
 async def main():
     provider = Provider.openai()
 
@@ -155,6 +156,7 @@ async def main():
         if chunk.logprobs is not None:
             for tok in chunk.logprobs.content:
                 print(f"  token={tok.token!r} logprob={tok.logprob:.4f}")
+
 
 asyncio.run(main())
 ```

@@ -369,7 +369,9 @@ def test_ollama_native_async_unsupported_controls_fail_before_transport(control,
                         ProviderError, match="unsupported request control"
                     ) as caught:
                         if streaming:
-                            _ = [c async for c in provider.chat_stream_async([], **{control: value})]
+                            _ = [
+                                c async for c in provider.chat_stream_async([], **{control: value})
+                            ]
                         else:
                             await provider.chat_async([], **{control: value})
                     assert getattr(caught.value, "code", None) == "unsupported_capability"
@@ -459,13 +461,12 @@ def test_native_async_profile_generation_controls_fail_before_transport(
                                 )
                             ]
                         else:
-                            await provider.chat_async(
-                                [Message.user("hi")], **{control: value}
-                            )
+                            await provider.chat_async([Message.user("hi")], **{control: value})
                     assert getattr(caught.value, "code", None) == expected_code
                 assert requests == [] and provider.outstanding == 0
 
     asyncio.run(run())
+
 
 @pytest.mark.parametrize("case", ["stop", "json", "schema", "tools", "tool_choice"])
 def test_perplexity_native_async_unsupported_request_surface_fails_before_transport(case):
@@ -541,10 +542,7 @@ def test_perplexity_native_async_images_fail_before_transport(source_type):
                         ProviderError, match="unsupported request control: images"
                     ) as caught:
                         if streaming:
-                            _ = [
-                                chunk
-                                async for chunk in provider.chat_stream_async([message])
-                            ]
+                            _ = [chunk async for chunk in provider.chat_stream_async([message])]
                         else:
                             await provider.chat_async([message])
                     assert getattr(caught.value, "code", None) == "unsupported_capability"
@@ -2051,6 +2049,7 @@ def test_empty_tools_three_state_native_async_r47b():
                 assert getattr(caught.value, "code", None) == "unsupported_capability"
 
     asyncio.run(run())
+
 
 def test_resource_bound_native_async_unary_one_byte_over():
     from nxuskit.errors import ProviderError

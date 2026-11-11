@@ -127,6 +127,7 @@ def test_sync_unary_streamed_disconnect_maps_to_network_error(monkeypatch):
     with pytest.raises(NetworkError):
         OllamaProvider("m", api_url="http://example.invalid").chat([])
 
+
 def test_sync_unary_prebuffered_requests_response_remains_supported(monkeypatch):
     from io import BytesIO
 

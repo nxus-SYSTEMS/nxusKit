@@ -516,9 +516,7 @@ class _OwnedStream:
                     if code == "cancelled":
                         self._terminal = asyncio.CancelledError()
                     else:
-                        self._terminal = _callback_provider_error(
-                            self._owner.provider_name, data
-                        )
+                        self._terminal = _callback_provider_error(self._owner.provider_name, data)
             except BaseException as error:
                 self._terminal = error
 

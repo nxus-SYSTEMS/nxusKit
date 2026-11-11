@@ -9,10 +9,10 @@ import json
 from abc import abstractmethod
 from typing import Any, Iterator, List, Optional, Union
 
-from nxuskit.message import Message
 from nxuskit.errors import ProviderError
-from nxuskit.providers.base import BaseProvider
+from nxuskit.message import Message
 from nxuskit.providers._resource_bounds import SseEventFramer, sse_data_payload
+from nxuskit.providers.base import BaseProvider
 from nxuskit.tools import ToolCall, ToolDefinition
 from nxuskit.types import (
     ChatResponse,
@@ -358,7 +358,9 @@ class OpenAICompatibleProvider(BaseProvider):
             reasoning_effort,
         )
         if thinking is not None:
-            error = ProviderError(f"unsupported request control: thinking", provider=self.provider_name)
+            error = ProviderError(
+                "unsupported request control: thinking", provider=self.provider_name
+            )
             error.code = "unsupported_capability"
             raise error
 
@@ -389,7 +391,8 @@ class OpenAICompatibleProvider(BaseProvider):
                 raise error
 
         if (
-            self.provider_name in ("fireworks", "lmstudio", "groq", "mistral", "together", "openrouter")
+            self.provider_name
+            in ("fireworks", "lmstudio", "groq", "mistral", "together", "openrouter")
             and stream
             and (bool(tools) or tool_choice is not None)
         ):
