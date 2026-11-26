@@ -1,6 +1,6 @@
 # Getting Started with nxusKit
 
-Welcome to nxusKit! This guide helps you set up your development environment and start using the polyglot LLM toolkit.
+For the v2.0.0 release, start with the [installation guide](docs/user/getting-started.md) and [local first call](docs/user/first-call.md). Follow the [upgrade guide](docs/user/upgrade-path.md#migrate-from-v105-to-v200) if you use v1.0.5. The sections below cover additional source and development examples.
 
 ## Table of Contents
 
@@ -22,15 +22,15 @@ Welcome to nxusKit! This guide helps you set up your development environment and
 | Tool | Version | Installation |
 |------|---------|--------------|
 | Git | 2.0+ | [git-scm.com](https://git-scm.com/) |
-| Rust | 1.75+ | [rustup.rs](https://rustup.rs/) |
-| Go | 1.22+ | [go.dev](https://go.dev/dl/) |
+| Rust | 1.94+ | [rustup.rs](https://rustup.rs/) |
+| Go | 1.24.2+ | [go.dev](https://go.dev/dl/) |
 
 ### Verify Installation
 
 ```bash
 git --version      # git version 2.x.x
-rustc --version    # rustc 1.75.0 or higher
-go version         # go version go1.22.x or higher
+rustc --version    # rustc 1.94.0 or higher
+go version         # go version go1.24.2 or higher
 ```
 
 ### Optional Tools
@@ -137,11 +137,9 @@ cd my_llm_app
 go mod init my_llm_app
 ```
 
-### 2. Add Dependencies
+### 2. Add the matching v2 Go binding
 
-```bash
-go get github.com/nxus-SYSTEMS/nxusKit/packages/nxuskit-go
-```
+Follow the [Go installation instructions](docs/user/getting-started.md#4-first-example--go) and use the binding from the selected v2.0.0 bundle or source checkout. Go may select the newer toolchain declared in that binding's `go.mod`.
 
 ### 3. Write Your First Program
 
@@ -652,7 +650,7 @@ export LMSTUDIO_BASE_URL="http://localhost:1234/v1"
 ### Rust Issues
 
 **"error: could not compile"**
-- Check Rust version: `rustc --version` (need 1.75+)
+- Check Rust version: `rustc --version` (need 1.94+)
 - Update Rust: `rustup update`
 - Clean and rebuild: `cargo clean && cargo build`
 

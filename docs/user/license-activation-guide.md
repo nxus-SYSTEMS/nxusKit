@@ -244,21 +244,10 @@ credential-free status probe or a completed purchaser walkthrough:
 nxuskit-cli solver solve --input "$NXUSKIT_SOLVER_PROBLEM" --format json
 ```
 
-## Trial Activation
+## Trial access
 
-To request a Pro trial, first register for an account and authenticate:
-
-```bash
-nxuskit-cli license login
-nxuskit-cli license activate --trial --accept-eula --json
-```
-
-This requests trial issuance and stores the returned token; inspect `success`,
-`days_remaining` and `message`. Trial activation is a separate activation-code
-flow: `nxuskit-cli activate --trial --code "$NXUSKIT_TRIAL_CODE" --accept-eula --json`.
-Unactivated trials suspend after seven days; activated trials remain subject
-to `exp`, machine validation and compiled feature availability. Service trial
-duration/access policy is not established by this guide.
+Check your account for any available trial. The SDK includes trial commands.
+Availability, eligibility, and duration depend on the active service policy.
 
 ## Deployment Tokens
 

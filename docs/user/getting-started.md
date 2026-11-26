@@ -8,8 +8,8 @@ to call LLM providers from Rust, Go, Python, or the C ABI.
 This guide targets SDK **2.0.0**. Run CE from the downloadable SDK bundle or
 build CE from the public source. No SDK license token is required for CE.
 The downloadable bundle contains Pro capabilities; Solver requires a valid
-paid entitlement. New Pro purchases are paused. Launch Party Pricing details
-will follow. This release does not announce new package-index availability.
+v2 Pro entitlement. New Pro purchases remain paused. The GitHub release
+did not publish a v2.0.0 package to a language package index.
 
 For CE source builds, install Rust/Cargo compatible with the selected source
 lock, a C/C++ toolchain and CMake. The current SDK requires Rust 1.94 or newer;

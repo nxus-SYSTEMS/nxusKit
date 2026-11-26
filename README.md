@@ -1,8 +1,8 @@
 # nxusKit
 
-**One SDK. Every reasoning engine. Three languages.**
+**Generative AI, rules, and reasoning for Rust, Go, Python, and the CLI.**
 
-Polyglot SDK for 16+ LLM providers, CLIPS rule engines, and Bayesian networks in Community Edition, plus Pro solver, ZEN decision-table, plugin-loading, and trust-policy capabilities — Rust, Go, and Python SDKs plus `nxuskit-cli` for shell automation and CI.
+Community Edition includes LLM adapters, CLIPS rules, and Bayesian inference. The v2.0.0 platform bundles also include Pro Solver for developers with an eligible license.
 
 [![CI](https://github.com/nxus-SYSTEMS/nxusKit/workflows/CI/badge.svg)](https://github.com/nxus-SYSTEMS/nxusKit/actions)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
@@ -16,8 +16,8 @@ actual compiler identities; this declaration does not rebuild or requalify them.
 
 **[Documentation](https://docs.nxus.systems/nxuskit/)** · **[Getting Started](https://docs.nxus.systems/nxuskit/getting-started/installation/)** · **[Examples Docs](https://docs.nxus.systems/nxuskit/examples/)** · **[Examples Repo](https://github.com/nxus-SYSTEMS/nxusKit-examples)** · **[Website](https://nxus.systems)**
 
-> **v2.0.0 rollout:** Community Edition works without an SDK license. New Pro
-> purchases are paused; v2.0.0 Launch Party Pricing details will follow.
+> **v2.0.0 availability:** Community Edition works without an SDK license. New Pro
+> purchases remain paused.
 
 ---
 
@@ -25,10 +25,10 @@ actual compiler identities; this declaration does not rebuild or requalify them.
 
 Download and verify the [v2.0.0 SDK archive](https://github.com/nxus-SYSTEMS/nxusKit/releases/tag/sdk-v2.0.0)
 for Linux x86_64, macOS ARM64, or Windows x86_64. The same bundle runs CE
-without a token and requires a valid paid entitlement for Pro Solver.
+without a token and requires a valid v2 Pro entitlement for Pro Solver.
 Follow the [installation guide](docs/user/getting-started.md) and try the
 [local first call](docs/user/first-call.md). Upgrading from v1.0.5? See the
-[migration guide](docs/user/migration-guide.md).
+[upgrade guide](docs/user/upgrade-path.md#migrate-from-v105-to-v200).
 
 Use the language bindings that match your SDK version:
 
@@ -38,6 +38,21 @@ Use the language bindings that match your SDK version:
 | **Go** | [nxuskit-go](packages/nxuskit-go/) | Use the matching bundle or source binding |
 | **Python** | [nxuskit-py](packages/nxuskit-py/) | Use the matching bundle or source binding |
 | **C ABI** | Native library and headers | Use the matching bundle or build CE from source |
+
+### What changed in v2.0.0
+
+Use the versioned **1.1 workflow contract** to validate pipeline definitions
+and inspect structured stage outcomes, canonical hashes, and artifact history.
+The CLI's 1.1 LLM runner uses the built-in loopback adapter for local exercises.
+Use the SDK provider APIs or CLI `call` for real provider requests. External
+action stages report that your application must perform the action. See the
+[1.1 workflow example](docs/user/cli-input-reference.md#version-11-workflow-contract).
+
+Streaming callers can now distinguish the end of a response from the provider's
+reason for stopping. Use the completion helper where available and handle
+errors separately. Rust and Go callers with affected struct literals may need
+to change code. The [upgrade guide](docs/user/upgrade-path.md#migrate-from-v105-to-v200)
+lists the changes by language and explains how to test v2 alongside v1.0.5.
 
 ### Build Community Edition From Source
 
@@ -57,11 +72,11 @@ QA checks that are safe for a fresh public checkout.
 
 ### CLI / Shell Automation
 
-nxusKit includes `nxuskit-cli`, a JSON-first control plane for shell automation, CI, and multi-engine reasoning workflows. The CLI provides machine-facing access to all nxusKit engines — no library code required.
+nxusKit includes `nxuskit-cli`, a JSON-first control plane for shell automation, CI, and multi-engine reasoning workflows. The CLI exposes supported SDK operations through machine-readable input and output.
 
 ```bash
-# LLM invocation with structured output
-echo '{"prompt":"hello","provider":"claude","model":"claude-sonnet-4-20250514"}' \
+# Local LLM fixture with structured output
+echo '{"prompt":"hello","provider":"loopback","model":"echo"}' \
   | nxuskit-cli call --input - --format json
 
 # Constraint solving (Pro; implementation not shipped in public CE)
@@ -69,10 +84,6 @@ nxuskit-cli solver solve --input problem.json --format json
 
 # What-if analysis with base vs. assumed comparison (Pro)
 nxuskit-cli solver what-if --input base.json --compare assumed.json --format json
-
-# ZEN decision-table utilities (Pro, v0.9.4): structural validation + fixture testing
-nxuskit-cli zen validate --input my_table.jdm.json --format json
-nxuskit-cli zen test --input fixtures.json --format json
 
 # Bayesian network parameter learning + evidence validation (v0.9.4)
 nxuskit-cli bn learn --input bn_learn.json --format json     # learn CPDs from CSV; output is BIF-exportable
@@ -102,7 +113,7 @@ Looking for runnable examples? Start with the **[nxusKit examples documentation]
 
 ## Quick Example
 
-Stream a response from any provider with three lines of code:
+Stream a response through a configured provider. Models and capabilities depend on the provider:
 
 **Python**
 ```python
@@ -165,25 +176,25 @@ req = ChatRequest(
 # Response logprobs decode into typed LogprobsData / TokenLogprob / TopLogprob
 ```
 
-### Production licensing (v0.9.3)
+### Activate an existing eligible Pro entitlement
 
-Release builds default to `https://nxus.systems/licensing-api/v1` with
-the embedded ES256 production key (`kid: es256-v1`). Activation is
-offline-first after the first refresh.
+Use the matching v2.0.0 bundle and a valid v2 Pro entitlement for Solver.
+Login and activation contact the licensing service. The SDK validates the
+installed token locally when running entitled operations.
 
 ```bash
 # One-time device-auth login
 nxuskit-cli license login
 
-# Activate a real-purchase or leased token
-nxuskit-cli license activate --key <purchase-id> --accept-eula --json
+# Activate the entitlement shown in My Products
+nxuskit-cli license activate --key "$NXUSKIT_PURCHASE_ID" --accept-eula --json
 
 # Inspect the current license + endpoint diagnostics
 nxuskit-cli license status --json
 ```
 
 See [`sdk-packaging/docs/license-activation-guide.md`](sdk-packaging/docs/license-activation-guide.md)
-for the full activation flow and offline-first behavior.
+for the full activation flow. Inspect the returned license fields and verify the intended Solver operation.
 
 ---
 
@@ -316,22 +327,9 @@ Each example includes Rust, Go, and Python implementations.
 
 ## Support
 
-nxusKit SDK is currently in **public beta** (v0.9.x). APIs are stabilized as of v0.9.4.
-
-**During beta, support is provided on a best-effort basis through [GitHub Issues](https://github.com/nxus-SYSTEMS/nxusKit/issues).** We actively monitor and respond to issues, but we cannot guarantee response times or resolution timelines.
-
-Before opening an issue, please:
-- Search existing issues to avoid duplicates
-- Include your SDK version, language (Rust/Go/Python), and OS
-- Provide a minimal reproduction if possible
-
-**What to expect during beta:**
-- APIs are stabilized as of v0.9.4; bug fixes, provider behavior refinements, and additive features may still arrive between releases
-- Breaking changes are still possible but not likely from now (v0.9.4) through GA, but will be documented in release notes if they occur
-- Bug reports and feature requests are welcome and encouraged
-- Community contributions (PRs, docs improvements) are appreciated
-
-**Post-GA support tiers** will be available when the SDK reaches general availability. Details will be published at [nxus.systems/support](https://nxus.systems/support).
+Report product issues through [GitHub Issues](https://github.com/nxus-SYSTEMS/nxusKit/issues).
+Include the SDK version, operating system, language, and a minimal reproduction.
+For initial Pro support scope, see [Community and Pro](docs/user/tier-comparison.md).
 
 ---
 

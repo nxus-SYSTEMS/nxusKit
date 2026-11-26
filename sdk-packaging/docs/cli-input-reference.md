@@ -39,6 +39,7 @@ remain outside that launch promise. See [Tier Comparison](tier-comparison.md).
 - [bn learn](#bn-learn)
 - [bn evidence](#bn-evidence)
 - [pipeline run](#pipeline-run)
+  - [Version 1.1 workflow contract](#version-11-workflow-contract)
 - [artifact merge](#artifact-merge)
 - [artifact summarize](#artifact-summarize)
 - [packet validate](#packet-validate)
@@ -375,6 +376,56 @@ echo '{
 - `Invalid pipeline definition: ...` -- Fix: ensure input is valid YAML or JSON with `name` and `stages` fields.
 - `Unknown stage type: xyz` -- Fix: valid stage types are `llm`, `clips_eval`, `zen_eval`, `solver_solve`, `bn_infer`.
 - `PipelineStageFailed { stage: "...", detail: ... }` -- Fix: check the `stages[].result.message` field in the output for the root cause.
+
+#### Version 1.1 workflow contract
+
+SDK 2.0.0 adds the `nxuskit::contract::v1_1` Rust definitions and CLI
+support for pipelines declaring `"contract_version": "1.1"`. Use this
+contract to validate a definition and inspect structured stage results,
+canonical hashes, and artifact-history references. Earlier pipeline inputs
+use the legacy shape described above.
+
+Save this credential-free example as `workflow.json`:
+
+```json
+{
+  "contract_version": "1.1",
+  "pipeline_id": "local-workflow",
+  "version": "1.0.0",
+  "stages": [
+    {
+      "name": "echo",
+      "stage_type": "llm",
+      "provider_ref": "loopback",
+      "model_ref": "echo",
+      "capability_ref": "llm.text_completion",
+      "inputs": [],
+      "outputs": [{"name": "completion"}],
+      "metadata": {"prompt": "Hello from the local workflow"}
+    }
+  ]
+}
+```
+
+Use the `nxuskit-cli` from the selected v2.0.0 installation:
+
+```bash
+"$NXUSKIT_CLI" pipeline validate workflow.json --json
+"$NXUSKIT_CLI" pipeline preflight --input workflow.json --format json
+"$NXUSKIT_CLI" pipeline run --input workflow.json --format json
+```
+
+The validator returns `outcome: valid` for the example. Preflight returns a
+resource advisory and may have only partial information. The run report
+includes `contract_version: "1.1"`, a successful `echo` stage, the echoed
+output, and an artifact-history envelope. Use `--format jsonl` for event
+records followed by the final report.
+
+The 1.1 LLM runner uses the built-in loopback provider. Use `call` or the
+language bindings for real provider calls. External action stages report
+`external_action_required`. Some other stages are declaration-only. Inspect
+every relevant stage outcome, even when the CLI exits zero. The separate
+`contract-v2` command inspects the `2.0-alpha` schemas and fixtures.
 
 ---
 

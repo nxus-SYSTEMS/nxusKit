@@ -1,7 +1,9 @@
-# Migration Guide: ClipsEnvironment → ClipsSession
+# Historical CLIPS Migration: ClipsEnvironment → ClipsSession (v0.9.1)
 
 This guide covers migrating from the legacy `ClipsEnvironment` / `nxuskit_clips_env_*` API
 to the new `ClipsSession` / `nxuskit_clips_session_*` API introduced in SDK v0.9.1.
+
+For the current major-version change, follow [Migrate from v1.0.5 to v2.0.0](upgrade-path.md#migrate-from-v105-to-v200).
 
 ## What Changed
 
@@ -16,7 +18,7 @@ to the new `ClipsSession` / `nxuskit_clips_session_*` API introduced in SDK v0.9
 
 ## Who Needs to Migrate
 
-- **Chat provider users** (`NxuskitProvider` / `ChatRequest`): **No changes needed.** The Chat provider interface is unchanged.
+- **Chat provider users**: The historical CLIPS session transition does not affect chat code.
 - **Direct C ABI users** (`nxuskit_clips_env_*` functions): **Must migrate.** Old functions are removed.
 - **Rust SDK users** (`nxuskit::ClipsEnvironment`): **Must migrate** to `nxuskit::ClipsSession`.
 

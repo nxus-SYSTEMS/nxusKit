@@ -9,32 +9,45 @@ Public SDK release tags begin at `sdk-v0.9.0`. Earlier entries preserve
 pre-public development history with normalized pre-public version numbers after
 historical version resets.
 
-## [2.0.0] - 2026-07-15
+## [2.0.0] - 2026-11-11
 
-### Changed
+The [public release](https://github.com/nxus-SYSTEMS/nxusKit/releases/tag/sdk-v2.0.0)
+includes Community Edition source and SDK bundles for Linux x86_64, macOS ARM64,
+and Windows x86_64. Community Edition runs from the bundle without a license.
+Pro Solver requires a valid v2 Pro entitlement. New Pro purchases remain paused.
 
-- Prepared lockstep v2.0.0 package metadata across the Rust SDK and C ABI,
-  Go SDK, and Python SDK. This entry does not claim publication, availability,
-  or a public release.
+### Workflow and streaming
 
-- `nxuskit-cli doctor --json` now emits `captured_at` as the actual UTC command
-  capture time instead of the pre-RC deterministic epoch placeholder.
-- SDK 2.0.0 downstream-consumer documentation identifies the v1.1 contract
-  `nxuskit::contract::v1_1` as the authority for ActionEnvelope, ActionResult,
-  reference DTOs, readiness, artifact/history envelopes, regulated workflow
-  packets, pipeline definitions, and tool semantics. Pre-RC feature-105/WIP
-  gating language is superseded by `contract_version = "1.1"`.
+- Added the public Rust `nxuskit::contract::v1_1` definitions and CLI support
+  for validating versioned definitions, running supported local stages, and
+  collecting structured stage outcomes and artifact history. The 1.1 LLM
+  runner uses built-in loopback. The separate `2.0-alpha` contract is a preview.
+- Streaming can report terminality independently of a canonical finish
+  reason. Supported adapters preserve the raw provider finish reason when
+  available, including unfamiliar values.
+- Added C callbacks for asynchronous chat and model discovery. Existing
+  callers should use the native library, headers, and bindings from the same SDK.
+- `nxuskit-cli doctor --json` reports its actual UTC capture time.
 
-## [Unreleased]
+### Upgrade from v1.0.5
 
-### Package qualification controls
+- Rust source builds and Rust consumers require Rust 1.94 or later.
+- Rust `ChatRequest.seed` is now a signed 64-bit value. Rust struct literals
+  need the added request, response, and stream fields. Go callers using
+  unkeyed literals for the changed types should switch to keyed literals.
+- The v2.0.0 macOS bundle requires Apple Silicon. Use the bundle or public
+  source for v2.0.0 language bindings.
+
+See the [upgrade guide](docs/user/upgrade-path.md#migrate-from-v105-to-v200)
+for checks to run before switching installations.
+
+### Package verification
 
 - Pro package workflows bind one exact source/driver revision, immutable
   catalog/verifier inputs, producer tools and the inner archive checksum to
   extracted-consumer results. Windows qualification requires the two supported
   Pro prerequisites, not CE build success. Installation examples distinguish
-  historical qualification from current-source proof. These source changes do
-  not claim new package availability, platform qualification or publication.
+  historical qualification from current-source proof.
 
 ### Dependency and compiler compatibility repairs
 
@@ -44,7 +57,7 @@ historical version resets.
 - Updated the affected LRU, MCP, XML, Rustls, signing, and async-runtime
   dependency families. The SDK and shared licensing client use the coordinated
   JWT AWS-LC backend; token claims, key-ID enforcement, and denial behavior are
-  not relaxed. The C ABI is unchanged.
+  not relaxed. The dependency changes leave the existing C ABI entry points unchanged.
 - Source distributions retain attributed Candle ZIP-reader and ZEN parent
   repairs under the engine workspace's `third-party/` directory. Build the
   shipped workspace with its lock and patch tables intact; copying an internal
@@ -61,9 +74,6 @@ historical version resets.
   explicit. Catalog values and aliases, unsigned limits, CLI structured output,
   and malformed/duplicate/tagged-input rejection have focused compatibility
   coverage. This is not a C ABI or licensing-policy change.
-- These are candidate-source changes, not a publication, platform qualification,
-  or release-acceptance claim. Exact package/native and CI qualification remains
-  required; retained maintenance warnings are reported separately.
 - Residual maintenance risk remains in the optional model graph: `fxhash` is
   selected by `bm25`; `number_prefix` by the Mistral 0.7 `indicatif` path; and
   `paste` by the Candle/Mistral GEMM, SIMD, tokenizer, and image families. Current
@@ -73,7 +83,7 @@ historical version resets.
   no advisory ignore, security waiver, provider removal, or GA risk acceptance
   is implied by retaining these explicitly reported maintenance warnings.
 
-### Prerelease source migration — optional sampling controls
+### Source migration — optional sampling controls
 
 - Rust wrapper and engine `ChatRequest` now include optional `top_k: Option<i64>`
   and `min_p: Option<f64>`. Explicit Rust struct literals must add both fields
@@ -84,7 +94,7 @@ historical version resets.
   supplied values explicitly rather than silently dropping them. Python native
   and FFI sync/async request bindings preserve the same controls.
 
-### Prerelease source migration — signed request seeds
+### Source migration — signed request seeds
 
 - Rust `ChatRequest.seed` in the user-facing wrapper and engine is now
   `Option<i64>`, matching the canonical signed 64-bit request contract. Rust
@@ -95,9 +105,9 @@ historical version resets.
   that every provider supports every seed: the local llama.cpp sampler retains
   its unsigned 32-bit domain and explicitly rejects values outside it.
 - C ABI entry points and binary layouts are unchanged; the existing JSON
-  request field carries the signed value. No release or publication is implied.
+  request field carries the signed value.
 
-### Prerelease source migration — terminal result DTOs
+### Source migration — terminal result DTOs
 
 - Legacy finish reasons retain their existing five variants. Chat responses and
   stream chunks carry optional `raw_finish_reason` (`RawFinishReason` in Go);
@@ -111,14 +121,20 @@ historical version resets.
   accepts explicit terminality or a legacy finish reason; consumers must not
   infer completion solely from a known reason. Errors remain errors, not a
   successful terminal chunk.
-- These are prerelease source/JSON changes, not C ABI layout or entry-point
-  changes. They do not announce publication or release acceptance.
+- These changes affect source construction and JSON consumers. The existing
+  C entry-point signatures and layouts used by these fields remain compatible.
 - Selected OpenRouter/Perplexity response fields use optional `provider_metadata`
   (`ProviderMetadata` in Go) on unary and successful terminal results. Rust
   struct-literal callers must initialize this optional field; Python additions
   are defaulted/keyword-only. The fixed initial metadata envelope limit is
   65,536 compact UTF-8 bytes and depth 16; exceeding it errors without truncation
   or successful terminal output. This is not a whole-body/frame allocation bound.
+
+## v1.0 release history
+
+See the [v1.0.5 release](https://github.com/nxus-SYSTEMS/nxusKit/releases/tag/sdk-v1.0.5)
+and its [changelog](https://github.com/nxus-SYSTEMS/nxusKit/blob/sdk-v1.0.5/CHANGELOG.md)
+for the v1.0 release history, packages, and support.
 
 ## [0.9.4] - 2026-05-11
 

@@ -47,9 +47,7 @@ fmt.Println(fields, manifest.Providers[0].Capabilities["json_schema_strict"])
 
 ## Installation
 
-```bash
-go get github.com/nxus-SYSTEMS/nxusKit/packages/nxuskit-go
-```
+Use the Go binding supplied with the [v2.0.0 archive](https://github.com/nxus-SYSTEMS/nxusKit/releases/tag/sdk-v2.0.0) or the matching public CE source. Follow the [v2.0.0 installation guide](https://docs.nxus.systems/sdk/v2-0-0/). The v2.0.0 GitHub release did not publish a Go module version to the module index.
 
 ## Quick Start
 

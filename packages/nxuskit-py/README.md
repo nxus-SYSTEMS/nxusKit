@@ -22,11 +22,13 @@ Pure Python library for the [nxusKit](https://github.com/nxus-SYSTEMS/nxusKit) p
 
 ## Installation
 
-```bash
-pip install nxuskit-py
-```
-
-For FFI features (CLIPS, BN, Solver, ZEN), install the [nxusKit SDK](https://github.com/nxus-SYSTEMS/nxusKit/releases) and set `NXUSKIT_SDK_DIR` or install at `~/.nxuskit/sdk/current/`. CLIPS and Bayesian inference are Community Edition features; Solver and ZEN require Pro.
+For v2.0.0, install the Python binding from the matching
+[SDK archive](https://github.com/nxus-SYSTEMS/nxusKit/releases/tag/sdk-v2.0.0)
+or the public CE source using the [v2.0.0 installation guide](https://docs.nxus.systems/sdk/v2-0-0/).
+The v2.0.0 GitHub release did not publish a Python package to PyPI. Install in
+a separate virtual environment, confirm distribution version 2.0.0, and use
+the matching native library for FFI features. CLIPS and Bayesian inference
+are CE capabilities. Pro Solver requires a valid Pro entitlement.
 
 ## Quick Start
 

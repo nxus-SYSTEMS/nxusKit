@@ -14,18 +14,18 @@ catalog entries are planning inputs, not an offered v2.0.0 GA tier.
 | Edition | Distribution | Initial scope |
 | --- | --- | --- |
 | Community | Public source or the public SDK bundle | Community workflows without an SDK license token |
-| Pro | The same public SDK bundle with a valid paid entitlement | Entitled Solver workflows |
+| Pro | The same public SDK bundle with a valid v2 Pro entitlement | Entitled Solver workflows |
 
-Pro targets are Linux x86_64, macOS ARM64 and Windows x86_64. macOS x86_64 is
-unsupported starting with v2.0.0. Follow [Getting Started](getting-started.md)
+The v2.0.0 bundles target Linux x86_64, macOS ARM64, and Windows x86_64.
+The macOS bundle requires Apple Silicon. Follow [Getting Started](getting-started.md)
 to select the exact archive and verify its checksum. A package-index install
 is not a substitute for the selected native bundle.
 
 ## Commercial terms and runtime validity
 
-New Pro purchases are paused. Details about v2.0.0 Launch Party Pricing will
-follow. The public download does not change any existing paid rights, and
-older prices in the bundled guides are not a current offer.
+New Pro purchases remain paused. Existing paid rights continue under
+their applicable terms. Use the current release notes for purchase
+availability and pricing.
 
 Runtime validity and maintenance/support are separate. Strict deployment-v2
 tokens carry `sdk_release_line`; line 2 covers the v2 major line. Developer-token
