@@ -36,39 +36,23 @@ the provider's dashboard, then configure via any of these methods:
 export OPENAI_API_KEY="sk-..."
 ```
 
-**Credential store** (recommended for persistent local development):
-```bash
-nxuskit-cli provider set openai sk-...
-```
-
-This stores the key in the OS credential store (macOS Keychain, Windows
-Credential Manager, or Linux secret-service). Falls back to a file-based
-store with 0600 permissions if no system store is available.
+**Credential store** (for persistent local development): Use the supported
+language APIs below to set or remove stored credentials. The v2.0.0 CLI
+does not provide commands for those operations.
 
 **Explicit parameter** (for programmatic use):
+
 ```python
-provider = Provider.create("openai", api_key="sk-...")
+from nxuskit import Provider
+
+provider = Provider.openai(api_key="sk-...")
 ```
 
-### OAuth (Infrastructure Ready)
+### OAuth
 
-OAuth authentication infrastructure is implemented in v0.9.1 but no current
-providers require it. When a provider enables OAuth support, the flow will
-be:
-
-```bash
-# Start OAuth login
-nxuskit-cli provider login <provider>
-
-# Check auth status
-nxuskit-cli provider status
-```
-
-The OAuth flow uses:
-- PKCE (SHA-256 code challenge) for security
-- Localhost callback on an ephemeral port
-- State/CSRF validation
-- Automatic browser launch
+The provider help lists an OAuth login command. Use an API key for the cloud
+providers in the table. Signing in to nxus.SYSTEMS for SDK license activation
+is a separate operation.
 
 ### No Authentication
 
@@ -82,9 +66,9 @@ When multiple credential sources exist, the SDK uses this precedence order:
 
 | Priority | Source | Example |
 |----------|--------|---------|
-| 1 (highest) | Explicit API parameter | `Provider.create("openai", api_key="sk-...")` |
+| 1 (highest) | Explicit API parameter | `Provider.openai(api_key="sk-...")` |
 | 2 | Environment variable | `OPENAI_API_KEY=sk-...` |
-| 3 (lowest) | OS credential store | Via `nxuskit-cli provider set` |
+| 3 (lowest) | OS credential store | Via the credential APIs below |
 
 ## Checking Auth Status
 
@@ -116,20 +100,7 @@ claude            Authenticated       store    api_key
 xai               Not authenticated   —        api_key
 groq              Not authenticated   —        api_key
 ollama            Not required        —        —
-lm-studio         Not required        —        —
-```
-
-## Managing Credentials
-
-```bash
-# Store a credential
-nxuskit-cli provider set <provider> <api-key>
-
-# Remove a stored credential
-nxuskit-cli provider remove <provider>
-
-# View status
-nxuskit-cli provider status [provider]
+lmstudio          Not required        —        —
 ```
 
 ## Per-Language Configuration
@@ -152,16 +123,16 @@ let resolution = auth_resolve("openai", None)?;
 ### Go
 
 ```go
-import "github.com/nxus-SYSTEMS/nxuskit-go"
+import nxuskit "github.com/nxus-SYSTEMS/nxusKit/packages/nxuskit-go"
 
 // Check status
-status, err := nxuskit.AuthStatus("openai")
+status, err := nxuskit.GetAuthStatus("openai")
 
 // Store credential
 err = nxuskit.AuthSetCredential("openai", "sk-...")
 
 // Resolve credential
-resolution, err := nxuskit.AuthResolve("openai", "")
+resolution, err := nxuskit.AuthResolve("openai", nil)
 ```
 
 ### Python

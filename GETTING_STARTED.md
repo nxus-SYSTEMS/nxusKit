@@ -1,6 +1,6 @@
 # Getting Started with nxusKit
 
-Welcome to nxusKit! This guide helps you set up your development environment and start using the polyglot LLM toolkit.
+For the v2.0.0 release, start with the [installation guide](docs/user/getting-started.md) and [local first call](docs/user/first-call.md). Follow the [upgrade guide](docs/user/upgrade-path.md#migrate-from-v105-to-v200) if you use v1.0.5. The sections below cover additional source and development examples.
 
 ## Table of Contents
 
@@ -22,15 +22,15 @@ Welcome to nxusKit! This guide helps you set up your development environment and
 | Tool | Version | Installation |
 |------|---------|--------------|
 | Git | 2.0+ | [git-scm.com](https://git-scm.com/) |
-| Rust | 1.75+ | [rustup.rs](https://rustup.rs/) |
-| Go | 1.22+ | [go.dev](https://go.dev/dl/) |
+| Rust | 1.94+ | [rustup.rs](https://rustup.rs/) |
+| Go | 1.24.2+ | [go.dev](https://go.dev/dl/) |
 
 ### Verify Installation
 
 ```bash
 git --version      # git version 2.x.x
-rustc --version    # rustc 1.75.0 or higher
-go version         # go version go1.22.x or higher
+rustc --version    # rustc 1.94.0 or higher
+go version         # go version go1.24.2 or higher
 ```
 
 ### Optional Tools
@@ -137,11 +137,9 @@ cd my_llm_app
 go mod init my_llm_app
 ```
 
-### 2. Add Dependencies
+### 2. Add the matching v2 Go binding
 
-```bash
-go get github.com/nxus-SYSTEMS/nxusKit/packages/nxuskit-go
-```
+Follow the [Go installation instructions](docs/user/getting-started.md#4-first-example--go) and use the binding from the selected v2.0.0 bundle or source checkout. Go may select the newer toolchain declared in that binding's `go.mod`.
 
 ### 3. Write Your First Program
 
@@ -332,16 +330,16 @@ nxuskit-cli call --input prompt.json --format json --output result.json
 #### `pipeline run` — Multi-stage pipeline execution
 
 ```bash
-# Execute a YAML pipeline (stages run sequentially, halt on first failure)
+# Execute a legacy YAML pipeline
 nxuskit-cli pipeline run --input pipeline.yaml --format json
 
-# Stream stage-complete events as JSONL
+# Write JSONL output
 nxuskit-cli pipeline run --input pipeline.yaml --format jsonl
 ```
 
-#### Pro ZEN and solver commands
+#### Pro Solver commands
 
-ZEN and solver command discovery is available in CE, but implementations and detailed input contracts are Pro capabilities. See Pro-labeled product documentation for licensed usage details.
+Solver is the initial supported Pro capability. Use the matching native bundle and verify a valid v2 Pro entitlement before running it.
 
 #### `clips eval` — CLIPS rule evaluation
 
@@ -397,10 +395,9 @@ nxuskit-cli branch compare --input fork_results.json --format json
 
 ### Level 2 Commands (product surface)
 
-Level 2 commands are a stable product surface: provider inspection, shell
-completions, CLIPS session lifecycle, ZEN decision-table utilities, and the Pro
-solver `what-if` comparison. They share the same structured exit codes and
-`ErrorEnvelope` shape as Level 1.
+These commands cover provider inspection, shell completions, CLIPS session
+management, and the Pro Solver `what-if` comparison. Check each command's
+help and structured output before using it in automation.
 
 #### `provider list` / `provider info` -- provider capability inspection
 
@@ -449,30 +446,6 @@ nxuskit-cli clips session destroy --session-id sess_abc12345 --format json
 
 An unknown/invalid session id returns exit 5 (`validation`).
 
-#### `zen validate` -- structural validation of a JDM (Pro)
-
-```bash
-# Validate the structure of a decision model (no evaluation; requires Pro)
-nxuskit-cli zen validate --input my_table.jdm.json --format json
-# -> exit 0, {"result":{"valid":true,"node_count":3,"decision_table_count":1,"rule_count":4,...}}
-
-# A malformed model (e.g. a Function/JavaScript node) -> exit 5 with a diagnostic:
-nxuskit-cli zen validate --input broken.jdm.json
-# -> {"code":"zen_validate_error","details":{"problems":[{"kind":"FunctionNodeRejected",...}]}}
-```
-
-The `--input` for `zen validate` is the **JDM model itself** -- not the
-`{table, input}` envelope that `zen eval` accepts.
-
-#### `zen test` -- fixture-based decision-table testing (Pro)
-
-```bash
-# fixtures.json: {"table": <JDM>, "cases": [{"name":"...","input":{...},"expected":{...}}, ...]}
-nxuskit-cli zen test --input fixtures.json --format json
-# -> exit 0 when every case matches; exit 5 with a diff report on mismatch:
-#    {"code":"zen_test_mismatch","details":{"failed":[{"name":"...","diff":{"tier":{"expected":"C","actual":"B"}}}]}}
-```
-
 #### `solver what-if --compare` -- Pro constraint what-if comparison
 
 ```bash
@@ -481,7 +454,7 @@ nxuskit-cli solver what-if --problem problem.json --assume "x > 5" --compare --j
 ```
 
 See the [CLI Input Format Reference](https://docs.nxus.systems/nxuskit/reference/cli-reference/)
-for full input schemas (including `zen validate` / `zen test`).
+for command input schemas and the version 1.1 local workflow example.
 
 #### Exit Codes
 
@@ -652,7 +625,7 @@ export LMSTUDIO_BASE_URL="http://localhost:1234/v1"
 ### Rust Issues
 
 **"error: could not compile"**
-- Check Rust version: `rustc --version` (need 1.75+)
+- Check Rust version: `rustc --version` (need 1.94+)
 - Update Rust: `rustup update`
 - Clean and rebuild: `cargo clean && cargo build`
 
