@@ -225,7 +225,7 @@ fn main() -> Result<(), nxuskit::NxuskitError> {
 3. On macOS: inspect any OS security warning and follow your organization's trusted-package policy; do not bypass it for an unverified download.
 
 See [examples/rust/](../examples/rust/) for a runnable project, and
-[rust/README.md](../rust/README.md) for the full nxuskit API documentation.
+[rust/README.md](https://github.com/nxus-SYSTEMS/nxusKit/blob/sdk-v2.0.0/packages/nxuskit/README.md) for the full nxuskit API documentation.
 
 ### v1.1 Contract DTOs for Downstream Consumers
 

@@ -165,7 +165,7 @@ make basic_chat
 ./bin/basic_chat
 ```
 
-See [examples/c/basic_chat.c](../examples/c/basic_chat.c) for the source.
+See [examples/c/basic_chat.c](https://github.com/nxus-SYSTEMS/nxusKit/blob/sdk-v2.0.0/sdk-packaging/examples/c/basic_chat.c) for the source.
 
 ## 4. First Example — Go
 
@@ -176,7 +176,7 @@ cd "$NXUSKIT_SDK_DIR/examples/go"
 go run ./basic-chat
 ```
 
-See [examples/go/basic-chat/main.go](../examples/go/basic-chat/main.go) for the source.
+See [examples/go/basic-chat/main.go](https://github.com/nxus-SYSTEMS/nxusKit/blob/sdk-v2.0.0/sdk-packaging/examples/go/basic-chat/main.go) for the source.
 
 ## 5. First Example — Rust
 
@@ -224,8 +224,8 @@ fn main() -> Result<(), nxuskit::NxuskitError> {
 2. The `lib/` subdirectory exists: `ls $NXUSKIT_SDK_DIR/lib/`
 3. On macOS: inspect any OS security warning and follow your organization's trusted-package policy; do not bypass it for an unverified download.
 
-See [examples/rust/](../examples/rust/) for a runnable project, and
-[rust/README.md](../rust/README.md) for the full nxuskit API documentation.
+See [examples/rust/](https://github.com/nxus-SYSTEMS/nxusKit/tree/sdk-v2.0.0/sdk-packaging/examples/rust) for a runnable project, and
+[rust/README.md](https://github.com/nxus-SYSTEMS/nxusKit/blob/sdk-v2.0.0/packages/nxuskit/README.md) for the full nxuskit API documentation.
 
 ### v1.1 Contract DTOs for Downstream Consumers
 
@@ -304,7 +304,7 @@ is a live cloud-provider call, unlike the credential-free
 [local first call](first-call.md); it needs a provider key and may be billable.
 The installed Python distribution must report `2.0.0`.
 
-See [examples/python/basic_chat.py](../examples/python/basic_chat.py) for the source.
+See [examples/python/basic_chat.py](https://github.com/nxus-SYSTEMS/nxusKit/blob/sdk-v2.0.0/sdk-packaging/examples/python/basic_chat.py) for the source.
 
 ## Core Concepts
 
@@ -426,4 +426,4 @@ lib = ffi.dlopen("sdk/lib/libnxuskit.so")  # or .dylib / .dll
 - [API Reference](api-reference.md) — full C ABI documentation
 - [Provider Reference](providers/cloud-llms.md) — provider-specific configuration
 - [Rule Authoring Guide](rule-authoring.md) — writing, testing, and deploying custom CLIPS rules
-- [Examples](../examples/) — working code for SDK languages and C ABI workflows
+- [Examples](https://github.com/nxus-SYSTEMS/nxusKit/tree/sdk-v2.0.0/sdk-packaging/examples) — working code for SDK languages and C ABI workflows
