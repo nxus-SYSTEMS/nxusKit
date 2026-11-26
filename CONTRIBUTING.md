@@ -21,7 +21,7 @@ nxusKit/
 ├── packages/
 │   ├── nxuskit-engine/      # Rust implementation
 │   ├── nxuskit-go/      # Go implementation
-│   ├── nxuskit-py/     # Python implementation (future)
+│   ├── nxuskit-py/     # Python implementation
 │   └── gateway/       # Node.js gateway (future)
 ├── conformance/       # Cross-language test vectors
 ├── docs/              # Documentation
@@ -52,9 +52,9 @@ Your contribution will be credited in the commit history.
 - The publish workflow then mirrors changes back to public
 - Your original PR may be closed as "merged via internal" once changes appear
 
-## Beta Status Notice
+## Development and compatibility
 
-nxusKit is currently in **beta** (v0.x.x). While the API is stabilizing, breaking changes may still occur. We especially welcome:
+For the public v2.0.0 SDK, see the [upgrade guidance](docs/user/upgrade-path.md#migrate-from-v105-to-v200) for compatibility changes. We especially welcome:
 
 - Bug reports and fixes
 - Documentation improvements
@@ -113,7 +113,7 @@ Feature suggestions are welcome! Please:
 
 ### Prerequisites
 
-- Rust 1.92 or later
+- Rust 1.94 or later
 - Cargo (comes with Rust)
 
 ### Setup
