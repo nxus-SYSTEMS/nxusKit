@@ -214,19 +214,17 @@ capability; other compiled capabilities are not launch support promises.
 
 ## Features
 
-- **16+ LLM Providers (CE)** — Claude, OpenAI, Ollama, xAI Grok, Groq, Mistral, Fireworks, Together, OpenRouter, Perplexity, LM Studio, and more
+- **Cloud and local LLM providers (CE)** — Claude, OpenAI, Ollama, xAI Grok, Groq, Mistral, Fireworks, Together, OpenRouter, Perplexity, LM Studio, and more
 - **Per-Request Model Override (CE)** — Switch models on any `chat()` call without creating new provider instances
 - **Streaming (CE)** — First-class SSE and NDJSON streaming with `is_final()` completion detection
-- **Tool Calling (CE)** — Function definitions, tool choice strategies, response deserialization across all providers
+- **Tool Calling (CE)** — Function definitions, tool choice strategies, response deserialization on supported providers
 - **Vision/Multimodal (CE)** — Image inputs via URL, base64, or file path with auto-detected MIME types
 - **CLIPS Rule Engine (CE)** — Session lifecycle, fact assertion, rule execution, and rule-backed validation
 - **Bayesian Networks (CE)** — Structure learning, parameter estimation, inference with evidence
 - **Z3 Constraint Solver (Pro)** — Variables, constraints, objectives, push/pop scoping, streaming solve
-- **ZEN Decision Tables (Pro)** — JSON-in/JSON-out stateless evaluation
-- **Plugin Loading & Trust Policy (Pro)** — Signed shared-library extensions with trust policy enforcement
 - **Model Discovery (CE)** — `list_models()` with vision detection, modality introspection, capability metadata
 - **Retry & Rate Limiting (CE)** — Configurable backoff, adaptive rate limiting, per-provider error handling
-- **Cross-Language Parity (CE + Pro where applicable)** — Same types, same patterns, same field names (`delta`, `finish_reason`) across Rust, Go, and Python
+- **Language bindings** — Rust, Go, and Python APIs with shared concepts; capabilities vary by binding and provider.
 
 ---
 
@@ -267,21 +265,16 @@ flowchart TB
   core --> clips["CLIPS rules<br/>(CE)"]
   core --> bn["Bayesian networks<br/>(CE)"]
   core --> solver["Z3 solver<br/>(Pro)"]
-  core --> zen["ZEN decision tables<br/>(Pro)"]
-  core --> plugins["Plugin loading<br/>trust policy (Pro)"]
 ```
 
 Language SDKs provide idiomatic APIs, mock/loopback testing utilities, and FFI-backed access to native engines where needed. `nxuskit-cli` exposes the same engine family as JSON-first commands for scripts, CI, and shell pipelines. See [ARCHITECTURE.md](ARCHITECTURE.md) for developer integration patterns, including LLM routing recipes, audit loops, and creativity-engine designs.
 
 ---
 
-## Testing and Public Test Releases
+## Testing
 
-The internal test suite spans Rust, Go, Python, CLI, C ABI, parity fixtures, conformance vectors, provider adapters, reasoning engines, entitlement behavior, and release smoke tests. The public repository will receive the portions of that coverage that can be released without exposing private implementation details, credentials, customer data, or proprietary Pro internals.
-
-Initial public test releases will focus on Community Edition conformance vectors, mock/loopback provider tests, language parity fixtures, CLI JSON contract tests, and safe Pro boundary tests that assert edition behavior without leaking implementation IP. Those releases will begin as nxusKit approaches the end of public beta; the first visible tranche of public tests should be treated as a signal that beta is close to closing.
-
-See [TESTING.md](TESTING.md) for the testing philosophy, current internal coverage snapshot, release boundaries, and open questions for maintainers.
+Use `make qa` in the public Community Edition checkout and see the
+[contribution guide](CONTRIBUTING.md) for language-specific checks.
 
 ---
 
@@ -303,7 +296,6 @@ See [TESTING.md](TESTING.md) for the testing philosophy, current internal covera
 | **CLIPS** | CE | None | Custom | No | Expert Systems |
 | **Bayesian Net** | CE | None | JSON | No | Probabilistic Inference |
 | **Z3 Solver** | Pro | None | JSON | No | Constraint Solving |
-| **ZEN** | Pro | None | N/A | No | Decision Tables |
 
 ---
 
@@ -319,7 +311,6 @@ The **[nxusKit examples documentation](https://docs.nxus.systems/nxuskit/example
 | **CLIPS** | Rule loading, fact assertion, LLM+rules hybrid |
 | **Solver** | Constraint satisfaction, what-if analysis (`--compare`), optimization (Pro) |
 | **Bayesian** | Structure learning, inference, evidence propagation (CE) |
-| **ZEN** | Decision table evaluation (Pro) |
 
 Check each example for supported languages and prerequisites.
 
