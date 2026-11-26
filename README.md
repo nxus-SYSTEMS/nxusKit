@@ -83,7 +83,7 @@ echo '{"prompt":"hello","provider":"loopback","model":"echo"}' \
 nxuskit-cli solver solve --input problem.json --format json
 
 # What-if analysis with base vs. assumed comparison (Pro)
-nxuskit-cli solver what-if --input base.json --compare assumed.json --format json
+nxuskit-cli solver what-if --problem base.json --assume 'x > 5' --compare --format json
 
 # Bayesian network parameter learning + evidence validation (v0.9.4)
 nxuskit-cli bn learn --input bn_learn.json --format json     # learn CPDs from CSV; output is BIF-exportable
@@ -321,7 +321,7 @@ The **[nxusKit examples documentation](https://docs.nxus.systems/nxuskit/example
 | **Bayesian** | Structure learning, inference, evidence propagation (CE) |
 | **ZEN** | Decision table evaluation (Pro) |
 
-Each example includes Rust, Go, and Python implementations.
+Check each example for supported languages and prerequisites.
 
 ---
 
